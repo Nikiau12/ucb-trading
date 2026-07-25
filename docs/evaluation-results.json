@@ -1,0 +1,290 @@
+{
+  "run_id": "20260725T131549Z",
+  "generated_at": "2026-07-25T13:15:49.325926+00:00",
+  "duration_seconds": 16.35,
+  "methodology": {
+    "symbols": [
+      "BTC_USDT",
+      "ETH_USDT",
+      "SOL_USDT",
+      "XRP_USDT",
+      "DOGE_USDT",
+      "ADA_USDT",
+      "BNB_USDT",
+      "LTC_USDT",
+      "LINK_USDT",
+      "AVAX_USDT",
+      "DOT_USDT",
+      "TRX_USDT",
+      "BCH_USDT",
+      "SUI_USDT",
+      "PEPE_USDT",
+      "HYPE_USDT",
+      "TAO_USDT",
+      "ZEC_USDT",
+      "NEAR_USDT",
+      "APT_USDT"
+    ],
+    "workers": 5,
+    "profile": {
+      "deposit": 3000.0,
+      "risk_pct": 1.0,
+      "lev": 20.0,
+      "margin": "cross"
+    },
+    "profitability_evaluated": false
+  },
+  "summary": {
+    "symbols_requested": 20,
+    "symbols_completed": 20,
+    "symbols_error": 0,
+    "plans_generated": 10,
+    "safe_skips": 10,
+    "valid_plans": 10,
+    "plan_validity_pct": 100.0,
+    "fresh_data_pct": 100.0,
+    "latency_ms": {
+      "median_total": 3176.68,
+      "p90_total": 3298.35,
+      "median_compute": 2.55,
+      "p90_compute": 3.54
+    },
+    "normalization_pass_rate_pct": 100.0,
+    "risk_matrix_pass_rate_pct": 100.0
+  },
+  "normalization": {
+    "cases": 65,
+    "passed": 65,
+    "pass_rate_pct": 100.0,
+    "failures": []
+  },
+  "risk_matrix": {
+    "reference_symbol": "XRP_USDT",
+    "cases": 36,
+    "passed": 36,
+    "pass_rate_pct": 100.0,
+    "failures": []
+  },
+  "symbol_results": [
+    {
+      "symbol": "BTC_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3111.93,
+      "plan_compute_ms": 2.0,
+      "total_ms": 3113.93,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "ETH_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3097.78,
+      "plan_compute_ms": 2.67,
+      "total_ms": 3100.46,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "SOL_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3105.97,
+      "plan_compute_ms": 2.18,
+      "total_ms": 3108.15,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "XRP_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3103.59,
+      "plan_compute_ms": 2.16,
+      "total_ms": 3105.75,
+      "violations": [],
+      "side": "short",
+      "confidence": 1.0
+    },
+    {
+      "symbol": "DOGE_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3108.31,
+      "plan_compute_ms": 2.28,
+      "total_ms": 3110.59,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.75
+    },
+    {
+      "symbol": "ADA_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3269.99,
+      "plan_compute_ms": 2.37,
+      "total_ms": 3272.36,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "BNB_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3276.45,
+      "plan_compute_ms": 2.13,
+      "total_ms": 3278.58,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "LTC_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3189.28,
+      "plan_compute_ms": 4.31,
+      "total_ms": 3193.6,
+      "violations": [],
+      "side": "long",
+      "confidence": 0.3571
+    },
+    {
+      "symbol": "LINK_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3240.69,
+      "plan_compute_ms": 3.2,
+      "total_ms": 3243.89,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "AVAX_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3260.04,
+      "plan_compute_ms": 2.45,
+      "total_ms": 3262.49,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.9
+    },
+    {
+      "symbol": "DOT_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3244.3,
+      "plan_compute_ms": 2.59,
+      "total_ms": 3246.9,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.75
+    },
+    {
+      "symbol": "TRX_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3149.16,
+      "plan_compute_ms": 3.48,
+      "total_ms": 3152.64,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.5
+    },
+    {
+      "symbol": "BCH_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3303.28,
+      "plan_compute_ms": 3.31,
+      "total_ms": 3306.6,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.75
+    },
+    {
+      "symbol": "SUI_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3156.92,
+      "plan_compute_ms": 2.83,
+      "total_ms": 3159.76,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "PEPE_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 2944.02,
+      "plan_compute_ms": 4.03,
+      "total_ms": 2948.05,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "HYPE_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3117.52,
+      "plan_compute_ms": 3.47,
+      "total_ms": 3120.99,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.55
+    },
+    {
+      "symbol": "TAO_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3312.36,
+      "plan_compute_ms": 2.51,
+      "total_ms": 3314.87,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.75
+    },
+    {
+      "symbol": "ZEC_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3295.27,
+      "plan_compute_ms": 2.16,
+      "total_ms": 3297.43,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "NEAR_USDT",
+      "status": "skip",
+      "used_cache": false,
+      "snapshot_ms": 3263.97,
+      "plan_compute_ms": 2.87,
+      "total_ms": 3266.85,
+      "violations": [],
+      "confidence": 0.0,
+      "skip_reason": "filters_killed_setup"
+    },
+    {
+      "symbol": "APT_USDT",
+      "status": "plan",
+      "used_cache": false,
+      "snapshot_ms": 3143.94,
+      "plan_compute_ms": 2.29,
+      "total_ms": 3146.23,
+      "violations": [],
+      "side": "short",
+      "confidence": 0.9
+    }
+  ]
+}

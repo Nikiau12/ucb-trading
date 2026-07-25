@@ -1,0 +1,4 @@
+-r miniapp/requirements.txt
+
+pytest>=8,<9
+

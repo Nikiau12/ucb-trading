@@ -4,7 +4,9 @@
 Новый функционал  : /plan (EMA+ATR+ADX), /scan, /digest, /set, /settings, i18n x5
 """
 import asyncio
+import html
 import json
+import logging
 import os
 import sys
 import time
@@ -48,6 +50,9 @@ import scanner as sc
 import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import render_telegram_plan
+from user_input import is_deposit_input, parse_deposit_amount
+
+logger = logging.getLogger("ucb.bot")
 
 # ── конфиг сканера ──
 with open(os.path.join(_TRADING_DIR, "config.json")) as _f:
@@ -421,15 +426,15 @@ async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMConte
     await callback.answer()
 
 
-@router.message(DepositSetup.waiting_for_amount)
+@router.message(
+    DepositSetup.waiting_for_amount,
+    lambda message: is_deposit_input(message.text),
+)
 async def handle_deposit_amount(message: types.Message, state: FSMContext):
     lang = get_lang(message.from_user.id)
-    raw = (message.text or "").strip().replace(" ", "").replace(",", ".")
     try:
-        deposit = float(raw)
-        if deposit <= 0 or deposit > 1_000_000_000:
-            raise ValueError
-    except ValueError:
+        deposit = parse_deposit_amount(message.text)
+    except (TypeError, ValueError):
         await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
         return
 
@@ -596,7 +601,9 @@ async def cmd_spikes(message: types.Message):
 
 @router.message(Command("plan"))
 async def cmd_plan(message: types.Message):
+    logger.info("command.plan.received message_id=%s", message.message_id)
     if not await require_deposit(message):
+        logger.info("command.plan.deposit_required message_id=%s", message.message_id)
         return
     chat_id = str(message.chat.id)
     if not is_admin(chat_id):
@@ -648,8 +655,12 @@ async def cmd_plan(message: types.Message):
                 remaining = access_manager.status(chat_id)["trial_left"]
                 if access_manager.status(chat_id)["has_paid_access"] is False:
                     await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
-    except Exception as e:
-        await status_msg.edit_text(_t(lang, "plan_error", error=e), parse_mode="HTML")
+    except Exception as exc:
+        logger.exception("command.plan.failed symbol=%s", symbol)
+        await status_msg.edit_text(
+            _t(lang, "plan_error", error=html.escape(str(exc))),
+            parse_mode="HTML",
+        )
 
 
 @router.message(Command("set"))
@@ -701,7 +712,9 @@ async def cmd_settings(message: types.Message):
 
 @router.message(Command("scan"))
 async def cmd_scan(message: types.Message):
+    logger.info("command.scan.received message_id=%s", message.message_id)
     if not await require_deposit(message):
+        logger.info("command.scan.deposit_required message_id=%s", message.message_id)
         return
     chat_id = str(message.chat.id)
     access_mode = "admin"
@@ -769,8 +782,12 @@ async def cmd_scan(message: types.Message):
             await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
         elif len(actionable) > limit:
             await message.reply(_t(lang, "scan_more", count=len(actionable) - limit), parse_mode="HTML")
-    except Exception as e:
-        await status_msg.edit_text(_t(lang, "scan_error", error=e), parse_mode="HTML")
+    except Exception as exc:
+        logger.exception("command.scan.failed")
+        await status_msg.edit_text(
+            _t(lang, "scan_error", error=html.escape(str(exc))),
+            parse_mode="HTML",
+        )
 
 
 @router.message(Command("digest"))
@@ -1265,6 +1282,10 @@ async def listing_watcher_loop():
 # ═══════════════════════════════════════════
 
 async def main():
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     print("UCB_TRADING_BOT — unified system starting...")
     dp = Dispatcher()
     dp.include_router(router)
