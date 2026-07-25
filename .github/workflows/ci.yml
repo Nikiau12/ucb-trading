@@ -32,5 +32,4 @@ jobs:
         run: python -m compileall -q bot_mexc.py core mexc miniapp trading
 
       - name: Run tests
-        run: pytest -q
-
+        run: python -m pytest -q
