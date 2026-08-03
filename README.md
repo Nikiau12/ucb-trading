@@ -151,8 +151,8 @@ runtime.
 ### 1. Install
 
 ```bash
-git clone https://github.com/Nikiau12/traidingbot-ucb.git
-cd traidingbot-ucb
+git clone https://github.com/Nikiau12/ucb-trading.git
+cd ucb-trading
 python3.9 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
