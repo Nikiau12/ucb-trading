@@ -16,14 +16,36 @@ class ExchangeClient:
         }
         self.exchange = ccxt.mexc(self._exchange_options)
         self._trading_exchange = None
+        self._public_request_lock = asyncio.Lock()
+        self._last_public_request_at = 0.0
+        self._public_request_interval = 0.75
         self._markets_loaded = False
         self._tickers_cache = {}
         self._tickers_cache_ts = 0
         
     async def load_markets_if_needed(self):
         if not self._markets_loaded:
-            await self.exchange.load_markets()
+            await self._public_request(self.exchange.load_markets)
             self._markets_loaded = True
+
+    async def _public_request(self, operation, *args, **kwargs):
+        """Serialize public MEXC calls and retry the exchange's code 510 throttle."""
+        for attempt in range(4):
+            try:
+                async with self._public_request_lock:
+                    elapsed = time.monotonic() - self._last_public_request_at
+                    if elapsed < self._public_request_interval:
+                        await asyncio.sleep(self._public_request_interval - elapsed)
+                    try:
+                        return await operation(*args, **kwargs)
+                    finally:
+                        self._last_public_request_at = time.monotonic()
+            except Exception as exc:
+                message = str(exc).lower()
+                is_throttled = "too frequent" in message or '"code":510' in message or "rate limit" in message
+                if not is_throttled or attempt == 3:
+                    raise
+                await asyncio.sleep(2 ** (attempt + 1))
 
     async def validate_symbol(self, raw_coin: str) -> str:
         """
@@ -97,7 +119,7 @@ class ExchangeClient:
         now = time.time()
         if self._tickers_cache and now - self._tickers_cache_ts < ttl_seconds:
             return self._tickers_cache
-        self._tickers_cache = await self.exchange.fetch_tickers()
+        self._tickers_cache = await self._public_request(self.exchange.fetch_tickers)
         self._tickers_cache_ts = now
         return self._tickers_cache
 
@@ -110,7 +132,12 @@ class ExchangeClient:
         try:
             # We don't always need to format symbol to ccxt standard if we got it from fetch_tickers, 
             # but usually it's good to be safe.
-            ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+            ohlcv = await self._public_request(
+                self.exchange.fetch_ohlcv,
+                symbol,
+                timeframe,
+                limit=limit,
+            )
             
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
@@ -133,7 +160,13 @@ class ExchangeClient:
         try:
             # Setting limit=1000 for weekly timeframe will fetch roughly 20 years of data.
             # since=0 forces it to start from the beginning of available history on some exchanges (if supported).
-            ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe, since=0, limit=1000)
+            ohlcv = await self._public_request(
+                self.exchange.fetch_ohlcv,
+                symbol,
+                timeframe,
+                since=0,
+                limit=1000,
+            )
             
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
