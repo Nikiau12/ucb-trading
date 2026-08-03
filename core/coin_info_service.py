@@ -81,6 +81,10 @@ class CoinInfoService:
         return coin_id
 
     async def _fetch_json(self, url: str):
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != "https" or parsed.hostname != "api.coingecko.com":
+            raise ValueError("unsupported CoinGecko URL")
+
         def request():
             req = urllib.request.Request(
                 url,
@@ -89,7 +93,7 @@ class CoinInfoService:
                     "user-agent": "mexc-signal-bot/1.0",
                 },
             )
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310
                 return json.loads(response.read().decode("utf-8"))
 
         try:

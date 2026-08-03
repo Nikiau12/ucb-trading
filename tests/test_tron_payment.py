@@ -1,3 +1,5 @@
+import time
+
 from core.tron_payment import TronPaymentVerifier, USDT_TRC20_CONTRACT
 
 
@@ -18,7 +20,7 @@ def _transfer(tx_hash, wallet, value="29990000"):
         "to": wallet,
         "from": "TFromWallet",
         "value": value,
-        "block_timestamp": 1_750_000_000_000,
+        "block_timestamp": int(time.time() * 1000),
         "token_info": {
             "address": USDT_TRC20_CONTRACT,
             "decimals": 6,
@@ -83,3 +85,16 @@ def test_underpayment_is_rejected(monkeypatch):
     assert result["reason"] == "amount_too_low"
     assert result["paid_amount"] == "10"
 
+
+def test_old_transaction_cannot_activate_access(monkeypatch):
+    wallet = "TReceivingWallet"
+    tx_hash = "d" * 64
+    transfer = _transfer(tx_hash, wallet)
+    transfer["block_timestamp"] = int((time.time() - 73 * 60 * 60) * 1000)
+    verifier = TronPaymentVerifier(wallet, "29.99", max_age_hours=72)
+    monkeypatch.setattr(
+        "core.tron_payment.requests.get",
+        lambda *args, **kwargs: FakeResponse([transfer]),
+    )
+
+    assert verifier.verify(tx_hash) == {"ok": False, "reason": "transaction_expired"}

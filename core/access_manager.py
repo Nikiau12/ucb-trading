@@ -88,6 +88,19 @@ class AccessManager:
 
     def find_payment_by_tx_hash(self, tx_hash: str, exclude_chat_id: str = None):
         normalized = str(tx_hash).lower()
+        if self.database_url and psycopg:
+            try:
+                with psycopg.connect(self.database_url) as connection:
+                    self._ensure_payment_claims_table(connection)
+                    row = connection.execute(
+                        "SELECT telegram_user_id, status FROM payment_claims WHERE tx_hash = %s",
+                        (normalized,),
+                    ).fetchone()
+                    connection.commit()
+                    if row and str(row[0]) != str(exclude_chat_id):
+                        return {"chat_id": str(row[0]), "tx_hash": normalized, "status": row[1]}
+            except Exception as e:
+                print(f"[AccessManager] payment claim lookup failed: {e}")
         for chat_id, user in self._load().get("users", {}).items():
             claims = list(user.get("payment_claims") or [])
             legacy_claim = user.get("last_payment_claim") or {}
@@ -98,11 +111,31 @@ class AccessManager:
                     return {"chat_id": str(chat_id), **claim}
         return None
 
-    def record_payment_claim(self, chat_id: str, tx_hash: str, **details) -> dict:
+    def record_payment_claim(self, chat_id: str, tx_hash: str, **details) -> dict | None:
+        normalized = str(tx_hash).lower()
+        if self.database_url and psycopg:
+            try:
+                with psycopg.connect(self.database_url) as connection:
+                    self._ensure_payment_claims_table(connection)
+                    row = connection.execute(
+                        """
+                        INSERT INTO payment_claims (tx_hash, telegram_user_id, status, details)
+                        VALUES (%s, %s, 'pending', %s)
+                        ON CONFLICT (tx_hash) DO NOTHING
+                        RETURNING tx_hash
+                        """,
+                        (normalized, int(chat_id), json.dumps(details)),
+                    ).fetchone()
+                    connection.commit()
+                    if row is None:
+                        return None
+            except Exception as e:
+                print(f"[AccessManager] payment claim reservation failed: {e}")
+                return None
         state = self._load()
         user = self._user(state, chat_id)
         claim = {
-            "tx_hash": tx_hash,
+            "tx_hash": normalized,
             "status": "pending",
             "created_at": int(time.time()),
             **details,
@@ -112,6 +145,20 @@ class AccessManager:
         user["paywall_sent"] = False
         self._save(state)
         return claim
+
+    @staticmethod
+    def _ensure_payment_claims_table(connection):
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_claims (
+                tx_hash TEXT PRIMARY KEY,
+                telegram_user_id BIGINT NOT NULL,
+                status TEXT NOT NULL,
+                details JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
 
     def grant_access(self, chat_id: str, hours: int = None) -> int:
         state = self._load()

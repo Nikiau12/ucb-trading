@@ -9,22 +9,32 @@ const translations = {
   es:{workspace:'ESPACIO PRIVADO',hello:'Hola',marketLive:'MEXC EN VIVO',deposit:'Depósito',riskTrade:'Riesgo / operación',leverage:'Apalancamiento',access:'Acceso',cross:'Cruzado',isolated:'Aislado',scanner:'ESCÁNER DE MERCADO',latestSignals:'Últimas señales',viewAll:'Ver todas',signalHistory:'Historial de señales',all:'Todas',riskProfile:'PERFIL DE RIESGO',settings:'Ajustes',depositUsdt:'Depósito, USDT',riskPercent:'Riesgo por operación, %',leverageX:'Apalancamiento',marginMode:'Modo de margen',saveSettings:'Guardar',subscription:'SUSCRIPCIÓN',monthlyAccess:'Acceso mensual',subscriptionCopy:'Señales automáticas, escáner y planes completos.',paymentInstructions:'Instrucciones de pago',overview:'Resumen',signals:'Señales',trial:'Prueba',signalsLeft:'señales restantes',active:'Activo',inactive:'Inactivo',entry:'Entrada',stop:'Stop',confidence:'Confianza',saved:'Ajustes guardados',paymentHelp:'Abriendo las instrucciones de pago en el bot...',paymentUnavailable:'No se pudo abrir el bot. Cierra la aplicación y envía /subscribe.',noSignals:'Aún no hay señales',currentPrice:'Precio actual',tp1:'TP1',tp2:'TP2',positionSize:'Tamaño de posición',marginRequired:'Margen necesario',stopRisk:'Riesgo al stop',backToSignals:'Volver a señales',tradeSetup:'CONFIGURACIÓN',livePrice:'PRECIO EN VIVO',signalLevels:'NIVELES DE SEÑAL',executionPlan:'Plan de ejecución',personalSizing:'TAMAÑO PERSONAL',positionPlan:'Plan de posición',trialComplete:'Prueba finalizada',trialCompleteCopy:'Has usado 5 señales gratis. Suscríbete para seguir recibiendo nuevos setups.',unlockSignals:'Desbloquear señales'}
 };
 
+const taglines={
+  en:'Setups, risk and execution — one screen.',
+  ru:'Сетапы, риск и исполнение — на одном экране.',
+  de:'Setups, Risiko und Ausführung — auf einem Bildschirm.',
+  fr:'Setups, risque et exécution — sur un seul écran.',
+  es:'Setups, riesgo y ejecución — en una sola pantalla.'
+};
+
 let profile=null,signals=[],language='en',activeFilter='ALL',selectedSignal=null;
 let overviewSymbol='BTC_USDT',overviewTimeframe='1h',detailTimeframe='1h';
 let overviewChart=null,detailChart=null;
 const initData=tg?.initData||'';
 const headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
 const $=selector=>document.querySelector(selector);
-const tr=key=>translations[language]?.[key]||translations.en[key]||key;
+const tr=key=>key==='tagline'?(taglines[language]||taglines.en):(translations[language]?.[key]||translations.en[key]||key);
 const fmt=value=>value==null||!Number.isFinite(Number(value))?'—':Number(value).toLocaleString(language,{maximumFractionDigits:Math.abs(Number(value))<1?8:2});
-const displaySymbol=symbol=>(symbol||'').replace('_',' / ');
+const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+const clamp=(value,min,max)=>Math.min(Math.max(Number(value)||0,min),max);
+const displaySymbol=symbol=>String(symbol||'').replace('_',' / ');
 const isUsdtPair=symbol=>String(symbol||'').toUpperCase().split(':',1)[0].replace(/[/-]/g,'_').endsWith('_USDT');
-const coinBase=symbol=>String(symbol||'').toUpperCase().split('_',1)[0];
+const coinBase=symbol=>String(symbol||'').toUpperCase().split('_',1)[0].replace(/[^A-Z0-9]/g,'').slice(0,16);
 const coinIconUrl=symbol=>`https://assets.coincap.io/assets/icons/${coinBase(symbol).toLowerCase()}@2x.png`;
 
 function coinIconMarkup(symbol){
   const base=coinBase(symbol);
-  return `<span class="coin-fallback">${base.slice(0,2)}</span><img src="${coinIconUrl(symbol)}" alt="${base}" loading="lazy">`;
+  return `<span class="coin-fallback">${escapeHtml(base.slice(0,2))}</span><img src="${escapeHtml(coinIconUrl(symbol))}" alt="${escapeHtml(base)}" loading="lazy">`;
 }
 
 function hydrateCoinIcons(scope=document){
@@ -57,7 +67,8 @@ function renderProfile(){
   $('#deposit-input').value=profile.deposit??'';
   $('#risk-input').value=profile.risk_pct;
   $('#leverage-input').value=profile.leverage;
-  document.querySelector(`input[name=margin][value=${profile.margin}]`).checked=true;
+  const margin=profile.margin==='isolated'?'isolated':'cross';
+  document.querySelector(`input[name=margin][value="${margin}"]`).checked=true;
   const paid=Boolean(profile.has_paid_access)||(profile.paid_until&&new Date(profile.paid_until)>new Date());
   const paywalled=!paid&&Number(profile.trial_left)<=0;
   $('#access-metric').textContent=paid?tr('active'):paywalled?tr('inactive'):tr('trial');
@@ -78,10 +89,15 @@ function signalMetrics(signal){
 }
 
 function signalCard(signal){
-  const side=(signal.side||'').toUpperCase();
+  const requestedSide=String(signal.side||'').toUpperCase();
+  const side=requestedSide==='SHORT'?'SHORT':'LONG';
   const date=new Date(signal.created_at);
   const metrics=signalMetrics(signal);
-  return `<button type="button" class="signal-card" data-signal-id="${signal.id}" data-side="${side}" aria-label="${displaySymbol(signal.symbol)} ${side}"><header><div class="signal-symbol"><span class="coin-dot">${coinIconMarkup(signal.symbol)}</span><div><strong>${displaySymbol(signal.symbol)}</strong><small>${date.toLocaleString(language,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div></div><span class="side ${side.toLowerCase()}">${side}</span><div class="signal-confidence"><span>${tr('confidence')}</span><b>${Math.round(signal.confidence*100)}%</b></div></header><div class="trade-levels"><div><span>${tr('currentPrice')}</span><b>${fmt(signal.price)}</b></div><div><span>${tr('entry')}</span><b>${fmt(signal.entry)}</b></div><div><span>${tr('stop')}</span><b>${fmt(signal.stop)}</b><small>${metrics.stopPct.toFixed(1)}%</small></div><div><span>${tr('tp1')}</span><b>${fmt(signal.tp1)}</b></div><div><span>${tr('tp2')}</span><b>${fmt(signal.tp2)}</b></div></div><div class="position-plan"><div><span>${tr('deposit')}</span><b>${fmt(profile?.deposit)} USDT</b></div><div><span>${tr('positionSize')}</span><b>${fmt(metrics.position)} USDT</b></div><div><span>${tr('marginRequired')} x${fmt(metrics.leverage)}</span><b>${fmt(metrics.margin)} USDT</b></div><div><span>${tr('stopRisk')} (${fmt(profile?.risk_pct)}%)</span><b>${fmt(metrics.riskUsdt)} USDT</b></div></div><div class="confidence"><i style="width:${signal.confidence*100}%"></i></div><span class="card-open"><i data-lucide="chevron-right"></i></span></button>`;
+  const confidence=clamp(signal.confidence,0,1);
+  const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
+  const symbol=escapeHtml(displaySymbol(signal.symbol));
+  const timestamp=escapeHtml(Number.isNaN(date.valueOf())?'—':date.toLocaleString(language,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
+  return `<button type="button" class="signal-card" data-signal-id="${signalId}" data-side="${side}" aria-label="${symbol} ${side}"><header><div class="signal-symbol"><span class="coin-dot">${coinIconMarkup(signal.symbol)}</span><div><strong>${symbol}</strong><small>${timestamp}</small></div></div><span class="side ${side.toLowerCase()}">${side}</span><div class="signal-confidence"><span>${escapeHtml(tr('confidence'))}</span><b>${Math.round(confidence*100)}%</b></div></header><div class="trade-levels"><div><span>${escapeHtml(tr('currentPrice'))}</span><b>${fmt(signal.price)}</b></div><div><span>${escapeHtml(tr('entry'))}</span><b>${fmt(signal.entry)}</b></div><div><span>${escapeHtml(tr('stop'))}</span><b>${fmt(signal.stop)}</b><small>${metrics.stopPct.toFixed(1)}%</small></div><div><span>${escapeHtml(tr('tp1'))}</span><b>${fmt(signal.tp1)}</b></div><div><span>${escapeHtml(tr('tp2'))}</span><b>${fmt(signal.tp2)}</b></div></div><div class="position-plan"><div><span>${escapeHtml(tr('deposit'))}</span><b>${fmt(profile?.deposit)} USDT</b></div><div><span>${escapeHtml(tr('positionSize'))}</span><b>${fmt(metrics.position)} USDT</b></div><div><span>${escapeHtml(tr('marginRequired'))} x${fmt(metrics.leverage)}</span><b>${fmt(metrics.margin)} USDT</b></div><div><span>${escapeHtml(tr('stopRisk'))} (${fmt(profile?.risk_pct)}%)</span><b>${fmt(metrics.riskUsdt)} USDT</b></div></div><div class="confidence"><i style="width:${confidence*100}%"></i></div><span class="card-open"><i data-lucide="chevron-right"></i></span></button>`;
 }
 
 function renderSignals(){
@@ -93,16 +109,26 @@ function renderSignals(){
 }
 
 function chartBundle(container,height){
-  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height,layout:{background:{type:'solid',color:'#10151c'},textColor:'#8f9baa',fontFamily:'Inter',fontSize:11},grid:{vertLines:{color:'#1d2530'},horzLines:{color:'#1d2530'}},rightPriceScale:{borderColor:'#293340',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#293340',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#5f7185',width:1,style:2,labelBackgroundColor:'#27313d'},horzLine:{color:'#5f7185',width:1,style:2,labelBackgroundColor:'#27313d'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
-  const candles=chart.addCandlestickSeries({upColor:'#40d99b',downColor:'#ff6477',borderVisible:false,wickUpColor:'#40d99b',wickDownColor:'#ff6477',priceLineVisible:true,lastValueVisible:true});
+  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height,layout:{background:{type:'solid',color:'#0d1118'},textColor:'#778295',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:10},grid:{vertLines:{color:'#171d27'},horzLines:{color:'#171d27'}},rightPriceScale:{borderColor:'#252d3b',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#252d3b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'},horzLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
+  const candles=chart.addCandlestickSeries({upColor:'#17c89b',downColor:'#f05d6f',borderVisible:false,wickUpColor:'#17c89b',wickDownColor:'#f05d6f',priceLineVisible:true,lastValueVisible:true});
   const volume=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'volume',lastValueVisible:false,priceLineVisible:false});
+  const ema20=chart.addLineSeries({color:'#2f8cff',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  const ema50=chart.addLineSeries({color:'#f2b84b',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   chart.priceScale('volume').applyOptions({scaleMargins:{top:.82,bottom:0}});
-  return{chart,candles,volume,lines:[]};
+  return{chart,candles,volume,ema20,ema50,lines:[]};
+}
+
+function emaData(data,period){
+  const multiplier=2/(period+1);
+  let value=null;
+  return data.map(candle=>{value=value==null?Number(candle.close):(Number(candle.close)-value)*multiplier+value;return{time:candle.time,value}});
 }
 
 function setChartData(bundle,data){
   bundle.candles.setData(data);
-  bundle.volume.setData(data.map(candle=>({time:candle.time,value:candle.volume||0,color:candle.close>=candle.open?'rgba(64,217,155,.24)':'rgba(255,100,119,.24)'})));
+  bundle.volume.setData(data.map(candle=>({time:candle.time,value:candle.volume||0,color:candle.close>=candle.open?'rgba(23,200,155,.18)':'rgba(240,93,111,.18)'})));
+  bundle.ema20.setData(emaData(data,20));
+  bundle.ema50.setData(emaData(data,50));
   bundle.chart.timeScale().fitContent();
 }
 
@@ -113,7 +139,7 @@ function clearPriceLines(bundle){
 
 function addSignalLines(bundle,signal){
   clearPriceLines(bundle);
-  const levels=[{key:'entry',title:'ENTRY',color:'#69b8ff'},{key:'stop',title:'STOP',color:'#ff6477'},{key:'tp1',title:'TP1',color:'#40d99b'},{key:'tp2',title:'TP2',color:'#40d99b'}];
+  const levels=[{key:'entry',title:'ENTRY',color:'#2f8cff'},{key:'stop',title:'STOP',color:'#f05d6f'},{key:'tp1',title:'TP1',color:'#17c89b'},{key:'tp2',title:'TP2',color:'#17c89b'}];
   const levelPrices=levels.map(level=>Number(signal[level.key])).filter(Number.isFinite);
   bundle.candles.applyOptions({autoscaleInfoProvider:original=>{
     const info=original();
@@ -147,14 +173,27 @@ async function loadOverviewChart(){
   const change=first?.open?((last.close-first.open)/first.open)*100:0;
   $('#chart-price').textContent=`${fmt(last?.close)} USDT  ${change>=0?'+':''}${change.toFixed(2)}%`;
   $('#chart-price').classList.toggle('negative',change<0);
+  $('#chart-trend').textContent=change>=0?'BULLISH':'BEARISH';
+  $('#chart-trend').className=change>=0?'positive':'negative';
+  $('#chart-timeframe').textContent=overviewTimeframe.toUpperCase();
+  const setup=signals.find(signal=>String(signal.symbol).toUpperCase()===overviewSymbol);
+  if(setup){
+    addSignalLines(overviewChart,setup);
+    $('#chart-setup').textContent=`${String(setup.side).toUpperCase()} · ${Math.round(clamp(setup.confidence,0,1)*100)}%`;
+    $('#chart-setup').className=String(setup.side).toUpperCase()==='SHORT'?'negative':'positive';
+  }else{
+    clearPriceLines(overviewChart);
+    $('#chart-setup').textContent='MARKET VIEW';
+    $('#chart-setup').className='';
+  }
 }
 
 function detailMetric(label,value,accent=''){
-  return `<div class="detail-metric ${accent}"><span>${label}</span><strong>${value}</strong></div>`;
+  return `<div class="detail-metric ${escapeHtml(accent)}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
 function renderSignalDetail(signal){
-  const side=(signal.side||'').toUpperCase();
+  const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const metrics=signalMetrics(signal);
   $('#detail-coin').innerHTML=coinIconMarkup(signal.symbol);
   hydrateCoinIcons($('#detail-coin'));

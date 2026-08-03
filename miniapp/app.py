@@ -4,8 +4,10 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 import time
-from contextlib import contextmanager
+from collections import defaultdict, deque
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -14,7 +16,7 @@ from urllib.parse import parse_qsl
 
 import psycopg
 import requests
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -23,11 +25,13 @@ from pydantic import BaseModel, Field
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+DEMO_MODE = os.getenv("MINI_APP_DEMO_MODE", "false").lower() in {"1", "true", "yes"}
 DEMO_USER_ID = int(os.getenv("DEMO_USER_ID", "10001"))
+TELEGRAM_AUTH_MAX_AGE_SECONDS = int(os.getenv("TELEGRAM_AUTH_MAX_AGE_SECONDS", "3600"))
 PAYMENT_AMOUNT = os.getenv("SUBSCRIPTION_PRICE_USDT", "29.99")
 PAYMENT_DAYS = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
 PAYMENT_NETWORK = os.getenv("USDT_PAYMENT_NETWORK", "TRC20 (Tron)")
-PAYMENT_WALLET = os.getenv("USDT_PAYMENT_ADDRESS", "TBkS2PU1STndH6hsRGCHT2CE2ZyUDfsZ1c")
+PAYMENT_WALLET = os.getenv("USDT_PAYMENT_ADDRESS", "")
 FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
 SUPPORTED_LANGUAGES = {"en", "ru", "de", "fr", "es"}
 
@@ -70,8 +74,57 @@ PAYMENT_MESSAGES = {
     ),
 }
 
-app = FastAPI(title="UCB Trading Mini App", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="UCB Trading Mini App", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+
+class SlidingWindowLimiter:
+    def __init__(self) -> None:
+        self._events = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def check(self, scope: str, key: str, limit: int, window_seconds: int) -> None:
+        now = time.monotonic()
+        bucket_key = (scope, key)
+        with self._lock:
+            bucket = self._events[bucket_key]
+            while bucket and bucket[0] <= now - window_seconds:
+                bucket.popleft()
+            if len(bucket) >= limit:
+                raise HTTPException(429, "Too many requests")
+            bucket.append(now)
+            if len(self._events) > 10_000:
+                self._events = defaultdict(deque, {item: events for item, events in self._events.items() if events})
+
+
+rate_limiter = SlidingWindowLimiter()
+market_cache = {}
+market_cache_lock = threading.Lock()
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; "
+        "script-src 'self' https://telegram.org https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data: https://assets.coincap.io; "
+        "connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"
+    )
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 class SettingsUpdate(BaseModel):
@@ -138,11 +191,6 @@ def init_db() -> None:
         connection.commit()
 
 
-@app.on_event("startup")
-def startup() -> None:
-    init_db()
-
-
 def normalize_language(value: Optional[str]) -> str:
     language = (value or "en").split("-")[0].lower()
     return language if language in SUPPORTED_LANGUAGES else "en"
@@ -150,14 +198,22 @@ def normalize_language(value: Optional[str]) -> str:
 
 def telegram_user(init_data: str) -> dict:
     if not init_data:
-        if BOT_TOKEN:
-            raise HTTPException(401, "Open this app from Telegram")
-        return {"id": DEMO_USER_ID, "first_name": "Nikita", "language_code": "en"}
+        if DEMO_MODE and not DATABASE_URL:
+            return {"id": DEMO_USER_ID, "first_name": "Nikita", "language_code": "en"}
+        raise HTTPException(401, "Open this app from Telegram")
+    if not BOT_TOKEN:
+        raise HTTPException(503, "Telegram authentication is not configured")
+    if len(init_data) > 8192:
+        raise HTTPException(400, "Telegram session data is too large")
 
     values = dict(parse_qsl(init_data, keep_blank_values=True))
     received_hash = values.pop("hash", "")
-    auth_date = int(values.get("auth_date", "0") or 0)
-    if not received_hash or abs(time.time() - auth_date) > 86400:
+    try:
+        auth_date = int(values.get("auth_date", "0") or 0)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(401, "Telegram session expired") from exc
+    age = time.time() - auth_date
+    if not received_hash or age < -30 or age > TELEGRAM_AUTH_MAX_AGE_SECONDS:
         raise HTTPException(401, "Telegram session expired")
 
     data_check_string = "\n".join(f"{key}={values[key]}" for key in sorted(values))
@@ -305,6 +361,7 @@ def update_settings(payload: SettingsUpdate, x_telegram_init_data: str = Header(
 @app.post("/api/payment-instructions")
 def payment_instructions(x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
+    rate_limiter.check("payment-instructions", str(user["id"]), limit=3, window_seconds=60)
     language = normalize_language(user.get("language_code"))
     if DATABASE_URL:
         with db() as connection, connection.cursor() as cursor:
@@ -315,8 +372,8 @@ def payment_instructions(x_telegram_init_data: str = Header(default="")):
             row = cursor.fetchone()
             if row:
                 language = normalize_language(row[0])
-    if not BOT_TOKEN:
-        raise HTTPException(503, "Telegram bot is not configured")
+    if not BOT_TOKEN or not PAYMENT_WALLET:
+        raise HTTPException(503, "Payment is not configured")
     text = PAYMENT_MESSAGES[language].format(
         days=PAYMENT_DAYS,
         amount=PAYMENT_AMOUNT,
@@ -428,7 +485,8 @@ def signals(x_telegram_init_data: str = Header(default="")):
 
 @app.get("/api/market/{symbol}")
 def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Header(default="")):
-    get_user(x_telegram_init_data)
+    user = get_user(x_telegram_init_data)
+    rate_limiter.check("market", str(user["id"]), limit=60, window_seconds=60)
     normalized = symbol.upper().replace("_", "")
     if not normalized.endswith("USDT") or not normalized.isalnum():
         raise HTTPException(422, "Invalid symbol")
@@ -442,6 +500,11 @@ def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Heade
         raise HTTPException(422, "Invalid timeframe")
     mexc_interval, candle_seconds = intervals[timeframe]
     contract_symbol = normalized[:-4] + "_USDT"
+    cache_key = (contract_symbol, timeframe)
+    with market_cache_lock:
+        cached = market_cache.get(cache_key)
+        if cached and cached[0] > time.monotonic() - 15:
+            return cached[1]
     try:
         end = int(time.time())
         response = requests.get(
@@ -452,12 +515,18 @@ def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Heade
         response.raise_for_status()
         data = response.json().get("data") or {}
         volumes = data.get("vol") or data.get("volume") or []
-        return [
+        candles = [
             {"time": int(timestamp), "open": float(data["open"][index]),
              "high": float(data["high"][index]), "low": float(data["low"][index]),
              "close": float(data["close"][index]),
              "volume": float(volumes[index]) if index < len(volumes) else 0.0}
             for index, timestamp in enumerate(data.get("time", []))
         ]
+        with market_cache_lock:
+            market_cache[cache_key] = (time.monotonic(), candles)
+            if len(market_cache) > 100:
+                oldest = min(market_cache, key=lambda key: market_cache[key][0])
+                market_cache.pop(oldest, None)
+        return candles
     except (requests.RequestException, ValueError, TypeError, IndexError) as exc:
         raise HTTPException(502, "MEXC market data unavailable") from exc
