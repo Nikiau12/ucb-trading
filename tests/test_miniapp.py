@@ -35,6 +35,7 @@ def _signed_init_data(
 def demo_client(monkeypatch):
     monkeypatch.setattr(miniapp, "BOT_TOKEN", "")
     monkeypatch.setattr(miniapp, "DATABASE_URL", "")
+    monkeypatch.setattr(miniapp, "DEMO_MODE", True)
     with TestClient(miniapp.app) as client:
         yield client
 
@@ -93,6 +94,25 @@ def test_invalid_or_expired_telegram_init_data_is_rejected(monkeypatch):
 
     assert invalid_error.value.status_code == 401
     assert expired_error.value.status_code == 401
+
+
+def test_missing_telegram_auth_is_rejected_outside_demo(monkeypatch):
+    monkeypatch.setattr(miniapp, "BOT_TOKEN", "")
+    monkeypatch.setattr(miniapp, "DATABASE_URL", "")
+    monkeypatch.setattr(miniapp, "DEMO_MODE", False)
+
+    with pytest.raises(HTTPException) as error:
+        miniapp.telegram_user("")
+
+    assert error.value.status_code == 401
+
+
+def test_security_headers_are_present(demo_client):
+    response = demo_client.get("/")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "frame-ancestors" in response.headers["content-security-policy"]
+    assert response.headers["referrer-policy"] == "no-referrer"
 
 
 @pytest.mark.parametrize(

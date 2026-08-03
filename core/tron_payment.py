@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -11,11 +12,12 @@ TX_HASH_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 class TronPaymentVerifier:
-    def __init__(self, wallet: str, amount, api_key: str = "", timeout: int = 15):
+    def __init__(self, wallet: str, amount, api_key: str = "", timeout: int = 15, max_age_hours: int = 72):
         self.wallet = str(wallet).strip()
         self.amount = Decimal(str(amount))
         self.api_key = str(api_key).strip()
         self.timeout = timeout
+        self.max_age_seconds = max_age_hours * 60 * 60
 
     def verify(self, tx_hash: str) -> dict:
         tx_hash = str(tx_hash).strip().lower()
@@ -49,6 +51,10 @@ class TronPaymentVerifier:
                 return {"ok": False, "reason": "wrong_recipient"}
             if str(token.get("address", "")) != USDT_TRC20_CONTRACT:
                 return {"ok": False, "reason": "wrong_token"}
+            block_timestamp = int(item.get("block_timestamp", 0) or 0)
+            transaction_age = time.time() - block_timestamp / 1000
+            if block_timestamp <= 0 or transaction_age < -300 or transaction_age > self.max_age_seconds:
+                return {"ok": False, "reason": "transaction_expired"}
             try:
                 decimals = int(token.get("decimals", 6))
                 paid = Decimal(str(item.get("value", "0"))) / (Decimal(10) ** decimals)
@@ -66,6 +72,6 @@ class TronPaymentVerifier:
                 "tx_hash": tx_hash,
                 "paid_amount": str(paid),
                 "from_address": str(item.get("from", "")),
-                "block_timestamp": int(item.get("block_timestamp", 0) or 0),
+                "block_timestamp": block_timestamp,
             }
         return {"ok": False, "reason": "not_found"}

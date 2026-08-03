@@ -517,7 +517,10 @@ async def cmd_paid(message: types.Message):
         return
 
     payment_details = {key: value for key, value in result.items() if key not in {"ok", "tx_hash"}}
-    access_manager.record_payment_claim(chat_id, tx_hash, **payment_details)
+    claim = access_manager.record_payment_claim(chat_id, tx_hash, **payment_details)
+    if claim is None:
+        await status_msg.edit_text(_t(lang, "payment_tx_used"), parse_mode="HTML")
+        return
     paid_until = access_manager.grant_access(chat_id, hours=PAID_ACCESS_HOURS)
     await status_msg.edit_text(
         _t(lang, "payment_approved", days=PAID_ACCESS_HOURS // 24, until=format_ts(paid_until)),

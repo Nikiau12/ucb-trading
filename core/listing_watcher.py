@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import urllib.parse
 import urllib.request
 from html import unescape
 
@@ -52,11 +53,14 @@ class MexcListingWatcher:
 
     def _fetch_announcements(self) -> list:
         try:
+            parsed = urllib.parse.urlparse(self.announcements_url)
+            if parsed.scheme != "https" or parsed.hostname not in {"mexc.com", "www.mexc.com"}:
+                raise ValueError("unsupported MEXC announcements URL")
             req = urllib.request.Request(
                 self.announcements_url,
                 headers={"user-agent": "mexc-signal-bot/1.0"},
             )
-            with urllib.request.urlopen(req, timeout=15) as response:
+            with urllib.request.urlopen(req, timeout=15) as response:  # nosec B310
                 page = response.read().decode("utf-8", errors="ignore")
         except Exception as e:
             print(f"[MexcListingWatcher] announcements fetch failed: {e}")
