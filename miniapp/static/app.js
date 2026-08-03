@@ -109,13 +109,14 @@ function renderSignals(){
 }
 
 function chartBundle(container,height){
-  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height,layout:{background:{type:'solid',color:'#0d1118'},textColor:'#778295',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:10},grid:{vertLines:{color:'#171d27'},horzLines:{color:'#171d27'}},rightPriceScale:{borderColor:'#252d3b',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#252d3b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'},horzLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
+  const resolvedHeight=container.clientHeight||height;
+  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height:resolvedHeight,layout:{background:{type:'solid',color:'#0d1118'},textColor:'#778295',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:10},grid:{vertLines:{color:'#171d27'},horzLines:{color:'#171d27'}},rightPriceScale:{borderColor:'#252d3b',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#252d3b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'},horzLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
   const candles=chart.addCandlestickSeries({upColor:'#17c89b',downColor:'#f05d6f',borderVisible:false,wickUpColor:'#17c89b',wickDownColor:'#f05d6f',priceLineVisible:true,lastValueVisible:true});
   const volume=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'volume',lastValueVisible:false,priceLineVisible:false});
   const ema20=chart.addLineSeries({color:'#2f8cff',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   const ema50=chart.addLineSeries({color:'#f2b84b',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   chart.priceScale('volume').applyOptions({scaleMargins:{top:.82,bottom:0}});
-  return{chart,candles,volume,ema20,ema50,lines:[]};
+  return{chart,candles,volume,ema20,ema50,lines:[],container};
 }
 
 function emaData(data,period){
@@ -286,7 +287,7 @@ async function requestPayment(){showToast(tr('paymentHelp'));try{await api('/api
 $('#payment-button').addEventListener('click',requestPayment);
 document.querySelectorAll('.paywall-button').forEach(button=>button.addEventListener('click',requestPayment));
 $('#refresh').addEventListener('click',async()=>{await load();if(selectedSignal)await loadDetailChart()});
-window.addEventListener('resize',()=>{overviewChart?.chart.applyOptions({width:$('#chart').clientWidth});detailChart?.chart.applyOptions({width:$('#detail-chart').clientWidth})});
+window.addEventListener('resize',()=>{[overviewChart,detailChart].filter(Boolean).forEach(bundle=>bundle.chart.applyOptions({width:bundle.container.clientWidth,height:bundle.container.clientHeight}))});
 lucide.createIcons();
 load();
 setInterval(refreshLiveData,60000);
