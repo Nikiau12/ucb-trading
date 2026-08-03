@@ -6,14 +6,16 @@ from core.config import MEXC_API_KEY, MEXC_API_SECRET, MEMECOIN_V2_LIMIT, TARGET
 
 class ExchangeClient:
     def __init__(self):
-        self.exchange = ccxt.mexc({
-            'apiKey': MEXC_API_KEY,
-            'secret': MEXC_API_SECRET,
+        # Market scanning only uses public endpoints. Keeping credentials off the
+        # public client prevents an expired key from breaking ticker/OHLCV reads.
+        self._exchange_options = {
             'enableRateLimit': True,
             'options': {
                 'defaultType': 'swap', # We want to trade Futures (Perpetual Swaps)
             }
-        })
+        }
+        self.exchange = ccxt.mexc(self._exchange_options)
+        self._trading_exchange = None
         self._markets_loaded = False
         self._tickers_cache = {}
         self._tickers_cache_ts = 0
@@ -47,6 +49,20 @@ class ExchangeClient:
 
     async def close(self):
         await self.exchange.close()
+        if self._trading_exchange is not None:
+            await self._trading_exchange.close()
+
+    async def _get_trading_exchange(self):
+        if not MEXC_API_KEY or not MEXC_API_SECRET:
+            raise RuntimeError("MEXC credentials are required to create orders")
+        if self._trading_exchange is None:
+            self._trading_exchange = ccxt.mexc({
+                **self._exchange_options,
+                'apiKey': MEXC_API_KEY,
+                'secret': MEXC_API_SECRET,
+            })
+            await self._trading_exchange.load_markets()
+        return self._trading_exchange
 
     async def get_top_pairs(self):
         """Fetches the top N USDT perpetual pairs by 24h quote volume."""
@@ -139,7 +155,8 @@ class ExchangeClient:
         try:
             if params is None:
                 params = {}
-            order = await self.exchange.create_market_order(symbol, side, amount, None, params)
+            trading_exchange = await self._get_trading_exchange()
+            order = await trading_exchange.create_market_order(symbol, side, amount, None, params)
             print(f"Order executed: {order}")
             return order
         except Exception as e:
