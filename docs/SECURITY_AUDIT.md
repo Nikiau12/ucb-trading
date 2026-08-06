@@ -40,6 +40,24 @@ release in the current package index:
   Telegram/exchange client. Remove these exceptions as soon as Aiogram supports
   a fixed aiohttp release.
 
+### Aiohttp compatibility review — 2026-08-06
+
+Aiogram 3.22.0 declares `aiohttp>=3.9,<3.13`, while the fixes for the three new
+advisories start at aiohttp 3.14.2/3.14.3. Forcing that upgrade would leave the
+bot on an unsupported dependency combination and currently fails normal pip
+dependency resolution. The exceptions below are therefore compatibility-bound,
+not permanent risk acceptance:
+
+| Advisory | Exposure in UCB | Mitigation |
+| --- | --- | --- |
+| PYSEC-2026-3545 | A malicious or malformed HTTP response can crash the aiohttp C response parser | The worker sets `AIOHTTP_NO_EXTENSIONS=1` before importing Aiogram/CCXT, selecting the unaffected Python parser |
+| PYSEC-2026-3546 | Request smuggling in aiohttp's server-side WebSocket upgrade handling | Not reachable: the public Mini App server is FastAPI/Uvicorn and the worker does not expose an aiohttp server |
+| PYSEC-2026-3547 | An aiohttp WebSocket client may decompress an RSV1 frame without negotiated compression | The worker uses Telegram long polling and CCXT REST calls; no aiohttp WebSocket client is configured |
+
+Remove these three exceptions and upgrade aiohttp to at least 3.14.3 as soon as
+an Aiogram release permits it. CI continues to fail closed for any newly reported
+advisory that is not explicitly listed and reviewed here.
+
 ## Follow-up hardening
 
 1. Replace the legacy JSONB `access_state` document with normalized PostgreSQL
