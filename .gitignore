@@ -1,6 +1,8 @@
 venv/
 .venv/
 __pycache__/
+.pytest_cache/
+.hypothesis/
 .env
 *.pyc
 .DS_Store

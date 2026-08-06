@@ -6,6 +6,11 @@ import time
 from typing import Dict, Optional
 
 try:
+    from .trade_plan import plan_payload_errors
+except ImportError:
+    from trade_plan import plan_payload_errors
+
+try:
     import psycopg
 except ImportError:
     psycopg = None
@@ -122,7 +127,7 @@ def _save(state: Dict) -> None:
 
 def should_send_alert(symbol: str, side: str, conf: float, plan: Optional[dict] = None) -> bool:
     symbol = normalize_usdt_symbol(symbol)
-    if not symbol:
+    if not symbol or plan_payload_errors(plan or {}):
         return False
     levels = _plan_levels(plan)
     now = time.time()
@@ -151,7 +156,7 @@ def should_send_alert(symbol: str, side: str, conf: float, plan: Optional[dict] 
 
 def mark_sent(symbol: str, side: str, conf: float, plan: Optional[dict] = None) -> None:
     symbol = normalize_usdt_symbol(symbol)
-    if not symbol:
+    if not symbol or plan_payload_errors(plan or {}):
         return
     levels = _plan_levels(plan)
     if _db_ready():
@@ -276,7 +281,7 @@ def set_user_setting(user_id: int, key: str, value) -> None:
 
 def save_signal(plan: dict, symbol: str, side: str, confidence: float):
     symbol = normalize_usdt_symbol(symbol)
-    if not symbol:
+    if not symbol or plan_payload_errors(plan):
         return None
     if not _db_ready():
         return None
