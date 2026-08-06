@@ -16,6 +16,24 @@ import trade_plan  # noqa: E402
 from analytics.structure import Bar, Swing  # noqa: E402
 
 
+def test_stale_snapshot_is_always_skipped():
+    plan = trade_plan.make_plan(
+        {"symbol": "BTC_USDT", "stale": True},
+        deposit=300.0,
+        risk_pct=2.0,
+        lev=10.0,
+        margin="isolated",
+    )
+
+    assert plan == {
+        "symbol": "BTC_USDT",
+        "side": "skip",
+        "confidence": 0.0,
+        "reasons": ["stale_market_data"],
+        "used_cache": True,
+    }
+
+
 @given(
     entry=st.floats(min_value=0.000001, max_value=1_000_000, allow_nan=False, allow_infinity=False),
     risk_ratio=st.floats(min_value=0.0001, max_value=0.25, allow_nan=False, allow_infinity=False),

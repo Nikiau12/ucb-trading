@@ -153,7 +153,7 @@ runtime.
 ```bash
 git clone https://github.com/Nikiau12/ucb-trading.git
 cd ucb-trading
-python3.9 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r miniapp/requirements.txt
@@ -210,6 +210,9 @@ The most important environment variables are:
 | `USDT_PAYMENT_ADDRESS` | Receiving TRON wallet |
 | `TRONGRID_API_KEY` | TronGrid API access for payment verification |
 | `MEXC_API_KEY` / `MEXC_API_SECRET` | Optional authenticated MEXC access |
+| `MEXC_MIN_REQUEST_INTERVAL` | Minimum process-wide delay between public MEXC REST requests |
+| `MEXC_MAX_ATTEMPTS` | Retry count for MEXC throttling and transient failures |
+| `MEXC_SNAPSHOT_MAX_STALE_SECONDS` | Maximum cache age accepted for diagnostics; stale data is never signalled |
 
 See [`.env.example`](.env.example) for the complete documented template.
 
@@ -222,12 +225,11 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
-The suite covers deterministic analytics, Mini App API validation, Telegram
+The suite covers deterministic analytics and trade-plan invariants, MEXC
+throttling/cache recovery, Mini App API validation, Telegram
 Web App signature verification, and USDT TRC20 payment verification. GitHub
 Actions also compiles all Python sources and runs the tests on every push and
-pull request. The current suite contains 40 passing tests, including regression
-coverage that keeps Telegram commands from being swallowed by deposit
-onboarding state.
+pull request.
 
 ## Evaluation
 
