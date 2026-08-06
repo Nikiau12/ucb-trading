@@ -1081,14 +1081,21 @@ def _fmt_auto_alert(
     try:
         deposit = float(deposit)
         risk_pct = float(risk_pct)
-        leverage = max(float(leverage), 1.0)
-        stop_distance = abs(float(entry) - float(stop_p))
-        risk_usdt = deposit * risk_pct / 100
-        quantity = risk_usdt / stop_distance if stop_distance else 0
-        position_usdt = quantity * float(entry)
-        margin_usdt = position_usdt / leverage
+        sizing = core_plan.position_size_for_contract(
+            p, float(entry), float(stop_p), deposit, risk_pct, float(leverage)
+        )
+        risk_usdt = sizing["risk_usdt"]
+        position_usdt = sizing["position_usdt"]
+        margin_usdt = sizing["margin_usdt"]
+        leverage = sizing["effective_leverage"]
+        contract_vol = sizing["contract_vol"]
+        leverage_limited = sizing["effective_leverage"] < sizing["requested_leverage"]
+        sizing_errors = sizing["errors"]
     except (TypeError, ValueError, ZeroDivisionError):
         risk_usdt = position_usdt = margin_usdt = None
+        contract_vol = None
+        leverage_limited = False
+        sizing_errors = []
 
     lines = [
         "━━━━━━━━━━━━━━━━━━",
@@ -1112,6 +1119,12 @@ def _fmt_auto_alert(
         f"🛡 Риск по стопу: <b>{_fmt_usdt(risk_usdt)} USDT</b> ({risk_pct:g}%)",
         "─────────────────",
     ]
+    if contract_vol is not None:
+        lines.insert(-1, f"📐 Контрактов MEXC: <b>{contract_vol:g}</b>")
+    if leverage_limited:
+        lines.insert(-1, "⚠️ Плечо снижено до максимума, разрешённого MEXC для этой монеты.")
+    if "position_below_min_contract" in sizing_errors:
+        lines.insert(-1, "⚠️ Для вашего риска минимальный контракт MEXC слишком велик; сделку открывать не нужно.")
     if uses_reference_deposit:
         lines.extend([
             "⚠️ <i>Расчёт на примере 1 000 USDT.</i>",

@@ -53,6 +53,29 @@ def test_demo_profile_and_signal_history_are_available(demo_client):
         "ETH_USDT",
         "SOL_USDT",
     }
+    assert all(item["sizing"]["risk_usdt"] == pytest.approx(4.0) for item in signals.json())
+
+
+def test_personal_signal_sizing_uses_contract_rules_and_exchange_leverage_limit():
+    signal = {
+        "entry": 100.0,
+        "stop": 95.0,
+        "contract_size": 0.1,
+        "vol_unit": 1,
+        "min_vol": 1,
+        "max_vol": 100,
+        "max_leverage": 20,
+    }
+    profile = {"deposit": 100.0, "risk_pct": 1.0, "leverage": 50.0}
+
+    payload = miniapp.attach_personal_sizing(signal, profile)
+
+    assert payload["sizing"]["contract_vol"] == 2
+    assert payload["sizing"]["risk_usdt"] == pytest.approx(1.0)
+    assert payload["sizing"]["position_usdt"] == pytest.approx(20.0)
+    assert payload["sizing"]["effective_leverage"] == 20
+    assert payload["sizing"]["margin_usdt"] == pytest.approx(1.0)
+    assert payload["sizing"]["tradable"] is True
 
 
 def test_settings_validation_rejects_unsupported_values(demo_client):

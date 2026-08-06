@@ -78,6 +78,14 @@ def _plan_levels(plan: Optional[dict]) -> dict:
     }
 
 
+def _signal_contract_rules(plan: Optional[dict]) -> dict:
+    primary = (plan or {}).get("primary") or {}
+    return {
+        key: primary.get(key)
+        for key in ("price_unit", "contract_size", "vol_unit", "min_vol", "max_vol", "max_leverage")
+    }
+
+
 def _levels_are_similar(previous: dict, current: dict) -> bool:
     compared = 0
     for key in ("entry", "stop", "tp1", "tp2"):
@@ -287,6 +295,7 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float):
         return None
     primary = plan.get("primary") or {}
     tps = primary.get("tps") or []
+    rules = _signal_contract_rules(plan)
     try:
         with psycopg.connect(DATABASE_URL) as connection:
             connection.execute(
@@ -298,15 +307,30 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float):
                 )
                 """
             )
+            connection.execute(
+                """
+                ALTER TABLE signals ADD COLUMN IF NOT EXISTS price_unit NUMERIC;
+                ALTER TABLE signals ADD COLUMN IF NOT EXISTS contract_size NUMERIC;
+                ALTER TABLE signals ADD COLUMN IF NOT EXISTS vol_unit NUMERIC;
+                ALTER TABLE signals ADD COLUMN IF NOT EXISTS min_vol NUMERIC;
+                ALTER TABLE signals ADD COLUMN IF NOT EXISTS max_vol NUMERIC;
+                ALTER TABLE signals ADD COLUMN IF NOT EXISTS max_leverage NUMERIC;
+                """
+            )
             row = connection.execute(
                 """
-                INSERT INTO signals (symbol, side, confidence, price, entry, stop, tp1, tp2)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO signals (
+                    symbol, side, confidence, price, entry, stop, tp1, tp2,
+                    price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (symbol, side.upper(), confidence, plan.get("price"), primary.get("entry"),
                  primary.get("stop"), tps[0].get("price") if tps else None,
-                 tps[1].get("price") if len(tps) > 1 else None),
+                 tps[1].get("price") if len(tps) > 1 else None,
+                 rules["price_unit"], rules["contract_size"], rules["vol_unit"],
+                 rules["min_vol"], rules["max_vol"], rules["max_leverage"]),
             ).fetchone()
             connection.commit()
             return row[0] if row else None

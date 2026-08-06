@@ -19,3 +19,25 @@ def test_invalid_plan_cannot_be_alerted_or_saved(monkeypatch):
 
     assert state.should_send_alert("XPL_USDT", "short", 0.83, plan) is False
     assert state.save_signal(plan, "XPL_USDT", "short", 0.83) is None
+
+
+def test_signal_contract_rules_are_extracted_for_history():
+    plan = {
+        "primary": {
+            "price_unit": 0.1,
+            "contract_size": 0.001,
+            "vol_unit": 1,
+            "min_vol": 1,
+            "max_vol": 1000,
+            "max_leverage": 50,
+        }
+    }
+
+    assert state._signal_contract_rules(plan) == {
+        "price_unit": 0.1,
+        "contract_size": 0.001,
+        "vol_unit": 1,
+        "min_vol": 1,
+        "max_vol": 1000,
+        "max_leverage": 50,
+    }
