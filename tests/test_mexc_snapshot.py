@@ -68,6 +68,11 @@ def test_public_client_does_not_retry_parameter_errors():
 
 def test_snapshot_fetches_only_timeframes_used_by_trade_plan(monkeypatch):
     intervals = []
+    monkeypatch.setattr(
+        mexc_snapshot,
+        "futures_contract_detail",
+        lambda symbol: {"symbol": symbol, "priceUnit": 0.1, "contractSize": 0.001},
+    )
     monkeypatch.setattr(mexc_snapshot, "futures_ticker", lambda symbol: {"data": {"lastPrice": "1"}})
 
     def fake_kline(symbol, interval, limit=200):
@@ -83,6 +88,33 @@ def test_snapshot_fetches_only_timeframes_used_by_trade_plan(monkeypatch):
     assert "kline_15m" not in snapshot
     assert "kline_2d" not in snapshot
     assert "kline_1w" not in snapshot
+    assert snapshot["contract"]["symbol"] == "BTC_USDT"
+
+
+def test_contract_details_are_cached_for_all_symbols(monkeypatch):
+    calls = 0
+    payload = {
+        "success": True,
+        "code": 0,
+        "data": [
+            {"symbol": "BTC_USDT", "priceUnit": 0.1},
+            {"symbol": "XPL_USDT", "priceUnit": 0.00001},
+        ],
+    }
+
+    def fake_get(path):
+        nonlocal calls
+        calls += 1
+        assert path == "/api/v1/contract/detail"
+        return payload
+
+    monkeypatch.setattr(mexc_snapshot, "http_get", fake_get)
+    monkeypatch.setattr(mexc_snapshot, "_CONTRACT_CACHE", {})
+    monkeypatch.setattr(mexc_snapshot, "_CONTRACT_CACHE_TS", 0.0)
+
+    assert mexc_snapshot.futures_contract_detail("BTC_USDT")["priceUnit"] == 0.1
+    assert mexc_snapshot.futures_contract_detail("XPL_USDT")["priceUnit"] == 0.00001
+    assert calls == 1
 
 
 def test_top_symbols_falls_back_to_last_successful_ranking(monkeypatch, tmp_path):

@@ -11,6 +11,7 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
+from decimal import Decimal
 
 # Aiogram 3.22 requires aiohttp <3.13. Until it supports the patched 3.14.x
 # line, use aiohttp's Python parser so malformed exchange responses cannot hit
@@ -1015,11 +1016,15 @@ def _is_usdt_pair(symbol: str) -> bool:
     normalized = market.replace("/", "_").replace("-", "_")
     return normalized.endswith("_USDT")
 
-def _fmt_price(p) -> str:
+def _fmt_price(p, price_unit=None) -> str:
     if p is None or p == "?":
         return "?"
     try:
         p = float(p)
+        if price_unit is not None:
+            unit = Decimal(str(price_unit)).normalize()
+            decimals = max(0, -unit.as_tuple().exponent)
+            return f"{p:,.{decimals}f}"
         if p >= 10000: return f"{p:,.0f}"
         if p >= 1000:  return f"{p:,.1f}"
         if p >= 10:    return f"{p:.2f}"
@@ -1067,6 +1072,7 @@ def _fmt_auto_alert(
     tp1     = tps[0]["price"] if tps else None
     tp2     = tps[1]["price"] if len(tps) > 1 else None
     price   = plan.get("price")
+    price_unit = p.get("price_unit")
     regime  = str(ctx.get("regime", "")).upper() or "—"
     trend1d = str(ctx.get("trend_1d", "")).upper() or "—"
     why     = p.get("why") or []
@@ -1091,15 +1097,15 @@ def _fmt_auto_alert(
         "━━━━━━━━━━━━━━━━━━",
         "",
         f"🪙 <b><code>{symbol}</code></b>",
-        f"💵 Цена сейчас: <code>{_fmt_price(price)}</code>",
+        f"💵 Цена сейчас: <code>{_fmt_price(price, price_unit)}</code>",
         f"🧭 Режим: <b>{regime}</b>  |  Тренд 1D: <b>{trend1d}</b>",
         f"⭐️ Уверенность: <b>{conf:.2f}</b> / 1.0",
         "",
         "─────────────────",
-        f"{arrow} Вход:   <code>{_fmt_price(entry)}</code>",
-        f"🛑 Стоп:  <code>{_fmt_price(stop_p)}</code>  ({_pct(stop_p, entry)} от входа)",
-        f"🥅 TP1:   <code>{_fmt_price(tp1)}</code>  (+{_pct(tp1, entry)})  {_rr(entry, stop_p, tp1)}",
-        f"🥅 TP2:   <code>{_fmt_price(tp2)}</code>  (+{_pct(tp2, entry)})  {_rr(entry, stop_p, tp2)}",
+        f"{arrow} Вход:   <code>{_fmt_price(entry, price_unit)}</code>",
+        f"🛑 Стоп:  <code>{_fmt_price(stop_p, price_unit)}</code>  ({_pct(stop_p, entry)} от входа)",
+        f"🥅 TP1:   <code>{_fmt_price(tp1, price_unit)}</code>  (+{_pct(tp1, entry)})  {_rr(entry, stop_p, tp1)}",
+        f"🥅 TP2:   <code>{_fmt_price(tp2, price_unit)}</code>  (+{_pct(tp2, entry)})  {_rr(entry, stop_p, tp2)}",
         "─────────────────",
         f"💰 Депозит: <b>{_fmt_usdt(deposit)} USDT</b>",
         f"📦 Объём позиции: <b>{_fmt_usdt(position_usdt)} USDT</b>",

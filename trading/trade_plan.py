@@ -6,6 +6,7 @@ import math
 import os
 import subprocess
 import sys
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
@@ -165,6 +166,86 @@ def risk_position_size(deposit: float, risk_pct: float, entry: float, stop: floa
         return risk_usdt, 0.0, dist
     qty = risk_usdt / dist
     return risk_usdt, qty, dist
+
+
+def _positive_decimal(value: Any) -> Optional[Decimal]:
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return parsed if parsed.is_finite() and parsed > 0 else None
+
+
+def _round_step(value: float, step: Decimal, rounding: str) -> float:
+    units = (Decimal(str(value)) / step).to_integral_value(rounding=rounding)
+    return float(units * step)
+
+
+def normalize_for_contract(
+    snapshot: Dict[str, Any],
+    side: str,
+    entry: float,
+    stop: float,
+    tp1: float,
+    tp2: float,
+    deposit: float,
+    risk_pct: float,
+) -> Dict[str, Any]:
+    """Make prices and size executable under the symbol's MEXC contract rules."""
+    detail = snapshot.get("contract")
+    if not isinstance(detail, dict):
+        risk_usdt, qty, dist = risk_position_size(deposit, risk_pct, entry, stop)
+        return {
+            "entry": entry, "stop": stop, "tp1": tp1, "tp2": tp2,
+            "risk_usdt": risk_usdt, "qty": qty, "dist": dist,
+            "contract_vol": None, "contract_size": None, "errors": [],
+        }
+
+    price_unit = _positive_decimal(detail.get("priceUnit"))
+    if price_unit is not None:
+        entry = _round_step(entry, price_unit, ROUND_HALF_UP)
+        if side == "long":
+            stop = _round_step(stop, price_unit, ROUND_FLOOR)
+            tp1 = _round_step(tp1, price_unit, ROUND_CEILING)
+            tp2 = _round_step(tp2, price_unit, ROUND_CEILING)
+        else:
+            stop = _round_step(stop, price_unit, ROUND_CEILING)
+            tp1 = _round_step(tp1, price_unit, ROUND_FLOOR)
+            tp2 = _round_step(tp2, price_unit, ROUND_FLOOR)
+
+    risk_budget = deposit * (risk_pct / 100.0)
+    dist = abs(entry - stop)
+    contract_size = _positive_decimal(detail.get("contractSize"))
+    vol_unit = _positive_decimal(detail.get("volUnit"))
+    min_vol = _positive_decimal(detail.get("minVol"))
+    max_vol = _positive_decimal(detail.get("maxVol"))
+    errors: List[str] = []
+
+    if dist <= 0 or contract_size is None or vol_unit is None:
+        qty = 0.0
+        contract_vol = None
+        errors.append("invalid_contract_rules")
+        actual_risk = 0.0
+    else:
+        desired_qty = Decimal(str(risk_budget / dist))
+        desired_vol = desired_qty / contract_size
+        contract_vol_dec = (desired_vol / vol_unit).to_integral_value(rounding=ROUND_FLOOR) * vol_unit
+        if max_vol is not None:
+            contract_vol_dec = min(contract_vol_dec, max_vol)
+        if min_vol is not None and contract_vol_dec < min_vol:
+            errors.append("position_below_min_contract")
+        qty = float(contract_vol_dec * contract_size)
+        contract_vol = float(contract_vol_dec)
+        actual_risk = qty * dist
+
+    return {
+        "entry": entry, "stop": stop, "tp1": tp1, "tp2": tp2,
+        "risk_usdt": actual_risk, "qty": qty, "dist": dist,
+        "contract_vol": contract_vol,
+        "contract_size": float(contract_size) if contract_size is not None else None,
+        "price_unit": float(price_unit) if price_unit is not None else None,
+        "errors": errors,
+    }
 
 def clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))
@@ -502,8 +583,8 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             entry_reason = "entry=range_support"
 
         stop = entry - stop_buf
-        risk_usdt, qty, dist = risk_position_size(deposit, risk_pct, entry, stop)
-        r = abs(entry - stop)
+        dist = abs(entry - stop)
+        r = dist
 
         tp1_reason = "tp1=1R"
         tp2_reason = "tp2=2R"
@@ -547,6 +628,13 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
                 tp2 = base_tp2
                 tp2_reason = "tp2=fix_order"
 
+        normalized = normalize_for_contract(
+            snapshot, "long", entry, stop, tp1, tp2, deposit, risk_pct
+        )
+        entry, stop = normalized["entry"], normalized["stop"]
+        tp1, tp2 = normalized["tp1"], normalized["tp2"]
+        risk_usdt, qty, dist = normalized["risk_usdt"], normalized["qty"], normalized["dist"]
+
         rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side="long")
         margin_need = (qty * entry) / max(1e-9, lev)
         dist_entry_atr = abs(entry - float(lp)) / max(1e-9, float(atr4h))
@@ -562,7 +650,7 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             f"entry_dist_ATR4h={dist_entry_atr:.2f}",
         ]
         conf = apply_filters(base_conf(True), True, reasons, dist_entry_atr)
-        plan_errors = trade_plan_errors("long", entry, stop, tp1, tp2)
+        plan_errors = [*normalized["errors"], *trade_plan_errors("long", entry, stop, tp1, tp2)]
         if plan_errors:
             reasons.extend(f"filter=invalid_plan({error})" for error in plan_errors)
             conf = 0.0
@@ -574,6 +662,9 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             "stop": stop,
             "tps": [{"price": tp1, "pct": 0.50}, {"price": tp2, "pct": 0.50}],
             "qty": qty,
+            "contract_vol": normalized["contract_vol"],
+            "contract_size": normalized["contract_size"],
+            "price_unit": normalized.get("price_unit"),
             "risk_usdt": risk_usdt,
             "margin_need": margin_need,
             "reasons": reasons,
@@ -588,8 +679,8 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             entry_reason = "entry=range_resistance"
 
         stop = entry + stop_buf
-        risk_usdt, qty, dist = risk_position_size(deposit, risk_pct, entry, stop)
-        r = abs(entry - stop)
+        dist = abs(entry - stop)
+        r = dist
 
         tp1_reason = "tp1=1R"
         tp2_reason = "tp2=2R"
@@ -633,6 +724,13 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
                 tp2 = base_tp2
                 tp2_reason = "tp2=fix_order"
 
+        normalized = normalize_for_contract(
+            snapshot, "short", entry, stop, tp1, tp2, deposit, risk_pct
+        )
+        entry, stop = normalized["entry"], normalized["stop"]
+        tp1, tp2 = normalized["tp1"], normalized["tp2"]
+        risk_usdt, qty, dist = normalized["risk_usdt"], normalized["qty"], normalized["dist"]
+
         rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side="short")
         margin_need = (qty * entry) / max(1e-9, lev)
         dist_entry_atr = abs(entry - float(lp)) / max(1e-9, float(atr4h))
@@ -648,7 +746,7 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             f"entry_dist_ATR4h={dist_entry_atr:.2f}",
         ]
         conf = apply_filters(base_conf(False), False, reasons, dist_entry_atr)
-        plan_errors = trade_plan_errors("short", entry, stop, tp1, tp2)
+        plan_errors = [*normalized["errors"], *trade_plan_errors("short", entry, stop, tp1, tp2)]
         if plan_errors:
             reasons.extend(f"filter=invalid_plan({error})" for error in plan_errors)
             conf = 0.0
@@ -660,6 +758,9 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             "stop": stop,
             "tps": [{"price": tp1, "pct": 0.50}, {"price": tp2, "pct": 0.50}],
             "qty": qty,
+            "contract_vol": normalized["contract_vol"],
+            "contract_size": normalized["contract_size"],
+            "price_unit": normalized.get("price_unit"),
             "risk_usdt": risk_usdt,
             "margin_need": margin_need,
             "reasons": reasons,
