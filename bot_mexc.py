@@ -12,6 +12,11 @@ import sys
 import time
 from datetime import datetime, timezone
 
+# Aiogram 3.22 requires aiohttp <3.13. Until it supports the patched 3.14.x
+# line, use aiohttp's Python parser so malformed exchange responses cannot hit
+# the C-parser out-of-bounds read tracked as PYSEC-2026-3545.
+os.environ.setdefault("AIOHTTP_NO_EXTENSIONS", "1")
+
 from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -254,7 +259,12 @@ def _is_major_symbol(symbol: str) -> bool:
 
 def _is_actionable_plan(plan: dict) -> bool:
     symbol = plan.get("symbol", "")
-    if plan.get("side") == "skip" or not _is_usdt_pair(symbol) or _is_junk_symbol(symbol):
+    if (
+        plan.get("side") == "skip"
+        or core_plan.plan_payload_errors(plan)
+        or not _is_usdt_pair(symbol)
+        or _is_junk_symbol(symbol)
+    ):
         return False
     min_conf = MAJOR_SCAN_MIN_CONFIDENCE if _is_major_symbol(symbol) else SCAN_CFG["min_confidence"]
     return _conf(plan) >= min_conf

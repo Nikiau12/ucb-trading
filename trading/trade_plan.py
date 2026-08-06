@@ -8,15 +8,23 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-from analytics.indicators import ema, rsi, atr, adx, OHLC, volatility_regime
-from analytics.structure import Bar, swings, last_structure_bias, bos_choch
-from analytics.levels import cluster_levels, nearest_levels, midrange_ratio
+try:
+    from .analytics.indicators import ema, rsi, atr, adx, OHLC, volatility_regime
+    from .analytics.structure import Bar, swings, last_structure_bias, bos_choch
+    from .analytics.levels import cluster_levels, nearest_levels, midrange_ratio
+except ImportError:
+    # The CLI and the production bot also load this module directly from trading/.
+    from analytics.indicators import ema, rsi, atr, adx, OHLC, volatility_regime
+    from analytics.structure import Bar, swings, last_structure_bias, bos_choch
+    from analytics.levels import cluster_levels, nearest_levels, midrange_ratio
 
 # ----------------------------
 # Tunables
 # ----------------------------
 
 MAX_RR_TP1 = 3.0  # do not choose swing TP1 if it is farther than this R
+MIN_RR_TP1 = 1.0  # do not publish setups whose first target pays less than the risk
+MIN_RR_TP2 = 1.8  # TP2 must materially improve the payoff over TP1
 
 # ----------------------------
 # Utils
@@ -161,13 +169,105 @@ def risk_position_size(deposit: float, risk_pct: float, entry: float, stop: floa
 def clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))
 
-def rr_metrics(entry: float, stop: float, tp1: float, tp2: float) -> Tuple[float, float]:
+def rr_metrics(
+    entry: float,
+    stop: float,
+    tp1: float,
+    tp2: float,
+    side: Optional[str] = None,
+) -> Tuple[float, float]:
     r = abs(entry - stop)
     if r <= 0:
         return 0.0, 0.0
-    rr1 = abs(tp1 - entry) / r
-    rr2 = abs(tp2 - entry) / r
+    if side == "long":
+        rr1 = (tp1 - entry) / r
+        rr2 = (tp2 - entry) / r
+    elif side == "short":
+        rr1 = (entry - tp1) / r
+        rr2 = (entry - tp2) / r
+    else:
+        # Backwards-compatible mode for callers that only need distances.
+        rr1 = abs(tp1 - entry) / r
+        rr2 = abs(tp2 - entry) / r
     return rr1, rr2
+
+
+def trade_plan_errors(
+    side: str,
+    entry: float,
+    stop: float,
+    tp1: float,
+    tp2: float,
+) -> List[str]:
+    """Return invariant violations that make a two-target plan unsafe to publish."""
+    prices = {"entry": entry, "stop": stop, "tp1": tp1, "tp2": tp2}
+    errors = [
+        f"{name}_not_positive_finite"
+        for name, value in prices.items()
+        if not math.isfinite(value) or value <= 0
+    ]
+    if errors:
+        return errors
+
+    if side == "long":
+        if not stop < entry:
+            errors.append("long_stop_not_below_entry")
+        if not entry < tp1:
+            errors.append("long_tp1_not_above_entry")
+        if not tp1 < tp2:
+            errors.append("long_tp2_not_above_tp1")
+    elif side == "short":
+        if not stop > entry:
+            errors.append("short_stop_not_above_entry")
+        if not entry > tp1:
+            errors.append("short_tp1_not_below_entry")
+        if not tp1 > tp2:
+            errors.append("short_tp2_not_below_tp1")
+    else:
+        return ["unknown_side"]
+
+    rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side=side)
+    # Small tolerance avoids rejecting an exact threshold because of binary
+    # floating-point representation (for example 1.8 becoming 1.799999...).
+    rr_epsilon = 1e-9
+    if rr1 + rr_epsilon < MIN_RR_TP1:
+        errors.append(f"rr1_below_min({rr1:.2f}<{MIN_RR_TP1:.2f})")
+    if rr2 + rr_epsilon < MIN_RR_TP2:
+        errors.append(f"rr2_below_min({rr2:.2f}<{MIN_RR_TP2:.2f})")
+    if rr2 <= rr1:
+        errors.append("rr2_not_greater_than_rr1")
+    return errors
+
+
+def plan_payload_errors(plan: Dict[str, Any]) -> List[str]:
+    """Validate the primary scenario at storage and delivery boundaries."""
+    if plan.get("side") == "skip":
+        return []
+    primary = plan.get("primary")
+    if not isinstance(primary, dict):
+        return ["missing_primary"]
+    targets = primary.get("tps")
+    if not isinstance(targets, list) or len(targets) < 2:
+        return ["missing_two_targets"]
+    try:
+        side = str(primary.get("side", "")).lower()
+        entry = float(primary["entry"])
+        stop = float(primary["stop"])
+        tp1 = float(targets[0]["price"])
+        tp2 = float(targets[1]["price"])
+    except (KeyError, TypeError, ValueError, IndexError):
+        return ["malformed_primary"]
+    return trade_plan_errors(side, entry, stop, tp1, tp2)
+
+
+def _range_targets(side: str, entry: float, stop: float, boundary: float) -> Tuple[float, float]:
+    """Use 1R as the partial target and the far range boundary as TP2."""
+    risk = abs(entry - stop)
+    if side == "long":
+        return entry + risk * MIN_RR_TP1, boundary
+    if side == "short":
+        return entry - risk * MIN_RR_TP1, boundary
+    raise ValueError(f"unknown side: {side}")
 
 def _nearest_swing_tp_long(highs4: List[Any], entry: float, min_rr: float, r: float, max_rr: float = MAX_RR_TP1) -> Optional[float]:
     cands = [sw.price for sw in highs4[-80:] if sw.price > entry]
@@ -260,6 +360,8 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
         f"adx4h≈{adx4h:.1f}" if adx4h is not None else "adx4h=n/a",
         f"vol={vol_reg}",
         f"max_rr_tp1={MAX_RR_TP1:.1f}",
+        f"min_rr_tp1={MIN_RR_TP1:.1f}",
+        f"min_rr_tp2={MIN_RR_TP2:.1f}",
     ]
     if rsi_1h is not None:
         reasons_common.append(f"rsi1h≈{rsi_1h:.1f}")
@@ -356,7 +458,7 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             raw = (bias_short - bias_long + 7) / 14.0
         return clamp01(raw)
 
-    def apply_filters(conf: float, long_side: bool, reasons: List[str], rr1: float, dist_entry_atr: float) -> float:
+    def apply_filters(conf: float, long_side: bool, reasons: List[str], dist_entry_atr: float) -> float:
         c = conf
         if mid_skip:
             c = 0.0
@@ -372,14 +474,6 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             c = clamp01(c - rsi_pen_short)
             if block_short:
                 c = 0.0
-
-        # RR filter
-        if rr1 < 0.50:
-            reasons.append(f"filter=rr_too_low(rr1={rr1:.2f})")
-            c = 0.0
-        elif rr1 < 0.70:
-            reasons.append(f"filter=rr_penalty(rr1={rr1:.2f})")
-            c = clamp01(c - 0.20)
 
         # Distance-to-entry
         if dist_entry_atr >= far_kill:
@@ -407,9 +501,8 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
         tp2_reason = "tp2=2R"
 
         if regime == "range" and res is not None:
-            tp1 = res
-            tp2 = res
-            tp1_reason = "tp1=range_boundary"
+            tp1, tp2 = _range_targets("long", entry, stop, res)
+            tp1_reason = f"tp1={MIN_RR_TP1:.1f}R"
             tp2_reason = "tp2=range_boundary"
         else:
             tp1 = entry + dist * 1.0
@@ -442,11 +535,11 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
                 tp2 = base_tp2
                 tp2_reason = f"tp2={base_rr2:.1f}R"
 
-            if tp2 < tp1:
+            if tp2 <= tp1:
                 tp2 = base_tp2
                 tp2_reason = "tp2=fix_order"
 
-        rr1, rr2 = rr_metrics(entry, stop, tp1, tp2)
+        rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side="long")
         margin_need = (qty * entry) / max(1e-9, lev)
         dist_entry_atr = abs(entry - float(lp)) / max(1e-9, float(atr4h))
 
@@ -460,7 +553,11 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             f"rr2={rr2:.2f}",
             f"entry_dist_ATR4h={dist_entry_atr:.2f}",
         ]
-        conf = apply_filters(base_conf(True), True, reasons, rr1, dist_entry_atr)
+        conf = apply_filters(base_conf(True), True, reasons, dist_entry_atr)
+        plan_errors = trade_plan_errors("long", entry, stop, tp1, tp2)
+        if plan_errors:
+            reasons.extend(f"filter=invalid_plan({error})" for error in plan_errors)
+            conf = 0.0
 
         return {
             "side": "long",
@@ -490,9 +587,8 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
         tp2_reason = "tp2=2R"
 
         if regime == "range" and sup is not None:
-            tp1 = sup
-            tp2 = sup
-            tp1_reason = "tp1=range_boundary"
+            tp1, tp2 = _range_targets("short", entry, stop, sup)
+            tp1_reason = f"tp1={MIN_RR_TP1:.1f}R"
             tp2_reason = "tp2=range_boundary"
         else:
             tp1 = entry - dist * 1.0
@@ -525,11 +621,11 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
                 tp2 = base_tp2
                 tp2_reason = f"tp2={base_rr2:.1f}R"
 
-            if tp2 > tp1:
+            if tp2 >= tp1:
                 tp2 = base_tp2
                 tp2_reason = "tp2=fix_order"
 
-        rr1, rr2 = rr_metrics(entry, stop, tp1, tp2)
+        rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side="short")
         margin_need = (qty * entry) / max(1e-9, lev)
         dist_entry_atr = abs(entry - float(lp)) / max(1e-9, float(atr4h))
 
@@ -543,7 +639,11 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             f"rr2={rr2:.2f}",
             f"entry_dist_ATR4h={dist_entry_atr:.2f}",
         ]
-        conf = apply_filters(base_conf(False), False, reasons, rr1, dist_entry_atr)
+        conf = apply_filters(base_conf(False), False, reasons, dist_entry_atr)
+        plan_errors = trade_plan_errors("short", entry, stop, tp1, tp2)
+        if plan_errors:
+            reasons.extend(f"filter=invalid_plan({error})" for error in plan_errors)
+            conf = 0.0
 
         return {
             "side": "short",
@@ -562,11 +662,17 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
     primary = long_s if long_s["confidence"] >= short_s["confidence"] else short_s
 
     if max(long_s["confidence"], short_s["confidence"]) < 0.15:
+        invalid_reasons = [
+            reason
+            for scenario in (long_s, short_s)
+            for reason in scenario.get("reasons", [])
+            if reason.startswith("filter=invalid_plan(")
+        ]
         return {
             "symbol": snapshot.get("symbol"),
             "side": "skip",
             "confidence": max(long_s["confidence"], short_s["confidence"]),
-            "reasons": ["filters_killed_setup"],
+            "reasons": ["filters_killed_setup", *dict.fromkeys(invalid_reasons)],
             "used_cache": used_cache,
             "trend": {"1d": t1d, "4h": t4h, "struct4h": struct4, "bos": bos, "regime": regime},
             "levels": {"support": sup, "resistance": res, "tol": tol, "mid": mr},
