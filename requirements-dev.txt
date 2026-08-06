@@ -1,7 +1,7 @@
 -r miniapp/requirements.txt
 -r requirements.txt
 
-pytest>=8,<9
+pytest>=9,<10
 hypothesis>=6,<7
 bandit==1.8.6
 pip-audit==2.9.0
