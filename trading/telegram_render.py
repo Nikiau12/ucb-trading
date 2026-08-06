@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from i18n import t as _t
@@ -18,6 +19,18 @@ def _fmt(x: Any) -> str:
         return f"{x:.4f}"
     except Exception:
         return "n/a"
+
+
+def _fmt_price(x: Any, price_unit: Any) -> str:
+    try:
+        value = float(x)
+        unit = Decimal(str(price_unit)).normalize()
+        if not math.isfinite(value) or not unit.is_finite() or unit <= 0:
+            return _fmt(x)
+        decimals = max(0, -unit.as_tuple().exponent)
+        return f"{value:,.{decimals}f}".replace(",", " ")
+    except Exception:
+        return _fmt(x)
 
 
 # Human-readable labels for internal reason codes
@@ -116,6 +129,7 @@ def render_telegram_plan(
     qty        = primary.get("qty")
     risk_usdt  = primary.get("risk_usdt")
     margin_need = primary.get("margin_need")
+    price_unit = primary.get("price_unit")
 
     reasons      = primary.get("reasons") or []
     short_reasons = reasons[-10:] if len(reasons) > 10 else reasons
@@ -130,7 +144,7 @@ def render_telegram_plan(
     return (
         f"{_t(L, 'r_context')}\n"
         f"📌 <b><code>{sym}</code> — {_t(L, 'r_plan')}</b>{cache_tag}\n"
-        f"{_t(L, 'r_price')}: <code>{_fmt(price)}</code>\n\n"
+        f"{_t(L, 'r_price')}: <code>{_fmt_price(price, price_unit)}</code>\n\n"
 
         f"{_t(L, 'r_profile')}\n"
         f"{_t(L, 'r_deposit')}: <b>{_fmt(deposit)}</b>\n"
@@ -147,10 +161,10 @@ def render_telegram_plan(
 
         f"{side_tag} <b>{_t(L, 'r_scenario')}</b>\n"
         f"✅ <b>{side}</b> — {_t(L, 'r_confidence')}: <b>{conf_pct}</b>\n"
-        f"{_t(L, 'r_entry')}: <code>{_fmt(entry)}</code>\n"
-        f"{_t(L, 'r_stop')}: <code>{_fmt(stop)}</code>\n"
-        f"{_t(L, 'r_tp1')}: <code>{_fmt(tp1)}</code>\n"
-        f"{_t(L, 'r_tp2')}: <code>{_fmt(tp2)}</code>\n\n"
+        f"{_t(L, 'r_entry')}: <code>{_fmt_price(entry, price_unit)}</code>\n"
+        f"{_t(L, 'r_stop')}: <code>{_fmt_price(stop, price_unit)}</code>\n"
+        f"{_t(L, 'r_tp1')}: <code>{_fmt_price(tp1, price_unit)}</code>\n"
+        f"{_t(L, 'r_tp2')}: <code>{_fmt_price(tp2, price_unit)}</code>\n\n"
 
         f"{_t(L, 'r_size')}\n"
         f"• {_t(L, 'r_qty')}: <code>{_fmt(qty)}</code>\n"

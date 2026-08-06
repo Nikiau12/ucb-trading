@@ -20,6 +20,7 @@ MEXC_MIN_REQUEST_INTERVAL = max(0.1, float(os.getenv("MEXC_MIN_REQUEST_INTERVAL"
 MEXC_MAX_ATTEMPTS = max(1, int(os.getenv("MEXC_MAX_ATTEMPTS", "4")))
 SNAPSHOT_MAX_STALE_SECONDS = max(0, int(os.getenv("MEXC_SNAPSHOT_MAX_STALE_SECONDS", "7200")))
 TICKER_CACHE_TTL_SECONDS = max(1, int(os.getenv("MEXC_TICKER_CACHE_TTL_SECONDS", "60")))
+CONTRACT_CACHE_TTL_SECONDS = max(60, int(os.getenv("MEXC_CONTRACT_CACHE_TTL_SECONDS", "3600")))
 FALLBACK_SYMBOLS = ["BTC_USDT", "ETH_USDT", "SOL_USDT"]
 
 logger = logging.getLogger(__name__)
@@ -130,12 +131,37 @@ _PUBLIC_CLIENT = MexcPublicClient()
 _TICKER_CACHE_LOCK = threading.Lock()
 _TICKER_CACHE: Dict[str, Dict[str, Any]] = {}
 _TICKER_CACHE_TS = 0.0
+_CONTRACT_CACHE_LOCK = threading.Lock()
+_CONTRACT_CACHE: Dict[str, Dict[str, Any]] = {}
+_CONTRACT_CACHE_TS = 0.0
 
 def http_get(path: str, params: Optional[Dict[str, Any]] = None, timeout: int = 10):
     return _PUBLIC_CLIENT.get(path, params=params, timeout=timeout)
 
 def futures_contracts():
-    return http_get("/api/v1/contract/detail")
+    global _CONTRACT_CACHE, _CONTRACT_CACHE_TS
+    with _CONTRACT_CACHE_LOCK:
+        if time.time() - _CONTRACT_CACHE_TS <= CONTRACT_CACHE_TTL_SECONDS and _CONTRACT_CACHE:
+            return {"success": True, "code": 0, "data": list(_CONTRACT_CACHE.values())}
+        payload = http_get("/api/v1/contract/detail")
+        items = payload.get("data", []) if isinstance(payload, dict) else []
+        if isinstance(items, list):
+            _CONTRACT_CACHE = {
+                str(item.get("symbol")): item
+                for item in items
+                if isinstance(item, dict) and item.get("symbol")
+            }
+            _CONTRACT_CACHE_TS = time.time()
+        return payload
+
+
+def futures_contract_detail(symbol: str) -> Dict[str, Any]:
+    payload = futures_contracts()
+    with _CONTRACT_CACHE_LOCK:
+        detail = _CONTRACT_CACHE.get(symbol)
+    if detail is None:
+        raise MexcAPIError(f"MEXC contract metadata missing for {symbol}")
+    return dict(detail)
 
 def futures_ticker(symbol: str):
     with _TICKER_CACHE_LOCK:
@@ -230,6 +256,7 @@ def build_snapshot(symbol: str) -> dict:
     return {
         "ts": int(time.time() * 1000),
         "symbol": symbol,
+        "contract": futures_contract_detail(symbol),
         "ticker": futures_ticker(symbol),
         "kline_1h": futures_kline(symbol, "Min60", 200),
         "kline_4h": futures_kline(symbol, "Hour4", 200),

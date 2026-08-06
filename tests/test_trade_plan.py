@@ -13,6 +13,7 @@ if str(TRADING_DIR) not in sys.path:
     sys.path.insert(0, str(TRADING_DIR))
 
 import trade_plan  # noqa: E402
+import telegram_render  # noqa: E402
 from analytics.structure import Bar, Swing  # noqa: E402
 
 
@@ -142,3 +143,87 @@ def test_payload_validation_rejects_duplicate_targets_before_delivery():
 
     assert "short_tp2_not_below_tp1" in errors
     assert "rr2_not_greater_than_rr1" in errors
+
+
+def test_contract_normalization_uses_valid_ticks_and_does_not_exceed_risk():
+    normalized = trade_plan.normalize_for_contract(
+        {
+            "contract": {
+                "priceUnit": 0.01,
+                "contractSize": 0.1,
+                "volUnit": 1,
+                "minVol": 1,
+                "maxVol": 1000,
+            }
+        },
+        "long",
+        entry=100.006,
+        stop=95.009,
+        tp1=105.001,
+        tp2=110.001,
+        deposit=100.0,
+        risk_pct=1.0,
+    )
+
+    assert normalized["entry"] == 100.01
+    assert normalized["stop"] == 95.0
+    assert normalized["tp1"] == 105.01
+    assert normalized["tp2"] == 110.01
+    assert normalized["contract_vol"] == 1
+    assert normalized["qty"] == 0.1
+    assert 0 < normalized["risk_usdt"] <= 1.0
+    assert normalized["errors"] == []
+
+
+def test_short_contract_prices_round_away_from_entry():
+    normalized = trade_plan.normalize_for_contract(
+        {
+            "contract": {
+                "priceUnit": 0.1,
+                "contractSize": 0.01,
+                "volUnit": 1,
+                "minVol": 1,
+            }
+        },
+        "short",
+        entry=100.04,
+        stop=104.91,
+        tp1=95.09,
+        tp2=90.09,
+        deposit=100.0,
+        risk_pct=1.0,
+    )
+
+    assert normalized["entry"] == 100.0
+    assert normalized["stop"] == 105.0
+    assert normalized["tp1"] == 95.0
+    assert normalized["tp2"] == 90.0
+
+
+def test_plan_is_rejected_when_minimum_contract_exceeds_risk_budget():
+    normalized = trade_plan.normalize_for_contract(
+        {
+            "contract": {
+                "priceUnit": 0.1,
+                "contractSize": 1,
+                "volUnit": 1,
+                "minVol": 1,
+            }
+        },
+        "long",
+        entry=100.0,
+        stop=95.0,
+        tp1=105.0,
+        tp2=110.0,
+        deposit=10.0,
+        risk_pct=1.0,
+    )
+
+    assert normalized["contract_vol"] == 0
+    assert normalized["qty"] == 0
+    assert "position_below_min_contract" in normalized["errors"]
+
+
+def test_price_formatter_preserves_exchange_tick_precision():
+    assert telegram_render._fmt_price(63159.7, 0.1) == "63 159.7"
+    assert telegram_render._fmt_price(0.07365, 0.00001) == "0.07365"

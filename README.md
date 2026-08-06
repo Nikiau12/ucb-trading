@@ -213,6 +213,7 @@ The most important environment variables are:
 | `MEXC_MIN_REQUEST_INTERVAL` | Minimum process-wide delay between public MEXC REST requests |
 | `MEXC_MAX_ATTEMPTS` | Retry count for MEXC throttling and transient failures |
 | `MEXC_SNAPSHOT_MAX_STALE_SECONDS` | Maximum cache age accepted for diagnostics; stale data is never signalled |
+| `MEXC_CONTRACT_CACHE_TTL_SECONDS` | Cache lifetime for symbol tick size, contract size, and volume limits |
 
 See [`.env.example`](.env.example) for the complete documented template.
 
