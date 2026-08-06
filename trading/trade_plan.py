@@ -299,6 +299,14 @@ def _next_swing_tp_short(lows4: List[Any], tp1: float) -> Optional[float]:
 
 def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: float, margin: str) -> Dict[str, Any]:
     used_cache = bool(snapshot.get("stale") or snapshot.get("fallback", {}).get("used_cache"))
+    if used_cache:
+        return {
+            "symbol": snapshot.get("symbol"),
+            "side": "skip",
+            "confidence": 0.0,
+            "reasons": ["stale_market_data"],
+            "used_cache": True,
+        }
 
     bars_4h = parse_bars(snapshot, "kline_4h")
     bars_1d = parse_bars(snapshot, "kline_1d")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 
@@ -40,6 +41,7 @@ def scan_all(
     margin: str,
     workers: int = 10,
 ) -> List[Dict[str, Any]]:
+    started_at = time.monotonic()
     results: List[Dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = {
@@ -51,4 +53,13 @@ def scan_all(
             if r is not None:
                 results.append(r)
     results.sort(key=_conf, reverse=True)
+    logger.info(
+        "scan_all completed requested=%s completed=%s failed=%s stale=%s duration_seconds=%.2f workers=%s",
+        len(symbols),
+        len(results),
+        len(symbols) - len(results),
+        sum(bool(result.get("used_cache")) for result in results),
+        time.monotonic() - started_at,
+        workers,
+    )
     return results
