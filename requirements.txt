@@ -1,4 +1,4 @@
-pandas==2.3.3
+pandas==3.0.5
 numpy==1.26.4
 ccxt==4.5.64
 aiogram==3.30.0
