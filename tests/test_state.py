@@ -1,6 +1,24 @@
 from trading import state
 
 
+class _RuntimeConnection:
+    def __init__(self):
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def execute(self, query, params=None):
+        self.calls.append((query, params))
+        return self
+
+    def commit(self):
+        return None
+
+
 def _duplicate_target_plan():
     return {
         "symbol": "XPL_USDT",
@@ -41,3 +59,21 @@ def test_signal_contract_rules_are_extracted_for_history():
         "max_vol": 1000,
         "max_leverage": 50,
     }
+
+
+def test_runtime_health_records_scanner_metrics(monkeypatch):
+    connection = _RuntimeConnection()
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    state.record_runtime_health(
+        "plan_scanner",
+        success=True,
+        duration_seconds=12.5,
+        details={"completed": 71, "failed": 0},
+    )
+
+    upsert = next(call for call in connection.calls if "INSERT INTO runtime_health" in call[0])
+    assert upsert[1][0] == "plan_scanner"
+    assert upsert[1][1] == "ok"
+    assert '"completed": 71' in upsert[1][6]

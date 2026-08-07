@@ -1142,6 +1142,7 @@ async def market_scanner_loop():
     """Реалтайм сканер: спайки (15m) + SMC сетапы (4h/1d)."""
     while True:
         try:
+            cycle_started_at = time.monotonic()
             now = time.time()
             symbols = [symbol for symbol in await exchange.get_top_pairs() if _is_usdt_pair(symbol)]
 
@@ -1196,12 +1197,19 @@ async def market_scanner_loop():
             now = time.time()
             last_spike_alert.update({k: v for k, v in last_spike_alert.items() if now - v <= SPIKE_COOLDOWN})
             last_setup_alert.update({k: v for k, v in last_setup_alert.items() if now - v <= SETUP_COOLDOWN})
+            st.record_runtime_health(
+                "market_scanner",
+                success=True,
+                duration_seconds=time.monotonic() - cycle_started_at,
+                details={"symbols": len(symbols)},
+            )
             print("Фоновый цикл завершен. Ожидание 60 сек...")
             await asyncio.sleep(60)
 
         except asyncio.CancelledError:
             break
         except Exception as e:
+            st.record_runtime_health("market_scanner", success=False, details={"error": type(e).__name__})
             print(f"market_scanner_loop error: {e}")
             await asyncio.sleep(10)
 
@@ -1220,6 +1228,7 @@ async def plan_scanner_loop():
             if minutes_since >= 5 and _last_plan_1h_block != block:
                 _last_plan_1h_block = block
                 print(f"[PlanScanner] 1h block {block:02d}:00 — starting...")
+                scan_started_at = time.monotonic()
                 try:
                     loop = asyncio.get_event_loop()
                     symbols = await loop.run_in_executor(
@@ -1278,7 +1287,25 @@ async def plan_scanner_loop():
                         sent += 1
                         await asyncio.sleep(0.5)
                     print(f"[PlanScanner] Done: {len(results)} scanned, {sent} alerts sent")
+                    st.record_runtime_health(
+                        "plan_scanner",
+                        success=True,
+                        duration_seconds=time.monotonic() - scan_started_at,
+                        details={
+                            "requested": len(symbols),
+                            "completed": len(results),
+                            "failed": len(symbols) - len(results),
+                            "stale": sum(bool(result.get("used_cache")) for result in results),
+                            "alerts_sent": sent,
+                        },
+                    )
                 except Exception as e:
+                    st.record_runtime_health(
+                        "plan_scanner",
+                        success=False,
+                        duration_seconds=time.monotonic() - scan_started_at,
+                        details={"error": type(e).__name__},
+                    )
                     print(f"[PlanScanner] Error: {e}")
 
         except asyncio.CancelledError:

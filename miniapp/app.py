@@ -17,7 +17,7 @@ from urllib.parse import parse_qsl
 import psycopg
 import requests
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -39,7 +39,9 @@ PAYMENT_DAYS = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
 PAYMENT_NETWORK = os.getenv("USDT_PAYMENT_NETWORK", "TRC20 (Tron)")
 PAYMENT_WALLET = os.getenv("USDT_PAYMENT_ADDRESS", "")
 FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
+SCANNER_HEALTH_MAX_AGE_SECONDS = int(os.getenv("SCANNER_HEALTH_MAX_AGE_SECONDS", "5400"))
 SUPPORTED_LANGUAGES = {"en", "ru", "de", "fr", "es"}
+APP_STARTED_AT = time.monotonic()
 
 
 def normalize_usdt_symbol(symbol: str) -> Optional[str]:
@@ -114,9 +116,55 @@ market_cache = {}
 market_cache_lock = threading.Lock()
 
 
+class HttpMetrics:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._requests = defaultdict(int)
+        self._duration_seconds = defaultdict(float)
+
+    @staticmethod
+    def normalize_path(path: str) -> str:
+        if path.startswith("/api/market/"):
+            return "/api/market/:symbol"
+        known = {"/", "/health", "/metrics", "/api/me", "/api/settings", "/api/signals", "/api/payment-instructions"}
+        return path if path in known else "/other"
+
+    def record(self, path: str, status_code: int, duration_seconds: float) -> None:
+        key = (self.normalize_path(path), int(status_code))
+        with self._lock:
+            self._requests[key] += 1
+            self._duration_seconds[key] += max(0.0, duration_seconds)
+
+    def prometheus(self) -> str:
+        with self._lock:
+            requests_snapshot = dict(self._requests)
+            durations_snapshot = dict(self._duration_seconds)
+        lines = [
+            "# HELP ucb_app_uptime_seconds Mini App process uptime.",
+            "# TYPE ucb_app_uptime_seconds gauge",
+            f"ucb_app_uptime_seconds {time.monotonic() - APP_STARTED_AT:.3f}",
+            "# HELP ucb_http_requests_total HTTP responses by normalized path and status.",
+            "# TYPE ucb_http_requests_total counter",
+        ]
+        for (path, status), count in sorted(requests_snapshot.items()):
+            labels = f'path="{path}",status="{status}"'
+            lines.append(f"ucb_http_requests_total{{{labels}}} {count}")
+            lines.append(f"ucb_http_request_duration_seconds_sum{{{labels}}} {durations_snapshot[(path, status)]:.6f}")
+        return "\n".join(lines) + "\n"
+
+
+http_metrics = HttpMetrics()
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    response = await call_next(request)
+    started_at = time.monotonic()
+    try:
+        response = await call_next(request)
+    except Exception:
+        http_metrics.record(request.url.path, 500, time.monotonic() - started_at)
+        raise
+    http_metrics.record(request.url.path, response.status_code, time.monotonic() - started_at)
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; "
         "script-src 'self' https://telegram.org https://unpkg.com; "
@@ -191,6 +239,16 @@ def init_db() -> None:
                 signal_id BIGINT NOT NULL,
                 granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 PRIMARY KEY (telegram_user_id, signal_id)
+            );
+            CREATE TABLE IF NOT EXISTS runtime_health (
+                component TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                last_success_at TIMESTAMPTZ,
+                last_error_at TIMESTAMPTZ,
+                duration_seconds NUMERIC,
+                consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                details JSONB NOT NULL DEFAULT '{}'::jsonb
             );
             """
         )
@@ -313,7 +371,41 @@ def index():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "database": bool(DATABASE_URL)}
+    if not DATABASE_URL:
+        return {"ok": True, "database": False, "mode": "demo", "scanner": None}
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=3) as connection:
+            connection.execute("SELECT 1").fetchone()
+            row = connection.execute(
+                """
+                SELECT status, last_seen_at, last_success_at, duration_seconds,
+                       consecutive_failures, details
+                FROM runtime_health WHERE component = 'plan_scanner'
+                """
+            ).fetchone()
+        scanner = None
+        if row:
+            age_seconds = max(0.0, (datetime.now(timezone.utc) - row[1]).total_seconds())
+            scanner = {
+                "status": row[0],
+                "age_seconds": round(age_seconds, 1),
+                "fresh": age_seconds <= SCANNER_HEALTH_MAX_AGE_SECONDS,
+                "last_success_at": row[2].isoformat() if row[2] else None,
+                "duration_seconds": float(row[3]) if row[3] is not None else None,
+                "consecutive_failures": int(row[4]),
+                "details": row[5] if isinstance(row[5], dict) else {},
+            }
+        return {"ok": True, "database": True, "mode": "production", "scanner": scanner}
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "database": False, "mode": "production", "scanner": None},
+        )
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics():
+    return http_metrics.prometheus()
 
 
 @app.get("/api/me")
