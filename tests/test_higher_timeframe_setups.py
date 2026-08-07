@@ -1,5 +1,6 @@
 from trading.analytics.structure import Bar
 from trading.higher_timeframe_setups import (
+    BTC_4H_DIAGNOSTIC_CANDIDATES,
     BTC_4H_1D_SETUPS,
     htf_plan_builder,
 )
@@ -32,6 +33,11 @@ def test_htf_builder_rejects_hourly_signal_input(monkeypatch):
 
     assert plan["side"] == "skip"
     assert plan["reasons"] == ["unexpected_1h_signal_data"]
+
+
+def test_diagnostic_candidates_are_small_and_explicit():
+    assert len(BTC_4H_DIAGNOSTIC_CANDIDATES) == 3
+    assert all(setup.allowed_sides == ("long",) for setup in BTC_4H_DIAGNOSTIC_CANDIDATES)
 
 
 def test_htf_pullback_uses_daily_direction_and_closed_4h_reclaim(monkeypatch):

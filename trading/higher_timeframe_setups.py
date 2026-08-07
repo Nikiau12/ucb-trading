@@ -26,6 +26,10 @@ class HTFSetup:
     min_volume_ratio: float = 0.0
     min_touches: int = 2
     reclaim_bars: int = 2
+    max_daily_trend_age: Optional[int] = None
+    max_daily_extension_atr: Optional[float] = None
+    min_close_extension_atr: Optional[float] = None
+    max_atr_4h_pct: Optional[float] = None
 
 
 BTC_4H_1D_SETUPS = (
@@ -58,6 +62,72 @@ SOL_4H_1D_SETUPS = (
 )
 
 
+# These compact libraries were pre-registered after diagnosing selection data.
+# They are exploratory only: the previously observed confirmation period cannot
+# be used to validate them, so they require a new forward window.
+BTC_4H_DIAGNOSTIC_CANDIDATES = (
+    HTFSetup(
+        "btc_4h_pullback_long_age60",
+        "trend_pullback",
+        20,
+        ("long",),
+        20.0,
+        max_daily_trend_age=60,
+    ),
+    HTFSetup(
+        "btc_4h_pullback_long_reclaim20",
+        "trend_pullback",
+        20,
+        ("long",),
+        20.0,
+        min_close_extension_atr=0.20,
+    ),
+    HTFSetup(
+        "btc_4h_pullback_long_age60_reclaim20",
+        "trend_pullback",
+        20,
+        ("long",),
+        20.0,
+        max_daily_trend_age=60,
+        min_close_extension_atr=0.20,
+    ),
+)
+
+
+SOL_4H_DIAGNOSTIC_CANDIDATES = (
+    HTFSetup(
+        "sol_4h_pullback_long_quality",
+        "trend_pullback",
+        16,
+        ("long",),
+        25.0,
+        max_daily_trend_age=65,
+        max_daily_extension_atr=2.30,
+        min_close_extension_atr=0.15,
+    ),
+    HTFSetup(
+        "sol_4h_pullback_short_early_lowvol",
+        "trend_pullback",
+        16,
+        ("short",),
+        25.0,
+        max_daily_trend_age=25,
+        max_daily_extension_atr=1.80,
+        max_atr_4h_pct=3.30,
+    ),
+    HTFSetup(
+        "sol_4h_pullback_both_conservative",
+        "trend_pullback",
+        16,
+        min_adx_4h=25.0,
+        max_daily_trend_age=50,
+        max_daily_extension_atr=2.30,
+        min_close_extension_atr=0.15,
+        max_atr_4h_pct=4.00,
+    ),
+)
+
+
 def _skip(symbol: Any, reason: str) -> Dict[str, Any]:
     return {
         "symbol": symbol,
@@ -86,10 +156,21 @@ def htf_features(snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     adx_4h, _ = adx(ohlc_4h, 14, return_series=False)
     ema20_4h, ema20_4h_series = ema(closes_4h, 20, return_series=True)
     ema50_4h, _ = ema(closes_4h, 50, return_series=False)
-    ema20_1d, _ = ema(closes_1d, 20, return_series=False)
-    ema50_1d, _ = ema(closes_1d, 50, return_series=False)
-    if None in (atr_4h, adx_4h, ema20_4h, ema50_4h, ema20_1d, ema50_1d):
+    ema20_1d, ema20_1d_series = ema(closes_1d, 20, return_series=True)
+    ema50_1d, ema50_1d_series = ema(closes_1d, 50, return_series=True)
+    atr_1d, _ = atr(
+        [OHLC(bar.o, bar.h, bar.l, bar.c) for bar in bars_1d],
+        14,
+        return_series=False,
+    )
+    if None in (atr_4h, atr_1d, adx_4h, ema20_4h, ema50_4h, ema20_1d, ema50_1d):
         return None
+    trend_up_1d = ema20_1d > ema50_1d
+    daily_trend_age = 0
+    for fast, slow in zip(reversed(ema20_1d_series), reversed(ema50_1d_series)):
+        if (fast > slow) != trend_up_1d:
+            break
+        daily_trend_age += 1
     highs, lows = swings(bars_4h, 2, 2)
     return {
         "bars_4h": bars_4h,
@@ -99,7 +180,10 @@ def htf_features(snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "ema20_4h": float(ema20_4h),
         "ema20_4h_series": ema20_4h_series,
         "trend_4h": "up" if ema20_4h > ema50_4h else "down",
-        "trend_1d": "up" if ema20_1d > ema50_1d else "down",
+        "trend_1d": "up" if trend_up_1d else "down",
+        "ema20_1d": float(ema20_1d),
+        "atr_1d": float(atr_1d),
+        "daily_trend_age": daily_trend_age,
         "volume_ratio": _volume_ratio([bar.v for bar in bars_4h]),
         "swing_highs": highs,
         "swing_lows": lows,
@@ -186,6 +270,14 @@ def htf_plan_builder(setup: HTFSetup) -> Callable[..., Dict[str, Any]]:
             volume_ratio is None or volume_ratio < setup.min_volume_ratio
         ):
             return _skip(snapshot.get("symbol"), "4h_volume_rejected")
+        if (
+            setup.max_daily_trend_age is not None
+            and features["daily_trend_age"] > setup.max_daily_trend_age
+        ):
+            return _skip(snapshot.get("symbol"), "1d_trend_too_mature")
+        atr_4h_pct = 100 * atr_4h / latest.c
+        if setup.max_atr_4h_pct is not None and atr_4h_pct > setup.max_atr_4h_pct:
+            return _skip(snapshot.get("symbol"), "4h_volatility_too_high")
 
         side: Optional[str] = None
         entry = stop = tp1 = tp2 = 0.0
@@ -231,6 +323,22 @@ def htf_plan_builder(setup: HTFSetup) -> Callable[..., Dict[str, Any]]:
                 ):
                     side, entry, trigger = "short", floor, "4h_breakout=low_retest"
             if side is not None:
+                if setup.max_daily_extension_atr is not None:
+                    signed_daily_extension = (
+                        (bars[-1].c - features["ema20_1d"]) / features["atr_1d"]
+                        if side == "long"
+                        else (features["ema20_1d"] - bars[-1].c) / features["atr_1d"]
+                    )
+                    if signed_daily_extension > setup.max_daily_extension_atr:
+                        return _skip(snapshot.get("symbol"), "1d_extension_too_large")
+                if setup.min_close_extension_atr is not None:
+                    signed_close_extension = (
+                        (latest.c - features["ema20_4h"]) / atr_4h
+                        if side == "long"
+                        else (features["ema20_4h"] - latest.c) / atr_4h
+                    )
+                    if signed_close_extension < setup.min_close_extension_atr:
+                        return _skip(snapshot.get("symbol"), "4h_reclaim_too_weak")
                 risk = 1.2 * atr_4h
                 stop = entry - risk if side == "long" else entry + risk
                 tp1 = entry + risk if side == "long" else entry - risk

@@ -16,7 +16,10 @@ class ExchangeClient:
         }
         self.exchange = ccxt.mexc(self._exchange_options)
         self._trading_exchange = None
-        self._public_request_lock = asyncio.Lock()
+        # Create the lock inside the active event loop. Constructing it during
+        # module import breaks Python 3.9 when uvloop has no current loop yet.
+        self._public_request_lock = None
+        self._public_request_lock_loop = None
         self._last_public_request_at = 0.0
         self._public_request_interval = 0.75
         self._markets_loaded = False
@@ -30,6 +33,10 @@ class ExchangeClient:
 
     async def _public_request(self, operation, *args, **kwargs):
         """Serialize public MEXC calls and retry the exchange's code 510 throttle."""
+        current_loop = asyncio.get_running_loop()
+        if self._public_request_lock is None or self._public_request_lock_loop is not current_loop:
+            self._public_request_lock = asyncio.Lock()
+            self._public_request_lock_loop = current_loop
         for attempt in range(4):
             try:
                 async with self._public_request_lock:
