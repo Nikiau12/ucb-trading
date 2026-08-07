@@ -13,9 +13,8 @@ import time
 from datetime import datetime, timezone
 from decimal import Decimal
 
-# Aiogram 3.22 requires aiohttp <3.13. Until it supports the patched 3.14.x
-# line, use aiohttp's Python parser so malformed exchange responses cannot hit
-# the C-parser out-of-bounds read tracked as PYSEC-2026-3545.
+# Keep aiohttp's pure-Python parser as defense in depth for untrusted exchange
+# responses, even though the pinned aiohttp release includes the parser fixes.
 os.environ.setdefault("AIOHTTP_NO_EXTENSIONS", "1")
 
 from aiogram import Bot, Dispatcher, types, Router, F
