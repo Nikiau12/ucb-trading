@@ -1,9 +1,13 @@
 from trading.analytics.structure import Bar
 from trading.research_setups import (
     BTCSetup,
+    BTC_V3_SETUPS,
     ETHSetup,
+    ETHStructureSetup,
     btc_plan_builder,
     eth_plan_builder,
+    eth_structure_plan_builder,
+    structural_range,
 )
 
 
@@ -96,3 +100,81 @@ def test_eth_range_builder_creates_plan_when_reclaim_has_enough_reward(monkeypat
 
     assert plan.get("primary", {}).get("side") == "long"
     assert plan["primary"]["tps"][1]["price"] > plan["primary"]["tps"][0]["price"]
+
+
+def test_btc_v3_plan_carries_expiry_time_stop_and_breakeven(monkeypatch):
+    bars = [Bar(index, 100, 102, 99, 101, 10) for index in range(25)]
+    bars[-1] = Bar(24, 101, 106, 100, 105, 20)
+    features = {
+        "bars_1h": bars,
+        "atr_1h": 2.0,
+        "atr_percentile": 50.0,
+        "volume_ratio": 2.0,
+        "ema_slope_atr": 0.2,
+        "ema20_4h": 110.0,
+        "ema50_4h": 100.0,
+        "ema20_1h": 101.0,
+        "ema20_1h_series": [100.0] * 24 + [101.0],
+    }
+    monkeypatch.setattr(
+        "trading.research_setups.closed_market_features", lambda _snapshot: features
+    )
+
+    plan = btc_plan_builder(BTC_V3_SETUPS[0])(
+        _snapshot("BTC_USDT"), deposit=1_000, risk_pct=1, lev=10, margin="cross"
+    )
+
+    primary = plan["primary"]
+    assert primary["entry_expiry_bars"] == 4
+    assert primary["max_holding_bars"] == 48
+    assert primary["breakeven_after_tp1"] is True
+    assert primary["tps"][0]["pct"] == 0.33
+    assert primary["cancel_if_close_below"] < primary["entry"]
+
+
+def test_structural_range_counts_separated_level_tests():
+    bars = []
+    for index in range(73):
+        low = 90 + (index % 2) * 0.1 if index % 8 == 0 else 95
+        high = 110 - (index % 2) * 0.1 if index % 8 == 4 else 105
+        bars.append(Bar(index, 100, high, low, 100, 10))
+
+    result = structural_range(bars, atr_last=2, lookback=72)
+
+    assert result is not None
+    assert result["support_touches"] >= 2
+    assert result["resistance_touches"] >= 2
+    assert result["support"] < result["resistance"]
+
+
+def test_eth_structural_reclaim_builds_range_targets(monkeypatch):
+    bars = [Bar(index, 104, 106, 102, 104, 10) for index in range(130)]
+    bars[-1] = Bar(129, 100, 102, 99, 101, 10)
+    features = {
+        "bars_1h": bars,
+        "atr_1h": 1.0,
+        "adx_4h": 20.0,
+    }
+    range_data = {
+        "support": 100.0,
+        "resistance": 110.0,
+        "middle": 105.0,
+        "width_atr": 10.0,
+        "support_touches": 3.0,
+        "resistance_touches": 3.0,
+    }
+    monkeypatch.setattr(
+        "trading.research_setups.closed_market_features", lambda _snapshot: features
+    )
+    monkeypatch.setattr(
+        "trading.research_setups.structural_range", lambda *_args: range_data
+    )
+    setup = ETHStructureSetup("test_structure", 72, 2, 2, ("long",))
+
+    plan = eth_structure_plan_builder(setup)(
+        _snapshot("ETH_USDT"), deposit=1_000, risk_pct=1, lev=10, margin="cross"
+    )
+
+    assert plan["primary"]["side"] == "long"
+    assert plan["primary"]["tps"][0]["price"] == 105
+    assert plan["primary"]["tps"][1]["price"] == 110

@@ -218,10 +218,22 @@ def _simulate_order(
     if qty <= 0 or risk_usdt <= 0:
         return None, signal_index + 1
 
-    last_entry_index = min(len(bars) - 1, signal_index + config.entry_expiry_bars)
+    entry_expiry_bars = int(primary.get("entry_expiry_bars") or config.entry_expiry_bars)
+    entry_expiry_bars = max(
+        config.entry_delay_bars,
+        min(entry_expiry_bars, config.entry_expiry_bars),
+    )
+    last_entry_index = min(len(bars) - 1, signal_index + entry_expiry_bars)
     entry_index = None
     first_entry_index = signal_index + config.entry_delay_bars
+    cancel_below = primary.get("cancel_if_close_below")
+    cancel_above = primary.get("cancel_if_close_above")
     for index in range(first_entry_index, last_entry_index + 1):
+        previous_close = bars[index - 1].c
+        if cancel_below is not None and previous_close < float(cancel_below):
+            return None, index
+        if cancel_above is not None and previous_close > float(cancel_above):
+            return None, index
         candle = bars[index]
         if candle.l <= planned_entry <= candle.h:
             entry_index = index
@@ -236,22 +248,29 @@ def _simulate_order(
     exit_fees = 0.0
     tp1_filled = False
     exit_reason = "timeout"
-    exit_index = min(len(bars) - 1, entry_index + config.max_holding_bars)
+    max_holding_bars = int(primary.get("max_holding_bars") or config.max_holding_bars)
+    max_holding_bars = max(1, min(max_holding_bars, config.max_holding_bars))
+    exit_index = min(len(bars) - 1, entry_index + max_holding_bars)
+    active_stop = stop
+    breakeven_after_tp1 = bool(primary.get("breakeven_after_tp1"))
 
     for index in range(entry_index, exit_index + 1):
         candle = bars[index]
-        stop_hit = candle.l <= stop if side == "long" else candle.h >= stop
+        stop_hit = candle.l <= active_stop if side == "long" else candle.h >= active_stop
         tp1_hit = candle.h >= tp1 if side == "long" else candle.l <= tp1
         tp2_hit = candle.h >= tp2 if side == "long" else candle.l <= tp2
 
         # Intrabar order is unknowable from OHLC. Stop-first is deliberately
         # pessimistic and prevents inflated backtest results.
         if stop_hit:
-            exit_price = _slipped(stop, side, "exit", config.slippage_bps)
+            exit_price = _slipped(active_stop, side, "exit", config.slippage_bps)
             gross += _pnl(side, entry_price, exit_price, remaining)
             exit_fees += _fee(exit_price, remaining, config.fee_bps)
             remaining = 0.0
-            exit_reason = "stop_after_tp1" if tp1_filled else "stop"
+            if tp1_filled and active_stop == entry_price:
+                exit_reason = "breakeven_after_tp1"
+            else:
+                exit_reason = "stop_after_tp1" if tp1_filled else "stop"
             exit_index = index
             break
 
@@ -268,6 +287,8 @@ def _simulate_order(
             exit_fees += _fee(exit_price, closed_qty, config.fee_bps)
             remaining -= closed_qty
             tp1_filled = True
+            if breakeven_after_tp1:
+                active_stop = entry_price
 
         if tp2_hit and remaining > 0:
             exit_price = _slipped(tp2, side, "exit", config.slippage_bps)

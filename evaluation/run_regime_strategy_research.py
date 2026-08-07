@@ -19,10 +19,13 @@ from trading.backtest import BacktestConfig, HOUR_SECONDS, run_backtest
 from trading.research_setups import (
     BTC_SETUPS,
     BTC_V1_SETUPS,
+    BTC_V3_SETUPS,
     ETH_SETUPS,
     ETH_V1_SETUPS,
+    ETH_V3_SETUPS,
     btc_plan_builder,
     eth_plan_builder,
+    eth_structure_plan_builder,
 )
 from trading.trade_plan import make_plan
 
@@ -274,13 +277,14 @@ def run(
         slippage_bps=2,
     )
     setup_library = {
-        "v1": (BTC_V1_SETUPS, ETH_V1_SETUPS),
-        "v2": (BTC_SETUPS, ETH_SETUPS),
+        "v1": (BTC_V1_SETUPS, ETH_V1_SETUPS, eth_plan_builder),
+        "v2": (BTC_SETUPS, ETH_SETUPS, eth_plan_builder),
+        "v3": (BTC_V3_SETUPS, ETH_V3_SETUPS, eth_structure_plan_builder),
     }
-    btc_setups, eth_setups = setup_library[iteration]
+    btc_setups, eth_setups, eth_builder_factory = setup_library[iteration]
     specifications = (
         ("BTC_USDT", btc_setups, btc_plan_builder),
-        ("ETH_USDT", eth_setups, eth_plan_builder),
+        ("ETH_USDT", eth_setups, eth_builder_factory),
     )
     assets = {}
     for symbol, setups, builder_factory in specifications:
@@ -318,7 +322,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser.add_argument("--cache-dir", type=Path, default=Path("/tmp/ucb-walk-forward-data"))
     parser.add_argument("--data-end", default="2026-08-07T11:00:00Z")
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--iteration", choices=("v1", "v2"), default="v2")
+    parser.add_argument("--iteration", choices=("v1", "v2", "v3"), default="v3")
     args = parser.parse_args(list(argv) if argv is not None else None)
     data_end_close = int(
         datetime.fromisoformat(args.data_end.replace("Z", "+00:00")).timestamp()

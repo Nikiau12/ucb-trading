@@ -25,6 +25,13 @@ class BTCSetup:
     min_atr_percentile: float = 25.0
     max_atr_percentile: float = 90.0
     enter_on_retest: bool = False
+    entry_expiry_bars: Optional[int] = None
+    max_holding_bars: Optional[int] = None
+    tp1_r: float = 1.0
+    tp2_r: float = 2.0
+    tp1_pct: float = 0.5
+    breakeven_after_tp1: bool = False
+    cancel_buffer_atr: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,18 @@ class ETHSetup:
     max_atr_percentile: float = 80.0
     max_abs_ema_slope_atr: Optional[float] = None
     max_volume_ratio: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class ETHStructureSetup:
+    name: str
+    lookback: int
+    min_touches: int
+    reclaim_bars: int
+    allowed_sides: tuple[str, ...] = ("long", "short")
+    max_adx: float = 30.0
+    min_width_atr: float = 4.0
+    max_width_atr: float = 18.0
 
 
 BTC_V1_SETUPS = (
@@ -93,6 +112,34 @@ ETH_V2_SETUPS = (
 
 BTC_SETUPS = BTC_V2_SETUPS
 ETH_SETUPS = ETH_V2_SETUPS
+
+
+# Iteration 3 changes execution economics rather than adding another direction
+# threshold. BTC candidates expire quickly, use a shorter time stop and compare
+# wider second targets with/without breakeven protection. ETH uses repeated
+# structural level tests instead of statistical bands.
+BTC_V3_SETUPS = (
+    BTCSetup("btc_v3_ema48_be25", "continuation", 20, ("long",), 1.0, 20.0, 85.0, True, 4, 48, 1.0, 2.5, 0.33, True, 0.35),
+    BTCSetup("btc_v3_ema72_be30", "continuation", 20, ("long",), 1.0, 20.0, 85.0, True, 6, 72, 1.0, 3.0, 0.33, True, 0.50),
+    BTCSetup("btc_v3_ema48_hold25", "continuation", 20, ("long",), 1.0, 20.0, 85.0, True, 4, 48, 1.0, 2.5, 0.33, False, 0.35),
+    BTCSetup("btc_v3_ema72_hold30", "continuation", 20, ("long",), 1.0, 20.0, 85.0, True, 6, 72, 1.0, 3.0, 0.33, False, 0.50),
+    BTCSetup("btc_v3_break40_be25", "breakout", 40, ("long",), 1.2, 25.0, 90.0, True, 4, 48, 1.0, 2.5, 0.33, True, 0.35),
+    BTCSetup("btc_v3_break40_be30", "breakout", 40, ("long",), 1.2, 25.0, 90.0, True, 6, 72, 1.0, 3.0, 0.33, True, 0.50),
+    BTCSetup("btc_v3_break40_hold25", "breakout", 40, ("long",), 1.2, 25.0, 90.0, True, 4, 48, 1.0, 2.5, 0.33, False, 0.35),
+    BTCSetup("btc_v3_break40_hold30", "breakout", 40, ("long",), 1.2, 25.0, 90.0, True, 6, 72, 1.0, 3.0, 0.33, False, 0.50),
+)
+
+
+ETH_V3_SETUPS = (
+    ETHStructureSetup("eth_v3_struct72_t2_r2_long", 72, 2, 2, ("long",)),
+    ETHStructureSetup("eth_v3_struct72_t2_r2_short", 72, 2, 2, ("short",)),
+    ETHStructureSetup("eth_v3_struct72_t2_r4_both", 72, 2, 4),
+    ETHStructureSetup("eth_v3_struct72_t3_r4_both", 72, 3, 4),
+    ETHStructureSetup("eth_v3_struct120_t2_r2_long", 120, 2, 2, ("long",)),
+    ETHStructureSetup("eth_v3_struct120_t2_r2_short", 120, 2, 2, ("short",)),
+    ETHStructureSetup("eth_v3_struct120_t2_r4_both", 120, 2, 4),
+    ETHStructureSetup("eth_v3_struct120_t3_r4_both", 120, 3, 4),
+)
 
 
 def _skip(symbol: Any, *reasons: str) -> Dict[str, Any]:
@@ -176,6 +223,8 @@ def _plan(
     lev: float,
     margin: str,
     regime: str,
+    tp1_pct: float = 0.5,
+    execution: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     normalized = normalize_for_contract(
         snapshot, side, entry, stop, tp1, tp2, deposit, risk_pct, lev
@@ -196,13 +245,14 @@ def _plan(
         "entry": entry,
         "stop": stop,
         "tps": [
-            {"price": tp1, "pct": 0.5},
-            {"price": tp2, "pct": 0.5},
+            {"price": tp1, "pct": tp1_pct},
+            {"price": tp2, "pct": 1.0 - tp1_pct},
         ],
         "qty": normalized["qty"],
         "risk_usdt": normalized["risk_usdt"],
         "reasons": reasons,
     }
+    primary.update(execution or {})
     return {
         "symbol": snapshot.get("symbol"),
         "price": entry,
@@ -281,8 +331,20 @@ def btc_plan_builder(setup: BTCSetup) -> Callable[..., Dict[str, Any]]:
             entry = latest.c
         risk = atr_1h * 1.2
         stop = entry - risk if side == "long" else entry + risk
-        tp1 = entry + risk if side == "long" else entry - risk
-        tp2 = entry + 2 * risk if side == "long" else entry - 2 * risk
+        tp1 = entry + setup.tp1_r * risk if side == "long" else entry - setup.tp1_r * risk
+        tp2 = entry + setup.tp2_r * risk if side == "long" else entry - setup.tp2_r * risk
+        execution: Dict[str, Any] = {}
+        if setup.entry_expiry_bars is not None:
+            execution["entry_expiry_bars"] = setup.entry_expiry_bars
+        if setup.max_holding_bars is not None:
+            execution["max_holding_bars"] = setup.max_holding_bars
+        if setup.breakeven_after_tp1:
+            execution["breakeven_after_tp1"] = True
+        if setup.cancel_buffer_atr is not None:
+            if side == "long":
+                execution["cancel_if_close_below"] = entry - setup.cancel_buffer_atr * atr_1h
+            else:
+                execution["cancel_if_close_above"] = entry + setup.cancel_buffer_atr * atr_1h
         reasons = [
             f"research_setup={setup.name}",
             trigger,
@@ -304,6 +366,151 @@ def btc_plan_builder(setup: BTCSetup) -> Callable[..., Dict[str, Any]]:
             lev=lev,
             margin=margin,
             regime="trend",
+            tp1_pct=setup.tp1_pct,
+            execution=execution,
+        )
+
+    return build
+
+
+def _distinct_touch_count(
+    values: list[float],
+    level: float,
+    tolerance: float,
+    minimum_gap: int = 6,
+) -> int:
+    count = 0
+    last_index = -minimum_gap
+    for index, value in enumerate(values):
+        if abs(value - level) <= tolerance and index - last_index >= minimum_gap:
+            count += 1
+            last_index = index
+    return count
+
+
+def structural_range(
+    bars: list[Any],
+    atr_last: float,
+    lookback: int,
+) -> Optional[Dict[str, float]]:
+    """Estimate a range from repeated, separated tests of price extremes."""
+    history = bars[-lookback - 1:-1]
+    if len(history) < lookback or atr_last <= 0:
+        return None
+    lows = sorted(bar.l for bar in history)
+    highs = sorted(bar.h for bar in history)
+    tail = max(3, lookback // 8)
+    support = statistics.median(lows[:tail])
+    resistance = statistics.median(highs[-tail:])
+    width = resistance - support
+    if width <= 0:
+        return None
+    tolerance = 0.40 * atr_last
+    return {
+        "support": support,
+        "resistance": resistance,
+        "middle": (support + resistance) / 2,
+        "width_atr": width / atr_last,
+        "support_touches": float(
+            _distinct_touch_count([bar.l for bar in history], support, tolerance)
+        ),
+        "resistance_touches": float(
+            _distinct_touch_count([bar.h for bar in history], resistance, tolerance)
+        ),
+    }
+
+
+def eth_structure_plan_builder(
+    setup: ETHStructureSetup,
+) -> Callable[..., Dict[str, Any]]:
+    def build(
+        snapshot: Dict[str, Any],
+        *,
+        deposit: float,
+        risk_pct: float,
+        lev: float,
+        margin: str,
+    ) -> Dict[str, Any]:
+        features = closed_market_features(snapshot)
+        if features is None:
+            return _skip(snapshot.get("symbol"), "research_warmup")
+        bars = features["bars_1h"]
+        atr_1h = features["atr_1h"]
+        adx_4h = features["adx_4h"]
+        if adx_4h is None or adx_4h > setup.max_adx:
+            return _skip(snapshot.get("symbol"), "eth_structure_trend_rejected")
+        range_data = structural_range(bars, atr_1h, setup.lookback)
+        if range_data is None:
+            return _skip(snapshot.get("symbol"), "eth_structure_range_missing")
+        if not setup.min_width_atr <= range_data["width_atr"] <= setup.max_width_atr:
+            return _skip(snapshot.get("symbol"), "eth_structure_width_rejected")
+        if (
+            range_data["support_touches"] < setup.min_touches
+            or range_data["resistance_touches"] < setup.min_touches
+        ):
+            return _skip(snapshot.get("symbol"), "eth_structure_touches_rejected")
+
+        latest = bars[-1]
+        recent = bars[-setup.reclaim_bars:]
+        support = range_data["support"]
+        resistance = range_data["resistance"]
+        middle = range_data["middle"]
+        long_sweep = min(bar.l for bar in recent) <= support
+        short_sweep = max(bar.h for bar in recent) >= resistance
+        side: Optional[str] = None
+        trigger = ""
+        if (
+            "long" in setup.allowed_sides
+            and long_sweep
+            and latest.c > support + 0.10 * atr_1h
+            and latest.c > latest.o
+        ):
+            side, trigger = "long", "structure_reclaim=support"
+        elif (
+            "short" in setup.allowed_sides
+            and short_sweep
+            and latest.c < resistance - 0.10 * atr_1h
+            and latest.c < latest.o
+        ):
+            side, trigger = "short", "structure_reclaim=resistance"
+        if side is None:
+            return _skip(snapshot.get("symbol"), "eth_structure_no_reclaim")
+
+        entry = latest.c
+        if side == "long":
+            stop = min(bar.l for bar in recent) - 0.20 * atr_1h
+            tp1, tp2 = middle, resistance
+            reward_ok = tp1 - entry >= entry - stop and tp2 - entry >= 1.8 * (entry - stop)
+        else:
+            stop = max(bar.h for bar in recent) + 0.20 * atr_1h
+            tp1, tp2 = middle, support
+            reward_ok = entry - tp1 >= stop - entry and entry - tp2 >= 1.8 * (stop - entry)
+        if not reward_ok:
+            return _skip(snapshot.get("symbol"), "eth_structure_reward_too_small")
+        reasons = [
+            f"research_setup={setup.name}",
+            trigger,
+            f"support={support:.8f}",
+            f"resistance={resistance:.8f}",
+            f"support_touches={range_data['support_touches']:.0f}",
+            f"resistance_touches={range_data['resistance_touches']:.0f}",
+            f"range_width_atr={range_data['width_atr']:.2f}",
+        ]
+        return _plan(
+            snapshot,
+            side=side,
+            entry=entry,
+            stop=stop,
+            tp1=tp1,
+            tp2=tp2,
+            confidence=0.75,
+            reasons=reasons,
+            deposit=deposit,
+            risk_pct=risk_pct,
+            lev=lev,
+            margin=margin,
+            regime="range",
+            execution={"entry_expiry_bars": 3, "max_holding_bars": 96},
         )
 
     return build

@@ -140,6 +140,63 @@ def test_entry_delay_stress_skips_the_first_eligible_fill_candle():
     assert result["unfilled_orders"] == 1
 
 
+def test_plan_can_cancel_pending_entry_from_previous_closed_candle():
+    bars = _bars()
+    bars[2] = Bar(ts=2 * HOUR, o=95, h=101, l=94, c=95, v=10)
+    calls = 0
+
+    def builder(_snapshot, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            return {"side": "skip", "confidence": 0, "reasons": ["test"]}
+        plan = _plan()
+        plan["primary"]["cancel_if_close_below"] = 98
+        plan["primary"]["entry_expiry_bars"] = 3
+        return plan
+
+    result = run_backtest(
+        bars,
+        config=BacktestConfig(
+            warmup_hours=2,
+            entry_delay_bars=2,
+            entry_expiry_bars=12,
+        ),
+        plan_builder=builder,
+    )
+
+    assert result["summary"]["trades"] == 0
+    assert result["unfilled_orders"] == 1
+
+
+def test_plan_can_move_stop_to_breakeven_after_tp1():
+    bars = _bars()
+    bars[2] = Bar(ts=2 * HOUR, o=100, h=101, l=99, c=100, v=10)
+    bars[3] = Bar(ts=3 * HOUR, o=100, h=111, l=99, c=110, v=10)
+    bars[4] = Bar(ts=4 * HOUR, o=105, h=106, l=99, c=100, v=10)
+    calls = 0
+
+    def builder(_snapshot, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            return {"side": "skip", "confidence": 0, "reasons": ["test"]}
+        plan = _plan()
+        plan["primary"]["breakeven_after_tp1"] = True
+        plan["primary"]["max_holding_bars"] = 6
+        return plan
+
+    result = run_backtest(
+        bars,
+        config=BacktestConfig(warmup_hours=2, entry_expiry_bars=2),
+        plan_builder=builder,
+    )
+
+    assert result["summary"]["trades"] == 1
+    assert result["trades"][0]["exit_reason"] == "breakeven_after_tp1"
+    assert result["trades"][0]["net_pnl"] > 4
+
+
 def test_evaluation_window_uses_prior_bars_only_as_warmup():
     bars = _bars(12)
     calls = []

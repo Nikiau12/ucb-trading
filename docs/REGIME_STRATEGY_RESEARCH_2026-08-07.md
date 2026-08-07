@@ -40,15 +40,53 @@ percentile and no volume shock. This combination was too selective: profiles
 produced between zero and five total trades. The sample is unusable and no
 threshold was relaxed after viewing the result.
 
-## Decision
+## Decision after iterations 1-2
 
-No BTC or ETH profile is selected. Stress tests, confirmation, validation and
-the final test remain closed. There is no production or Railway change.
+No BTC or ETH profile was selected. Confirmation, validation and the final test
+remained closed. There was no production or Railway change.
 
 The next BTC hypothesis should change the payoff and cancellation logic rather
 than add more indicator thresholds. The next ETH hypothesis needs a structural
 range definition with a larger sample, for example repeated support/resistance
 tests and a time-bounded reclaim, while retaining a pre-registered parameter
 library.
+
+## Iteration 3
+
+BTC iteration 3 changed execution and payoff rules. Pending entries expired
+after four or six hours, stale setups could be cancelled using the previous
+closed candle, positions used 48/72-hour time stops, TP2 was extended to 2.5R
+or 3R, and selected variants moved the remaining stop to breakeven after TP1.
+The best profile was the 40-hour breakout retest with 3R TP2 and breakeven. It
+produced 92 trades and +0.75% mean window return, but only two of four windows
+were positive. BTC therefore failed selection, although this was a measurable
+improvement over the best iteration-2 mean return of -1.75%.
+
+ETH iteration 3 replaced Bollinger Bands with structural ranges. Support and
+resistance required repeated tests separated by at least six hours, and the
+entry required a reclaim within a pre-declared two- or four-hour window. The
+120-hour, three-touch, four-hour-reclaim profile passed rolling selection:
+216 trades, three positive windows and +8.14% mean window return. It also
+remained positive under higher friction (+5.28%) and delayed entry (+37.00%)
+over the combined selection history.
+
+The frozen ETH winner then failed the independent confirmation period:
+
+| Scenario | Trades | Return | Profit factor | Max drawdown |
+|---|---:|---:|---:|---:|
+| Production baseline | 16 | -0.68% | 0.91 | 3.84% |
+| Structural candidate | 43 | -8.85% | 0.72 | 14.67% |
+| Higher friction | 43 | -12.38% | 0.63 | 17.31% |
+| One-extra-hour delay | 28 | -11.39% | 0.48 | 14.43% |
+
+The pattern changed sharply outside selection. ETH validation and the final
+test remained closed. Iteration 3 therefore produces no production change.
+
+## Current decision
+
+No BTC or ETH profile is approved. BTC needs a new trigger or timeframe rather
+than another exit-parameter variation. ETH structural ranges are materially
+more promising than Bollinger-only ranges, but the regime shift on independent
+confirmation prevents deployment. Production and Railway remain unchanged.
 
 Historical performance does not guarantee future results.
