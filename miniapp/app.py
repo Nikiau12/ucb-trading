@@ -21,7 +21,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from trading.trade_plan import position_size_for_contract
+try:
+    from .sizing import position_size_for_contract
+except ImportError:
+    # Railway deploys miniapp/ as the service root, so app.py is a top-level module.
+    from sizing import position_size_for_contract
 
 
 BASE_DIR = Path(__file__).resolve().parent

@@ -1,7 +1,10 @@
 import hashlib
 import hmac
 import json
+import subprocess
+import sys
 import time
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -10,6 +13,9 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from miniapp import app as miniapp
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
 def _signed_init_data(
@@ -76,6 +82,18 @@ def test_personal_signal_sizing_uses_contract_rules_and_exchange_leverage_limit(
     assert payload["sizing"]["effective_leverage"] == 20
     assert payload["sizing"]["margin_usdt"] == pytest.approx(1.0)
     assert payload["sizing"]["tradable"] is True
+
+
+def test_miniapp_imports_from_railway_service_root():
+    result = subprocess.run(
+        [sys.executable, "-c", "import app"],
+        cwd=ROOT_DIR / "miniapp",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_settings_validation_rejects_unsupported_values(demo_client):
