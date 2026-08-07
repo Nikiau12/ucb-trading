@@ -153,3 +153,30 @@ def test_plan_filter_rejects_otherwise_valid_plan():
 
     assert result["summary"]["trades"] == 0
     assert result["skipped_plans"] > 0
+
+
+def test_trade_records_only_signal_time_context():
+    bars = _bars()
+    bars[3] = Bar(ts=3 * HOUR, o=100, h=121, l=99, c=120, v=10)
+    calls = 0
+
+    def builder(_snapshot, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            return {"side": "skip", "confidence": 0, "reasons": ["test"]}
+        return {
+            **_plan(),
+            "trend": {"1d": "up", "4h": "up", "regime": "trend"},
+            "levels": {"mid": 0.2},
+        }
+
+    result = run_backtest(
+        bars,
+        config=BacktestConfig(warmup_hours=2, entry_expiry_bars=2),
+        plan_builder=builder,
+    )
+
+    context = result["trades"][0]["signal_context"]
+    assert context["trend"]["regime"] == "trend"
+    assert context["levels"]["mid"] == 0.2

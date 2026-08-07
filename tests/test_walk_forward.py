@@ -13,17 +13,92 @@ from evaluation.run_walk_forward import (
 def test_alignment_requires_both_timeframes_to_match_side():
     policy = Candidate("aligned", 0.6, require_trend_alignment=True)
     assert accepts_candidate(
-        {"primary": {"side": "long"}, "trend": {"1d": "up", "4h": "up"}},
+        {
+            "primary": {"side": "long"},
+            "trend": {"1d": "up", "4h": "up", "regime": "trend"},
+        },
         policy,
     )
     assert not accepts_candidate(
-        {"primary": {"side": "long"}, "trend": {"1d": "up", "4h": "down"}},
+        {
+            "primary": {"side": "long"},
+            "trend": {"1d": "up", "4h": "down", "regime": "trend"},
+        },
         policy,
     )
 
 
+def test_setup_v2_filters_regime_adx_and_rsi_direction():
+    plan = {
+        "primary": {
+            "side": "long",
+            "reasons": ["adx4h≈27.3", "rsi1h≈55.1"],
+        },
+        "trend": {"1d": "up", "4h": "up", "regime": "trend"},
+    }
+    policy = Candidate(
+        "trend_confirmation",
+        0.6,
+        allowed_regimes=("trend",),
+        min_adx=25,
+        require_rsi_momentum=True,
+    )
+    assert accepts_candidate(plan, policy)
+    assert not accepts_candidate(
+        {**plan, "trend": {**plan["trend"], "regime": "range"}}, policy
+    )
+    assert not accepts_candidate(
+        {**plan, "primary": {**plan["primary"], "reasons": ["adx4h≈24.9", "rsi1h≈55.1"]}},
+        policy,
+    )
+    assert not accepts_candidate(
+        {**plan, "primary": {**plan["primary"], "reasons": ["adx4h≈27.3", "rsi1h≈45.0"]}},
+        policy,
+    )
+
+
+def test_setup_v3_filters_entry_distance_and_caps_exhausted_adx():
+    policy = Candidate(
+        "near_entry",
+        0.6,
+        allowed_regimes=("trend",),
+        max_adx=40,
+        min_entry_distance_atr=0.1,
+        max_entry_distance_atr=0.5,
+    )
+
+    def plan(adx, distance):
+        return {
+            "primary": {
+                "side": "short",
+                "reasons": [f"adx4h≈{adx}", f"entry_dist_ATR4h={distance}"],
+            },
+            "trend": {"regime": "trend"},
+        }
+
+    assert accepts_candidate(plan(39.9, 0.3), policy)
+    assert not accepts_candidate(plan(40, 0.3), policy)
+    assert not accepts_candidate(plan(35, 0.09), policy)
+    assert not accepts_candidate(plan(35, 0.51), policy)
+
+
+def test_closed_1h_confirmation_must_match_trade_side():
+    policy = Candidate("confirmation", 0.6, require_1h_confirmation=True)
+
+    def plan(side, momentum):
+        return {
+            "primary": {"side": side, "reasons": [f"momentum1h={momentum}"]},
+            "trend": {"regime": "trend"},
+        }
+
+    assert accepts_candidate(plan("long", "up"), policy)
+    assert accepts_candidate(plan("short", "down"), policy)
+    assert not accepts_candidate(plan("long", "neutral"), policy)
+    assert not accepts_candidate(plan("short", "up"), policy)
+
+
 def test_training_gate_requires_cross_symbol_evidence():
-    good = {"trades": 40, "net_pnl": 1, "symbols_positive": 2}
+    good = {"trades": 40, "net_pnl": 1, "symbols_positive": 2, "symbols_total": 3}
     assert training_eligible(good)
     assert not training_eligible({**good, "symbols_positive": 1})
     assert not training_eligible({**good, "net_pnl": 0})

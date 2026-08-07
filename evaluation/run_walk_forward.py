@@ -7,7 +7,9 @@ the validation gate. Market data is cached outside the repository by default.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
+import math
 import time
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
@@ -21,6 +23,9 @@ from trading.backtest import BacktestConfig, HOUR_SECONDS, run_backtest
 
 
 MEXC_API = "https://contract.mexc.com/api/v1/contract"
+LOCKED_TRAIN_END = int(datetime(2025, 12, 24, 11, tzinfo=timezone.utc).timestamp())
+LOCKED_VALIDATION_END = int(datetime(2026, 4, 16, 11, tzinfo=timezone.utc).timestamp())
+LOCKED_TEST_END = int(datetime(2026, 8, 7, 11, tzinfo=timezone.utc).timestamp())
 
 
 @dataclass(frozen=True)
@@ -28,15 +33,119 @@ class Candidate:
     name: str
     min_confidence: float
     require_trend_alignment: bool = False
+    allowed_regimes: tuple[str, ...] = ("trend", "range")
+    min_adx: Optional[float] = None
+    max_adx: Optional[float] = None
+    require_rsi_momentum: bool = False
+    require_1h_confirmation: bool = False
+    min_entry_distance_atr: Optional[float] = None
+    max_entry_distance_atr: Optional[float] = None
 
 
 # Intentionally small and declared in source before validation/test is opened.
-CANDIDATES = (
+INITIAL_CANDIDATES = (
     Candidate("baseline_060", 0.60),
     Candidate("confidence_065", 0.65),
     Candidate("confidence_070", 0.70),
     Candidate("aligned_060", 0.60, require_trend_alignment=True),
 )
+
+# Iteration 2 was frozen after the initial training-only diagnostic showed that
+# range entries were the weakest setup class. Validation remained unopened.
+SETUP_V2_CANDIDATES = (
+    Candidate("baseline_060", 0.60),
+    Candidate("trend_adx22", 0.60, allowed_regimes=("trend",), min_adx=22),
+    Candidate("trend_adx25", 0.60, allowed_regimes=("trend",), min_adx=25),
+    Candidate("trend_adx30", 0.60, allowed_regimes=("trend",), min_adx=30),
+    Candidate(
+        "trend_adx25_rsi_momentum",
+        0.60,
+        allowed_regimes=("trend",),
+        min_adx=25,
+        require_rsi_momentum=True,
+    ),
+)
+
+# Iteration 3 was frozen after training-only diagnostics found that planned
+# entries 0.10-0.50 ATR from market were the only stable positive distance band.
+SETUP_V3_CANDIDATES = (
+    Candidate("baseline_060", 0.60),
+    Candidate(
+        "trend_near_entry",
+        0.60,
+        allowed_regimes=("trend",),
+        min_entry_distance_atr=0.10,
+        max_entry_distance_atr=0.50,
+    ),
+    Candidate(
+        "trend_near_entry_adx_cap",
+        0.60,
+        allowed_regimes=("trend",),
+        max_adx=40,
+        min_entry_distance_atr=0.10,
+        max_entry_distance_atr=0.50,
+    ),
+    Candidate(
+        "trend_near_entry_rsi",
+        0.60,
+        allowed_regimes=("trend",),
+        require_rsi_momentum=True,
+        min_entry_distance_atr=0.10,
+        max_entry_distance_atr=0.50,
+    ),
+    Candidate(
+        "trend_near_entry_adx_cap_rsi",
+        0.60,
+        allowed_regimes=("trend",),
+        max_adx=40,
+        require_rsi_momentum=True,
+        min_entry_distance_atr=0.10,
+        max_entry_distance_atr=0.50,
+    ),
+)
+
+# Iteration 4 tests a closed-candle bounce confirmation instead of blindly
+# leaving a limit at the 4h EMA. It was frozen before validation was opened.
+SETUP_V4_CANDIDATES = (
+    Candidate("baseline_060", 0.60),
+    Candidate(
+        "trend_1h_confirmation",
+        0.60,
+        allowed_regimes=("trend",),
+        require_1h_confirmation=True,
+    ),
+    Candidate(
+        "trend_1h_confirmation_near",
+        0.60,
+        allowed_regimes=("trend",),
+        require_1h_confirmation=True,
+        min_entry_distance_atr=0.10,
+        max_entry_distance_atr=0.50,
+    ),
+    Candidate(
+        "trend_1h_confirmation_rsi",
+        0.60,
+        allowed_regimes=("trend",),
+        require_rsi_momentum=True,
+        require_1h_confirmation=True,
+    ),
+    Candidate(
+        "trend_1h_confirmation_near_rsi",
+        0.60,
+        allowed_regimes=("trend",),
+        require_rsi_momentum=True,
+        require_1h_confirmation=True,
+        min_entry_distance_atr=0.10,
+        max_entry_distance_atr=0.50,
+    ),
+)
+
+CANDIDATE_SETS = {
+    "initial": INITIAL_CANDIDATES,
+    "setup_v2": SETUP_V2_CANDIDATES,
+    "setup_v3": SETUP_V3_CANDIDATES,
+    "setup_v4": SETUP_V4_CANDIDATES,
+}
 
 
 def _request_json(url: str, *, attempts: int = 4) -> Dict[str, Any]:
@@ -55,15 +164,21 @@ def _request_json(url: str, *, attempts: int = 4) -> Dict[str, Any]:
     raise AssertionError("unreachable")
 
 
-def fetch_bars(symbol: str, count: int, cache_dir: Path) -> List[Bar]:
+def fetch_bars(
+    symbol: str,
+    count: int,
+    cache_dir: Path,
+    end_close: Optional[int] = None,
+) -> List[Bar]:
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = cache_dir / f"{symbol.lower()}-{count}-1h.json"
+    suffix = f"-{end_close}" if end_close is not None else ""
+    cache_path = cache_dir / f"{symbol.lower()}-{count}-1h{suffix}.json"
     if cache_path.exists():
         rows = json.loads(cache_path.read_text())
         return [Bar(**row) for row in rows]
 
     now = int(time.time()) // HOUR_SECONDS * HOUR_SECONDS
-    end = now - HOUR_SECONDS
+    end = (end_close or now) - HOUR_SECONDS
     collected: Dict[int, Bar] = {}
     while len(collected) < count:
         remaining = count - len(collected)
@@ -103,12 +218,56 @@ def fetch_contract(symbol: str, cache_dir: Path) -> Dict[str, Any]:
 
 
 def accepts_candidate(plan: Mapping[str, Any], candidate: Candidate) -> bool:
-    if not candidate.require_trend_alignment:
-        return True
     side = str((plan.get("primary") or {}).get("side") or plan.get("side") or "").lower()
     expected = "up" if side == "long" else "down" if side == "short" else ""
     trend = plan.get("trend") or {}
-    return bool(expected) and trend.get("1d") == expected and trend.get("4h") == expected
+    if trend.get("regime") not in candidate.allowed_regimes:
+        return False
+    if candidate.require_trend_alignment and not (
+        expected and trend.get("1d") == expected and trend.get("4h") == expected
+    ):
+        return False
+
+    reasons = list((plan.get("primary") or {}).get("reasons") or [])
+    if candidate.min_adx is not None:
+        adx = _reason_number(reasons, "adx4h≈")
+        if adx is None or adx < candidate.min_adx:
+            return False
+    if candidate.max_adx is not None:
+        adx = _reason_number(reasons, "adx4h≈")
+        if adx is None or adx >= candidate.max_adx:
+            return False
+    if candidate.require_rsi_momentum:
+        rsi = _reason_number(reasons, "rsi1h≈")
+        if rsi is None or (side == "long" and rsi < 50) or (side == "short" and rsi > 50):
+            return False
+    if candidate.require_1h_confirmation:
+        momentum = next(
+            (reason.removeprefix("momentum1h=") for reason in reasons if reason.startswith("momentum1h=")),
+            "neutral",
+        )
+        if momentum != expected:
+            return False
+    entry_distance = _reason_number(reasons, "entry_dist_ATR4h=")
+    if candidate.min_entry_distance_atr is not None and (
+        entry_distance is None or entry_distance < candidate.min_entry_distance_atr
+    ):
+        return False
+    if candidate.max_entry_distance_atr is not None and (
+        entry_distance is None or entry_distance > candidate.max_entry_distance_atr
+    ):
+        return False
+    return True
+
+
+def _reason_number(reasons: Iterable[str], prefix: str) -> Optional[float]:
+    for reason in reasons:
+        if reason.startswith(prefix):
+            try:
+                return float(reason[len(prefix):])
+            except ValueError:
+                return None
+    return None
 
 
 def aggregate(results: Mapping[str, Dict[str, Any]], initial_deposit: float) -> Dict[str, Any]:
@@ -170,11 +329,34 @@ def evaluate(
     }
 
 
+def _evaluate_task(args: tuple[Any, ...]) -> Dict[str, Any]:
+    return evaluate(*args)
+
+
+def evaluate_candidates(
+    bars_by_symbol: Mapping[str, List[Bar]],
+    contracts: Mapping[str, Dict[str, Any]],
+    candidates: Iterable[Candidate],
+    start: int,
+    end: int,
+    config: BacktestConfig,
+    workers: int,
+) -> List[Dict[str, Any]]:
+    candidates = tuple(candidates)
+    tasks = [(bars_by_symbol, contracts, candidate, start, end, config) for candidate in candidates]
+    if workers <= 1:
+        return [_evaluate_task(task) for task in tasks]
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, len(tasks))) as executor:
+        return list(executor.map(_evaluate_task, tasks))
+
+
 def training_eligible(summary: Mapping[str, Any]) -> bool:
+    required_positive = math.ceil(2 * summary["symbols_total"] / 3)
+    required_trades = max(40, 10 * summary["symbols_total"])
     return (
-        summary["trades"] >= 40
+        summary["trades"] >= required_trades
         and summary["net_pnl"] > 0
-        and summary["symbols_positive"] >= 2
+        and summary["symbols_positive"] >= required_positive
     )
 
 
@@ -206,37 +388,60 @@ def iso(timestamp: int) -> str:
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
 
 
-def run(symbols: Iterable[str], count: int, cache_dir: Path) -> Dict[str, Any]:
+def run(
+    symbols: Iterable[str],
+    count: int,
+    cache_dir: Path,
+    *,
+    candidate_set: str = "setup_v2",
+    workers: int = 1,
+    data_end_close: Optional[int] = None,
+) -> Dict[str, Any]:
     symbols = tuple(symbols)
-    bars_by_symbol = {symbol: fetch_bars(symbol, count, cache_dir) for symbol in symbols}
+    bars_by_symbol = {
+        symbol: fetch_bars(symbol, count, cache_dir, end_close=data_end_close)
+        for symbol in symbols
+    }
     contracts = {symbol: fetch_contract(symbol, cache_dir) for symbol in symbols}
     config = BacktestConfig(initial_deposit=1_000, risk_pct=1, leverage=10, fee_bps=4, slippage_bps=2)
 
     first = max(bars[0].ts for bars in bars_by_symbol.values()) + config.warmup_hours * HOUR_SECONDS
     end = min(bars[-1].ts for bars in bars_by_symbol.values()) + HOUR_SECONDS
-    usable_hours = (end - first) // HOUR_SECONDS
-    train_end = first + int(usable_hours * 0.60) * HOUR_SECONDS
-    validation_end = first + int(usable_hours * 0.80) * HOUR_SECONDS
+    if candidate_set in {"setup_v3", "setup_v4"}:
+        train_end = LOCKED_TRAIN_END
+        validation_end = LOCKED_VALIDATION_END
+        end = min(end, LOCKED_TEST_END)
+        if not first < train_end < validation_end < end:
+            raise ValueError("Data does not cover the locked research windows")
+    else:
+        usable_hours = (end - first) // HOUR_SECONDS
+        train_end = first + int(usable_hours * 0.60) * HOUR_SECONDS
+        validation_end = first + int(usable_hours * 0.80) * HOUR_SECONDS
     windows = {
         "training": (first, train_end),
         "validation": (train_end, validation_end),
         "test": (validation_end, end),
     }
 
-    training = [
-        evaluate(bars_by_symbol, contracts, candidate, *windows["training"], config)
-        for candidate in CANDIDATES
-    ]
+    candidates = CANDIDATE_SETS[candidate_set]
+    training = evaluate_candidates(
+        bars_by_symbol, contracts, candidates, *windows["training"], config, workers
+    )
     eligible = [item for item in training if training_eligible(item["summary"])]
     selected = max(eligible, key=lambda item: training_score(item["summary"])) if eligible else None
 
     report: Dict[str, Any] = {
         "protocol": {
             "symbols": symbols,
+            "candidate_set": candidate_set,
             "candles_per_symbol": count,
-            "split": "60/20/20 chronological after warmup",
+            "split": (
+                "locked chronological windows with expanded training"
+                if candidate_set in {"setup_v3", "setup_v4"}
+                else "60/20/20 chronological after warmup"
+            ),
             "windows": {name: {"start": iso(value[0]), "end": iso(value[1])} for name, value in windows.items()},
-            "training_gate": "trades>=40, net_pnl>0, >=2/3 positive symbols",
+            "training_gate": "trades>=max(40,10*symbols), net_pnl>0, >=2/3 positive symbols",
             "selection_score": "return_pct - 0.5 * max_drawdown_pct",
             "validation_gate": "trades>=20, return>0, PF>1, DD<=baseline, return>=baseline+0.25pp",
             "test_gate": "trades>=20, return>0, PF>1, DD<=baseline, return>baseline",
@@ -253,8 +458,8 @@ def run(symbols: Iterable[str], count: int, cache_dir: Path) -> Dict[str, Any]:
     if selected is None or selected["candidate"]["name"] == "baseline_060":
         return report
 
-    baseline_candidate = CANDIDATES[0]
-    chosen = next(candidate for candidate in CANDIDATES if candidate.name == selected["candidate"]["name"])
+    baseline_candidate = candidates[0]
+    chosen = next(candidate for candidate in candidates if candidate.name == selected["candidate"]["name"])
     validation_baseline = evaluate(bars_by_symbol, contracts, baseline_candidate, *windows["validation"], config)
     validation_candidate = evaluate(bars_by_symbol, contracts, chosen, *windows["validation"], config)
     passed = validation_passes(validation_candidate["summary"], validation_baseline["summary"])
@@ -278,10 +483,28 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Strict UCB train/validation/test research")
     parser.add_argument("--symbols", nargs="+", default=["BTC_USDT", "ETH_USDT", "SOL_USDT"])
     parser.add_argument("--candles", type=int, default=15_000)
+    parser.add_argument("--candidate-set", choices=tuple(CANDIDATE_SETS), default="setup_v2")
+    parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument(
+        "--data-end",
+        help="Fixed ISO-8601 close time for the last candle (recommended for reproducibility)",
+    )
     parser.add_argument("--cache-dir", type=Path, default=Path("/tmp/ucb-walk-forward-data"))
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(list(argv) if argv is not None else None)
-    report = run(args.symbols, args.candles, args.cache_dir)
+    data_end_close = None
+    if args.data_end:
+        data_end_close = int(
+            datetime.fromisoformat(args.data_end.replace("Z", "+00:00")).timestamp()
+        )
+    report = run(
+        args.symbols,
+        args.candles,
+        args.cache_dir,
+        candidate_set=args.candidate_set,
+        workers=max(1, args.workers),
+        data_end_close=data_end_close,
+    )
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         args.output.write_text(payload + "\n")

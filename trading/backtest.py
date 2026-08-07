@@ -11,7 +11,7 @@ import argparse
 import csv
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
@@ -70,6 +70,7 @@ class TradeResult:
     risk_usdt: float
     r_multiple: float
     holding_bars: int
+    signal_context: Dict[str, Any] = field(default_factory=dict)
 
 
 def _row(bar: Bar) -> List[float]:
@@ -197,6 +198,7 @@ def _simulate_order(
     primary: Dict[str, Any],
     confidence: float,
     config: BacktestConfig,
+    signal_context: Optional[Dict[str, Any]] = None,
 ) -> tuple[Optional[TradeResult], int]:
     side = str(primary["side"]).lower()
     planned_entry = float(primary["entry"])
@@ -293,6 +295,7 @@ def _simulate_order(
         risk_usdt=risk_usdt,
         r_multiple=net / risk_usdt,
         holding_bars=exit_index - entry_index + 1,
+        signal_context=dict(signal_context or {}),
     )
     return result, exit_index + 1
 
@@ -384,7 +387,14 @@ def run_backtest(
             index += config.decision_interval_hours
             continue
 
-        trade, next_index = _simulate_order(ordered, index, primary, confidence, config)
+        signal_context = {
+            "trend": dict(plan.get("trend") or {}),
+            "levels": dict(plan.get("levels") or {}),
+            "reasons": list(primary.get("reasons") or []),
+        }
+        trade, next_index = _simulate_order(
+            ordered, index, primary, confidence, config, signal_context
+        )
         if trade is None:
             unfilled_orders += 1
         else:

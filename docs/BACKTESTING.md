@@ -38,7 +38,10 @@ test period:
 ```bash
 python -m evaluation.run_walk_forward \
   --symbols BTC_USDT ETH_USDT SOL_USDT \
-  --candles 15000 \
+  --candidate-set setup_v4 \
+  --candles 25000 \
+  --workers 4 \
+  --data-end 2026-08-07T11:00:00Z \
   --output walk-forward-report.json
 ```
 
