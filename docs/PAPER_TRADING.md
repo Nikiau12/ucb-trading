@@ -10,20 +10,29 @@ Manual run:
   --state /Users/nikitakotrelev/.codex/state/ucb-sol-paper/state.json
 ```
 
-Each invocation processes newly closed 1-hour candles since the previous run.
+Each invocation processes newly closed 4-hour candles since the previous run.
+The one-day context and four-hour setup are both built only from completed
+candles. Hourly rows are used solely to construct complete 4-hour candles and
+are never exposed to the signal builder.
 State is written atomically and contains:
 
 - virtual equity, starting at 1,000 USDT;
-- a pending limit entry with a 12-hour expiry;
+- a pending limit entry with an 8-hour expiry;
 - at most one open paper position;
 - 50% TP1 and remaining TP2 execution;
 - pessimistic stop-first handling for ambiguous OHLC candles;
 - 4 bps commission and 2 bps adverse slippage per fill;
 - a permanent virtual trade journal.
 
-The frozen profile accepts SOL trend setups with a closed 1-hour candle
-confirmation and minimum confidence 0.60. Changing that profile during forward
-observation invalidates the paper-test sample.
+The frozen research profile is `sol_4h_pullback_both`: aligned 1D/4H trend with
+a closed 4H EMA20 reclaim or rejection. It failed independent historical
+confirmation, so the recurring automation is paused and must not be resumed
+without explicit approval. Changing the profile during forward observation
+invalidates the paper-test sample.
+
+An old empty hourly state can migrate to state version 2. Migration discards
+the hourly rejection counter and starts from the current closed 4H boundary.
+Migration refuses any state containing an order, position or trade.
 
 This harness is observation-only. It must never import credentials, call order
 creation methods, update Railway or message real users.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Stateful SOL paper trading for the frozen trend + 1h confirmation profile.
+"""Stateful SOL paper trading for a frozen 1D-context + 4H setup.
 
-The script never sends an order. Repeated invocations process newly closed 1h
+The script never sends an order. Repeated invocations process newly closed 4H
 candles and atomically persist a virtual pending order, position and trade log.
 """
 from __future__ import annotations
@@ -13,28 +13,29 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 from trading.analytics.structure import Bar
-from trading.backtest import HOUR_SECONDS, build_snapshot
-from trading.trade_plan import make_plan, plan_payload_errors
+from trading.backtest import HOUR_SECONDS, build_snapshot, resample_completed
+from trading.higher_timeframe_setups import SOL_4H_1D_SETUPS, htf_plan_builder
+from trading.trade_plan import plan_payload_errors
 
-from .run_walk_forward import Candidate, accepts_candidate, fetch_bars, fetch_contract
+from .run_walk_forward import fetch_bars, fetch_contract
 
 
 SYMBOL = "SOL_USDT"
-PROFILE = Candidate(
-    "sol_trend_1h_confirmation",
-    0.60,
-    allowed_regimes=("trend",),
-    require_1h_confirmation=True,
-)
+FOUR_HOURS = 4 * HOUR_SECONDS
+# Frozen after native-4H selection. It failed independent confirmation, so the
+# scheduler remains paused; the harness is ready only for an explicitly
+# approved forward-observation run.
+PROFILE = SOL_4H_1D_SETUPS[2]
+PLAN_BUILDER = htf_plan_builder(PROFILE)
 FEE_BPS = 4.0
 SLIPPAGE_BPS = 2.0
-ENTRY_EXPIRY_HOURS = 12
-MAX_HOLDING_HOURS = 24 * 14
+ENTRY_EXPIRY_BARS = 2
+MAX_HOLDING_BARS = 42
 
 
 def new_state(now_close: int) -> Dict[str, Any]:
     return {
-        "version": 1,
+        "version": 2,
         "symbol": SYMBOL,
         "profile": PROFILE.name,
         "started_at": now_close,
@@ -44,6 +45,7 @@ def new_state(now_close: int) -> Dict[str, Any]:
         "position": None,
         "trades": [],
         "signals_rejected": 0,
+        "signal_timeframes": ["4h", "1d"],
     }
 
 
@@ -81,7 +83,7 @@ def _close_position(
     state["trades"].append({
         "signal_time": position["signal_time"],
         "entry_time": position["entry_time"],
-        "exit_time": candle.ts + HOUR_SECONDS,
+        "exit_time": candle.ts + FOUR_HOURS,
         "side": position["side"],
         "entry_price": position["entry_price"],
         "exit_price": exit_price,
@@ -150,7 +152,7 @@ def advance_candle(state: Dict[str, Any], candle: Bar) -> None:
     if tp2_hit and float(position["remaining_qty"]) > 0:
         _close_position(state, candle, _slipped(tp2, side, "exit"), "tp2")
         return
-    if int(position["holding_bars"]) >= MAX_HOLDING_HOURS:
+    if int(position["holding_bars"]) >= MAX_HOLDING_BARS:
         _close_position(
             state, candle, _slipped(candle.c, side, "exit"), "timeout"
         )
@@ -164,8 +166,14 @@ def maybe_create_signal(
 ) -> None:
     if state.get("pending") is not None or state.get("position") is not None:
         return
-    snapshot = build_snapshot(SYMBOL, bars, decision_time, contract)
-    plan = make_plan(
+    snapshot = build_snapshot(
+        SYMBOL,
+        bars,
+        decision_time,
+        contract,
+        source_interval_hours=4,
+    )
+    plan = PLAN_BUILDER(
         snapshot,
         deposit=max(float(state["equity"]), 0.01),
         risk_pct=1,
@@ -176,15 +184,14 @@ def maybe_create_signal(
     confidence = float(primary.get("confidence") or plan.get("confidence") or 0)
     if (
         plan.get("side") == "skip"
-        or confidence < PROFILE.min_confidence
+        or confidence < 0.60
         or plan_payload_errors(plan)
-        or not accepts_candidate(plan, PROFILE)
     ):
         state["signals_rejected"] = int(state["signals_rejected"]) + 1
         return
     state["pending"] = {
         "signal_time": decision_time,
-        "expires_at": decision_time + ENTRY_EXPIRY_HOURS * HOUR_SECONDS,
+        "expires_at": decision_time + ENTRY_EXPIRY_BARS * FOUR_HOURS,
         "side": primary["side"],
         "confidence": confidence,
         "entry": primary["entry"],
@@ -203,21 +210,47 @@ def save_state(path: Path, state: Dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def migrate_empty_hourly_state(state: Dict[str, Any], now_close: int) -> Dict[str, Any]:
+    if int(state.get("version") or 0) >= 2:
+        return state
+    if state.get("pending") or state.get("position") or state.get("trades"):
+        raise RuntimeError("Cannot migrate an active hourly paper-trading state")
+    return {
+        **state,
+        "version": 2,
+        "profile": PROFILE.name,
+        "last_candle_close": now_close,
+        "signals_rejected": 0,
+        "signal_timeframes": ["4h", "1d"],
+        "migrated_from_hourly_at": now_close,
+    }
+
+
 def run_once(state_path: Path, now_close: Optional[int] = None) -> Dict[str, Any]:
-    now_close = now_close or (int(time.time()) // HOUR_SECONDS * HOUR_SECONDS)
+    now_close = now_close or (int(time.time()) // FOUR_HOURS * FOUR_HOURS)
     cache_dir = Path("/tmp/ucb-sol-paper-data")
-    bars = fetch_bars(SYMBOL, 2_000, cache_dir, end_close=now_close)
+    source_bars = fetch_bars(SYMBOL, 4_000, cache_dir, end_close=now_close)
+    bars = resample_completed(
+        source_bars,
+        FOUR_HOURS,
+        now_close,
+        HOUR_SECONDS,
+    )
     contract = fetch_contract(SYMBOL, cache_dir)
     if state_path.exists():
-        state = json.loads(state_path.read_text())
+        loaded = json.loads(state_path.read_text())
+        state = migrate_empty_hourly_state(loaded, now_close)
+        migrated = state is not loaded
         last_close = int(state["last_candle_close"])
         for candle in bars:
-            candle_close = candle.ts + HOUR_SECONDS
+            candle_close = candle.ts + FOUR_HOURS
             if not last_close < candle_close <= now_close:
                 continue
             advance_candle(state, candle)
             maybe_create_signal(state, bars, candle_close, contract)
             state["last_candle_close"] = candle_close
+        if migrated:
+            maybe_create_signal(state, bars, now_close, contract)
     else:
         state = new_state(now_close)
         maybe_create_signal(state, bars, now_close, contract)

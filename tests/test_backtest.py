@@ -63,6 +63,35 @@ def test_plan_builder_never_receives_future_or_partial_candles():
     assert decisions
 
 
+def test_native_4h_backtest_exposes_only_4h_and_completed_daily_candles():
+    bars = [
+        Bar(ts=index * 4 * HOUR, o=100, h=102, l=98, c=100, v=10)
+        for index in range(60)
+    ]
+    decisions = []
+
+    def builder(snapshot, **_kwargs):
+        decision_time = snapshot["kline_4h"]["data"][-1][0] + 4 * HOUR
+        decisions.append(decision_time)
+        assert snapshot["kline_1h"]["data"] == []
+        assert all(row[0] + 4 * HOUR <= decision_time for row in snapshot["kline_4h"]["data"])
+        assert all(row[0] + 24 * HOUR <= decision_time for row in snapshot["kline_1d"]["data"])
+        return {"side": "skip", "confidence": 0, "reasons": ["test"]}
+
+    result = run_backtest(
+        bars,
+        config=BacktestConfig(
+            warmup_hours=24,
+            decision_interval_hours=4,
+            bar_interval_hours=4,
+        ),
+        plan_builder=builder,
+    )
+
+    assert decisions
+    assert result["methodology"]["bar_interval_hours"] == 4
+
+
 def test_ambiguous_fill_candle_uses_stop_first():
     bars = _bars()
     bars[2] = Bar(ts=2 * HOUR, o=100, h=121, l=89, c=105, v=10)

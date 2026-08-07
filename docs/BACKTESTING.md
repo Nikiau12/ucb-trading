@@ -92,7 +92,7 @@ python -m evaluation.run_regime_strategy_research \
   --iteration v3 \
   --candles 35000 \
   --data-end 2026-08-07T11:00:00Z \
-  --output regime-strategy-v2-report.json
+  --output regime-strategy-v3-report.json
 ```
 
 The v3 runner uses eight pre-registered setups per asset. BTC tests expiring
@@ -102,3 +102,22 @@ selected setup must
 survive four rolling training windows, doubled execution friction and a
 one-extra-hour entry delay before confirmation can be opened. It never opens
 the final test period.
+
+## Current native 4H + 1D protocol
+
+The corrected research path makes decisions and simulates execution on native
+4-hour candles. It never exposes hourly indicators or hourly candles to the
+strategy builder:
+
+```bash
+python -m evaluation.run_higher_timeframe_research \
+  --candles 35000 \
+  --data-end 2026-08-07T08:00:00Z \
+  --output higher-timeframe-report.json
+```
+
+The source API still supplies hourly OHLC rows because they are deterministically
+resampled into complete 4H candles. The signal sees only `kline_4h` and
+`kline_1d`; simulated entry, stop, targets and timeout are evaluated on 4H
+candles. Earlier hourly research runners are retained only for reproducibility
+and must not be used to approve the current strategy.

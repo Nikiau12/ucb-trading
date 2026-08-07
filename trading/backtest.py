@@ -39,6 +39,19 @@ class BacktestConfig:
     max_holding_bars: int = 24 * 14
     warmup_hours: int = 24 * 60
     decision_interval_hours: int = 1
+    bar_interval_hours: int = 1
+
+    @property
+    def bar_seconds(self) -> int:
+        return self.bar_interval_hours * HOUR_SECONDS
+
+    @property
+    def warmup_bars(self) -> int:
+        return math.ceil(self.warmup_hours / self.bar_interval_hours)
+
+    @property
+    def decision_step_bars(self) -> int:
+        return self.decision_interval_hours // self.bar_interval_hours
 
     def validate(self) -> None:
         if self.initial_deposit <= 0 or not 0 < self.risk_pct <= 100:
@@ -56,6 +69,10 @@ class BacktestConfig:
             raise ValueError("entry_delay_bars cannot exceed entry_expiry_bars")
         if self.decision_interval_hours < 1:
             raise ValueError("decision_interval_hours must be positive")
+        if self.bar_interval_hours not in (1, 4):
+            raise ValueError("bar_interval_hours must be 1 or 4")
+        if self.decision_interval_hours % self.bar_interval_hours:
+            raise ValueError("decision_interval_hours must align with the bar interval")
 
 
 @dataclass(frozen=True)
@@ -98,7 +115,12 @@ def validate_bars(bars: Sequence[Bar]) -> List[Bar]:
     return ordered
 
 
-def resample_completed(bars: Sequence[Bar], period_seconds: int, decision_time: int) -> List[Bar]:
+def resample_completed(
+    bars: Sequence[Bar],
+    period_seconds: int,
+    decision_time: int,
+    source_period_seconds: int = HOUR_SECONDS,
+) -> List[Bar]:
     """Aggregate only full higher-timeframe candles closed by decision_time."""
     buckets: Dict[int, List[Bar]] = {}
     for bar in bars:
@@ -108,7 +130,7 @@ def resample_completed(bars: Sequence[Bar], period_seconds: int, decision_time: 
         buckets.setdefault(bucket_start, []).append(bar)
 
     result: List[Bar] = []
-    expected = period_seconds // HOUR_SECONDS
+    expected = period_seconds // source_period_seconds
     for bucket_start in sorted(buckets):
         group = buckets[bucket_start]
         if len(group) != expected:
@@ -129,16 +151,29 @@ def build_snapshot(
     history: Sequence[Bar],
     decision_time: int,
     contract_rules: Optional[Dict[str, Any]] = None,
+    source_interval_hours: int = 1,
 ) -> Dict[str, Any]:
-    closed_1h = [bar for bar in history if bar.ts + HOUR_SECONDS <= decision_time]
-    if not closed_1h:
+    source_seconds = source_interval_hours * HOUR_SECONDS
+    closed = [bar for bar in history if bar.ts + source_seconds <= decision_time]
+    if not closed:
         raise ValueError("No closed candles at decision time")
+    closed_1h = closed if source_interval_hours == 1 else []
+    closed_4h = (
+        closed
+        if source_interval_hours == 4
+        else resample_completed(closed, 4 * HOUR_SECONDS, decision_time)
+    )
     snapshot = {
         "symbol": symbol,
-        "ticker": {"data": {"lastPrice": closed_1h[-1].c}},
+        "ticker": {"data": {"lastPrice": closed[-1].c}},
         "kline_1h": {"data": [_row(bar) for bar in closed_1h]},
-        "kline_4h": {"data": [_row(bar) for bar in resample_completed(closed_1h, 4 * HOUR_SECONDS, decision_time)]},
-        "kline_1d": {"data": [_row(bar) for bar in resample_completed(closed_1h, 24 * HOUR_SECONDS, decision_time)]},
+        "kline_4h": {"data": [_row(bar) for bar in closed_4h]},
+        "kline_1d": {"data": [_row(bar) for bar in resample_completed(
+            closed,
+            24 * HOUR_SECONDS,
+            decision_time,
+            source_seconds,
+        )]},
         "stale": False,
     }
     if contract_rules is not None:
@@ -148,12 +183,13 @@ def build_snapshot(
 
 def _build_snapshot_from_precomputed(
     symbol: str,
-    bars_1h: Sequence[Bar],
+    base_bars: Sequence[Bar],
     bars_4h: Sequence[Bar],
     bars_1d: Sequence[Bar],
     signal_index: int,
     decision_time: int,
     contract_rules: Optional[Dict[str, Any]],
+    base_interval_hours: int,
 ) -> Dict[str, Any]:
     def completed_end_index(source: Sequence[Bar], period: int) -> int:
         # Equivalent to bisect_right(..., key=...), without allocating a list
@@ -169,12 +205,13 @@ def _build_snapshot_from_precomputed(
 
     end_4h = completed_end_index(bars_4h, 4 * HOUR_SECONDS)
     end_1d = completed_end_index(bars_1d, 24 * HOUR_SECONDS)
-    closed_1h = bars_1h[max(0, signal_index - 499): signal_index + 1]
+    closed_base = base_bars[max(0, signal_index - 499): signal_index + 1]
+    closed_1h = closed_base if base_interval_hours == 1 else []
     closed_4h = bars_4h[max(0, end_4h - 500):end_4h]
     closed_1d = bars_1d[max(0, end_1d - 400):end_1d]
     snapshot = {
         "symbol": symbol,
-        "ticker": {"data": {"lastPrice": closed_1h[-1].c}},
+        "ticker": {"data": {"lastPrice": closed_base[-1].c}},
         "kline_1h": {"data": [_row(bar) for bar in closed_1h]},
         "kline_4h": {"data": [_row(bar) for bar in closed_4h]},
         "kline_1d": {"data": [_row(bar) for bar in closed_1d]},
@@ -307,9 +344,9 @@ def _simulate_order(
     fees = entry_fee + exit_fees
     net = gross - fees
     result = TradeResult(
-        signal_time=bars[signal_index].ts + HOUR_SECONDS,
+        signal_time=bars[signal_index].ts + config.bar_seconds,
         entry_time=bars[entry_index].ts,
-        exit_time=bars[exit_index].ts + HOUR_SECONDS,
+        exit_time=bars[exit_index].ts + config.bar_seconds,
         side=side,
         confidence=confidence,
         planned_entry=planned_entry,
@@ -380,22 +417,38 @@ def run_backtest(
     if evaluation_end is not None:
         # Keep the earlier candles as indicator warm-up, but never allow an
         # order or exit to observe a candle closing after the evaluation window.
-        ordered = [bar for bar in ordered if bar.ts + HOUR_SECONDS <= evaluation_end]
-    final_decision_time = ordered[-1].ts + HOUR_SECONDS if ordered else 0
-    all_4h = resample_completed(ordered, 4 * HOUR_SECONDS, final_decision_time)
-    all_1d = resample_completed(ordered, 24 * HOUR_SECONDS, final_decision_time)
+        ordered = [bar for bar in ordered if bar.ts + config.bar_seconds <= evaluation_end]
+    final_decision_time = ordered[-1].ts + config.bar_seconds if ordered else 0
+    all_4h = (
+        ordered
+        if config.bar_interval_hours == 4
+        else resample_completed(ordered, 4 * HOUR_SECONDS, final_decision_time)
+    )
+    all_1d = resample_completed(
+        ordered,
+        24 * HOUR_SECONDS,
+        final_decision_time,
+        config.bar_seconds,
+    )
     trades: List[TradeResult] = []
     skipped_plans = 0
     unfilled_orders = 0
-    index = max(0, config.warmup_hours - 1)
+    index = max(0, config.warmup_bars - 1)
     if evaluation_start is not None:
-        while index < len(ordered) and ordered[index].ts + HOUR_SECONDS < evaluation_start:
+        while index < len(ordered) and ordered[index].ts + config.bar_seconds < evaluation_start:
             index += 1
 
     while index < len(ordered) - 1:
-        decision_time = ordered[index].ts + HOUR_SECONDS
+        decision_time = ordered[index].ts + config.bar_seconds
         snapshot = _build_snapshot_from_precomputed(
-            symbol, ordered, all_4h, all_1d, index, decision_time, contract_rules
+            symbol,
+            ordered,
+            all_4h,
+            all_1d,
+            index,
+            decision_time,
+            contract_rules,
+            config.bar_interval_hours,
         )
         equity = config.initial_deposit + sum(trade.net_pnl for trade in trades)
         plan = plan_builder(
@@ -414,7 +467,7 @@ def run_backtest(
             or (plan_filter is not None and not plan_filter(plan))
         ):
             skipped_plans += 1
-            index += config.decision_interval_hours
+            index += config.decision_step_bars
             continue
 
         signal_context = {
@@ -436,6 +489,7 @@ def run_backtest(
             "signal_data": "closed candles only",
             "first_entry_bar": "configured closed-candle delay after signal",
             "entry_delay_bars": config.entry_delay_bars,
+            "bar_interval_hours": config.bar_interval_hours,
             "ambiguous_intrabar_policy": "stop_first",
             "overlapping_positions": False,
             "fees_bps_per_fill": config.fee_bps,
