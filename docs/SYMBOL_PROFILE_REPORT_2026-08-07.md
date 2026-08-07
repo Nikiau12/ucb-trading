@@ -74,3 +74,42 @@ SOL should be observed on additional forward/paper-trading data without changing
 its frozen profile.
 
 Historical performance does not guarantee future results.
+
+## Follow-up: ETH range model
+
+The ETH training history was expanded backwards to 2022-10-09 while keeping all
+later boundaries locked. Eight range profiles were declared before evaluation.
+The selected profile trades both long and short range setups without an added
+candle or RSI filter.
+
+| Window | Trades | Return | Max drawdown | Profit factor | Decision |
+|---|---:|---:|---:|---:|---|
+| Selection | 20 | +7.78% | 3.55% | 2.03 | Selected |
+| Confirmation | 3 | +0.06% | 1.00% | 1.03 | Failed: sample below 5 |
+
+The rule remained marginally profitable but did not produce enough independent
+confirmation trades. Validation and test remained closed. Tight reversal and
+RSI filters reduced both sample size and performance; they are rejected.
+
+## Follow-up: BTC rolling stability
+
+BTC profiles were compared across four consecutive selection windows rather
+than one aggregate period. The selected profile was long-only, trend-only, with
+closed 1h and directional RSI confirmation. It was positive in all four windows,
+with 23 trades, +2.43% mean return and +0.30% in its worst window.
+
+On the separate confirmation period it produced only three trades, -0.75%
+return and a 0.64 profit factor. It therefore failed before validation. This
+shows that the profile was historically stable until mid-2025 but did not remain
+stable afterward.
+
+## Follow-up: SOL forward paper test
+
+The frozen SOL trend + closed 1h confirmation profile now runs in a stateful
+paper-trading harness. It processes closed 1h candles, never sends an exchange
+order, and records virtual pending entries, partial TP1 exits, TP2, stops,
+commission, slippage and account equity. Initial virtual equity is 1,000 USDT.
+
+The first live paper evaluation rejected the current setup, so there is no
+pending order or open virtual position. This is expected: the profile should
+remain selective and must not be loosened during forward observation.

@@ -97,6 +97,32 @@ def test_closed_1h_confirmation_must_match_trade_side():
     assert not accepts_candidate(plan("short", "up"), policy)
 
 
+def test_range_reversal_uses_candle_direction_and_side_specific_rsi():
+    policy = Candidate(
+        "range_reversal",
+        0.6,
+        allowed_regimes=("range",),
+        require_candle_direction=True,
+        long_rsi_max=45,
+        short_rsi_min=55,
+    )
+
+    def plan(side, candle, rsi):
+        return {
+            "primary": {
+                "side": side,
+                "reasons": [f"candle1h={candle}", f"rsi1h≈{rsi}"],
+            },
+            "trend": {"regime": "range"},
+        }
+
+    assert accepts_candidate(plan("long", "bullish", 44), policy)
+    assert accepts_candidate(plan("short", "bearish", 56), policy)
+    assert not accepts_candidate(plan("long", "bearish", 44), policy)
+    assert not accepts_candidate(plan("long", "bullish", 46), policy)
+    assert not accepts_candidate(plan("short", "bearish", 54), policy)
+
+
 def test_training_gate_requires_cross_symbol_evidence():
     good = {"trades": 40, "net_pnl": 1, "symbols_positive": 2, "symbols_total": 3}
     assert training_eligible(good)

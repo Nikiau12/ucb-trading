@@ -41,6 +41,9 @@ class Candidate:
     min_entry_distance_atr: Optional[float] = None
     max_entry_distance_atr: Optional[float] = None
     allowed_sides: tuple[str, ...] = ("long", "short")
+    require_candle_direction: bool = False
+    long_rsi_max: Optional[float] = None
+    short_rsi_min: Optional[float] = None
 
 
 # Intentionally small and declared in source before validation/test is opened.
@@ -250,6 +253,22 @@ def accepts_candidate(plan: Mapping[str, Any], candidate: Candidate) -> bool:
             "neutral",
         )
         if momentum != expected:
+            return False
+    if candidate.require_candle_direction:
+        candle = next(
+            (reason.removeprefix("candle1h=") for reason in reasons if reason.startswith("candle1h=")),
+            "neutral",
+        )
+        expected_candle = "bullish" if side == "long" else "bearish"
+        if candle != expected_candle:
+            return False
+    if candidate.long_rsi_max is not None and side == "long":
+        rsi = _reason_number(reasons, "rsi1h≈")
+        if rsi is None or rsi > candidate.long_rsi_max:
+            return False
+    if candidate.short_rsi_min is not None and side == "short":
+        rsi = _reason_number(reasons, "rsi1h≈")
+        if rsi is None or rsi < candidate.short_rsi_min:
             return False
     entry_distance = _reason_number(reasons, "entry_dist_ATR4h=")
     if candidate.min_entry_distance_atr is not None and (

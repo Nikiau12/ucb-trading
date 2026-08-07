@@ -67,3 +67,20 @@ The optimizer uses the same bounded profile library for every symbol. It chooses
 one winner per symbol on the selection window and does not fall back to a second
 profile if that winner fails confirmation. Validation and test remain protected
 by separate chronological gates.
+
+Additional research commands:
+
+```bash
+python -m evaluation.run_eth_range_research \
+  --candles 35000 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output eth-range-report.json
+
+python -m evaluation.run_btc_stability \
+  --candles 35000 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output btc-stability-report.json
+```
+
+The ETH runner expands only the old selection history. The BTC runner requires
+stability across four chronological windows before opening confirmation.
