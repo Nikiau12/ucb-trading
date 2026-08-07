@@ -96,6 +96,13 @@ def test_miniapp_imports_from_railway_service_root():
     assert result.returncode == 0, result.stderr
 
 
+def test_railway_deployment_requires_live_health_endpoint():
+    config = json.loads((ROOT_DIR / "miniapp" / "railway.json").read_text())
+
+    assert config["deploy"]["healthcheckPath"] == "/health"
+    assert config["deploy"]["healthcheckTimeout"] == 60
+
+
 def test_settings_validation_rejects_unsupported_values(demo_client):
     bad_language = demo_client.patch("/api/settings", json={"language": "xx"})
     bad_margin = demo_client.patch("/api/settings", json={"margin": "unsupported"})
@@ -154,6 +161,31 @@ def test_security_headers_are_present(demo_client):
     assert response.headers["x-content-type-options"] == "nosniff"
     assert "frame-ancestors" in response.headers["content-security-policy"]
     assert response.headers["referrer-policy"] == "no-referrer"
+
+
+def test_health_and_prometheus_metrics_are_available(demo_client):
+    health = demo_client.get("/health")
+    demo_client.get("/api/me")
+    metrics = demo_client.get("/metrics")
+
+    assert health.status_code == 200
+    assert health.json() == {"ok": True, "database": False, "mode": "demo", "scanner": None}
+    assert metrics.status_code == 200
+    assert "ucb_app_uptime_seconds" in metrics.text
+    assert 'path="/api/me",status="200"' in metrics.text
+
+
+def test_health_returns_503_when_production_database_is_unavailable(monkeypatch):
+    monkeypatch.setattr(miniapp, "DATABASE_URL", "postgresql://unavailable")
+    monkeypatch.setattr(
+        miniapp.psycopg,
+        "connect",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("database unavailable")),
+    )
+
+    response = miniapp.health()
+
+    assert response.status_code == 503
 
 
 @pytest.mark.parametrize(

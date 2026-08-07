@@ -67,6 +67,71 @@ def _ensure_alert_state_table(connection) -> None:
     )
 
 
+def _ensure_runtime_health_table(connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS runtime_health (
+            component TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            last_success_at TIMESTAMPTZ,
+            last_error_at TIMESTAMPTZ,
+            duration_seconds NUMERIC,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            details JSONB NOT NULL DEFAULT '{}'::jsonb
+        )
+        """
+    )
+
+
+def record_runtime_health(
+    component: str,
+    *,
+    success: bool,
+    duration_seconds: Optional[float] = None,
+    details: Optional[dict] = None,
+) -> None:
+    """Persist a low-cardinality worker heartbeat for production monitoring."""
+    if not _db_ready() or not component:
+        return
+    payload = json.dumps(details or {})
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            _ensure_runtime_health_table(connection)
+            connection.execute(
+                """
+                INSERT INTO runtime_health (
+                    component, status, last_seen_at, last_success_at, last_error_at,
+                    duration_seconds, consecutive_failures, details
+                )
+                VALUES (
+                    %s, %s, NOW(),
+                    CASE WHEN %s THEN NOW() ELSE NULL END,
+                    CASE WHEN %s THEN NULL ELSE NOW() END,
+                    %s, CASE WHEN %s THEN 0 ELSE 1 END, %s
+                )
+                ON CONFLICT (component) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    last_seen_at = NOW(),
+                    last_success_at = CASE
+                        WHEN %s THEN NOW() ELSE runtime_health.last_success_at END,
+                    last_error_at = CASE
+                        WHEN %s THEN runtime_health.last_error_at ELSE NOW() END,
+                    duration_seconds = EXCLUDED.duration_seconds,
+                    consecutive_failures = CASE
+                        WHEN %s THEN 0 ELSE runtime_health.consecutive_failures + 1 END,
+                    details = EXCLUDED.details
+                """,
+                (
+                    component, "ok" if success else "error", success, success,
+                    duration_seconds, success, payload, success, success, success,
+                ),
+            )
+            connection.commit()
+    except Exception as exc:
+        print(f"[state] runtime health write failed: {exc}")
+
+
 def _plan_levels(plan: Optional[dict]) -> dict:
     primary = (plan or {}).get("primary") or {}
     targets = primary.get("tps") or []
