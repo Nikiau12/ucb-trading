@@ -949,7 +949,7 @@ async def _handle_spikes(message: types.Message):
             await message.reply("🤷 Аномалий не обнаружено.")
             return
         for sym, spk in found[:15]:
-            coin_info = await coin_info_service.get_coin_info(sym)
+            coin_info = await coin_info_svc.get_coin_info(sym)
             msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info)
             await message.reply(msg, parse_mode="HTML")
             await asyncio.sleep(0.1)
@@ -1164,7 +1164,7 @@ async def market_scanner_loop():
                                 continue
                             key = f"{symbol}_{tf}_{spike['direction']}"
                             if now - last_spike_alert.get(key, 0) > SPIKE_COOLDOWN:
-                                coin_info = await coin_info_service.get_coin_info(symbol)
+                                coin_info = await coin_info_svc.get_coin_info(symbol)
                                 await notifier.send_message(
                                     notifier.format_spike_alert(symbol, tf, spike, coin_info=coin_info)
                                 )
@@ -1294,11 +1294,11 @@ async def listing_watcher_loop():
         try:
             for item in (await listing_watcher.check_new_announcements())[:10]:
                 symbol = item["symbols"][0] if item.get("symbols") else ""
-                coin_info = await coin_info_service.get_coin_info(symbol) if symbol else {}
+                coin_info = await coin_info_svc.get_coin_info(symbol) if symbol else {}
                 await notifier.send_message(notifier.format_listing_news_alert(item, coin_info=coin_info))
                 await asyncio.sleep(0.2)
             for symbol in (await listing_watcher.check_new_markets(exchange))[:20]:
-                coin_info = await coin_info_service.get_coin_info(symbol)
+                coin_info = await coin_info_svc.get_coin_info(symbol)
                 await notifier.send_message(notifier.format_listing_alert(symbol, coin_info=coin_info))
                 await asyncio.sleep(0.2)
             await asyncio.sleep(MEXC_LISTING_CHECK_INTERVAL)
