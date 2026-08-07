@@ -49,3 +49,21 @@ The runner evaluates the declared candidates on training first. It opens
 validation only when a candidate passes the training gate, and opens the final
 test only after the validation gate passes. Historical candles are cached under
 `/tmp/ucb-walk-forward-data` by default and are not committed to the repository.
+
+## Separate profile per symbol
+
+To select and independently confirm one profile for each major contract:
+
+```bash
+python -m evaluation.run_symbol_optimization \
+  --symbols BTC_USDT ETH_USDT SOL_USDT \
+  --candles 25000 \
+  --workers 3 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output symbol-profile-report.json
+```
+
+The optimizer uses the same bounded profile library for every symbol. It chooses
+one winner per symbol on the selection window and does not fall back to a second
+profile if that winner fails confirmation. Validation and test remain protected
+by separate chronological gates.

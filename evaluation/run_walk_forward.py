@@ -40,6 +40,7 @@ class Candidate:
     require_1h_confirmation: bool = False
     min_entry_distance_atr: Optional[float] = None
     max_entry_distance_atr: Optional[float] = None
+    allowed_sides: tuple[str, ...] = ("long", "short")
 
 
 # Intentionally small and declared in source before validation/test is opened.
@@ -220,6 +221,8 @@ def fetch_contract(symbol: str, cache_dir: Path) -> Dict[str, Any]:
 def accepts_candidate(plan: Mapping[str, Any], candidate: Candidate) -> bool:
     side = str((plan.get("primary") or {}).get("side") or plan.get("side") or "").lower()
     expected = "up" if side == "long" else "down" if side == "short" else ""
+    if side not in candidate.allowed_sides:
+        return False
     trend = plan.get("trend") or {}
     if trend.get("regime") not in candidate.allowed_regimes:
         return False
