@@ -113,3 +113,43 @@ def test_fees_and_slippage_reduce_reported_performance():
 
     assert realistic["summary"]["net_pnl"] < frictionless["summary"]["net_pnl"]
     assert realistic["summary"]["fees_paid"] > 0
+
+
+def test_evaluation_window_uses_prior_bars_only_as_warmup():
+    bars = _bars(12)
+    calls = []
+
+    def builder(snapshot, **_kwargs):
+        calls.append(snapshot["kline_1h"]["data"][-1][0] + HOUR)
+        return {"side": "skip", "confidence": 0, "reasons": ["test"]}
+
+    result = run_backtest(
+        bars,
+        config=BacktestConfig(warmup_hours=2),
+        plan_builder=builder,
+        evaluation_start=6 * HOUR,
+        evaluation_end=9 * HOUR,
+    )
+
+    assert calls == [6 * HOUR, 7 * HOUR, 8 * HOUR]
+    assert result["methodology"]["evaluation_start"] == 6 * HOUR
+    assert result["methodology"]["evaluation_end"] == 9 * HOUR
+
+
+def test_plan_filter_rejects_otherwise_valid_plan():
+    calls = 0
+
+    def builder(_snapshot, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return _plan() if calls == 1 else {"side": "skip", "confidence": 0, "reasons": ["test"]}
+
+    result = run_backtest(
+        _bars(),
+        config=BacktestConfig(warmup_hours=2),
+        plan_builder=builder,
+        plan_filter=lambda _plan_payload: False,
+    )
+
+    assert result["summary"]["trades"] == 0
+    assert result["skipped_plans"] > 0

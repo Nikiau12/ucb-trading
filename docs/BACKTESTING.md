@@ -29,3 +29,20 @@ python -m trading.backtest btc_usdt_1h.csv \
 The report states its execution assumptions and includes net return, maximum
 drawdown, profit factor, average R, total fees and every simulated trade. A
 positive result is historical evidence, not a promise of future profitability.
+
+## Strict strategy research
+
+Use the separate research runner to prevent parameter selection on the final
+test period:
+
+```bash
+python -m evaluation.run_walk_forward \
+  --symbols BTC_USDT ETH_USDT SOL_USDT \
+  --candles 15000 \
+  --output walk-forward-report.json
+```
+
+The runner evaluates the declared candidates on training first. It opens
+validation only when a candidate passes the training gate, and opens the final
+test only after the validation gate passes. Historical candles are cached under
+`/tmp/ucb-walk-forward-data` by default and are not committed to the repository.

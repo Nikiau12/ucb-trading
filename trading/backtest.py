@@ -8,7 +8,6 @@ resolved against the strategy (stop before take-profit).
 from __future__ import annotations
 
 import argparse
-import bisect
 import csv
 import json
 import math
@@ -22,6 +21,7 @@ from .trade_plan import make_plan, plan_payload_errors
 
 
 PlanBuilder = Callable[..., Dict[str, Any]]
+PlanFilter = Callable[[Dict[str, Any]], bool]
 HOUR_SECONDS = 60 * 60
 
 
@@ -146,8 +146,20 @@ def _build_snapshot_from_precomputed(
     decision_time: int,
     contract_rules: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    end_4h = bisect.bisect_right(bars_4h, decision_time, key=lambda bar: bar.ts + 4 * HOUR_SECONDS)
-    end_1d = bisect.bisect_right(bars_1d, decision_time, key=lambda bar: bar.ts + 24 * HOUR_SECONDS)
+    def completed_end_index(source: Sequence[Bar], period: int) -> int:
+        # Equivalent to bisect_right(..., key=...), without allocating a list
+        # on every decision and while remaining compatible with Python 3.9.
+        low, high = 0, len(source)
+        while low < high:
+            middle = (low + high) // 2
+            if source[middle].ts + period <= decision_time:
+                low = middle + 1
+            else:
+                high = middle
+        return low
+
+    end_4h = completed_end_index(bars_4h, 4 * HOUR_SECONDS)
+    end_1d = completed_end_index(bars_1d, 24 * HOUR_SECONDS)
     closed_1h = bars_1h[max(0, signal_index - 499): signal_index + 1]
     closed_4h = bars_4h[max(0, end_4h - 500):end_4h]
     closed_1d = bars_1d[max(0, end_1d - 400):end_1d]
@@ -323,10 +335,19 @@ def run_backtest(
     config: Optional[BacktestConfig] = None,
     contract_rules: Optional[Dict[str, Any]] = None,
     plan_builder: PlanBuilder = make_plan,
+    plan_filter: Optional[PlanFilter] = None,
+    evaluation_start: Optional[int] = None,
+    evaluation_end: Optional[int] = None,
 ) -> Dict[str, Any]:
     config = config or BacktestConfig()
     config.validate()
     ordered = validate_bars(bars)
+    if evaluation_start is not None and evaluation_end is not None and evaluation_start >= evaluation_end:
+        raise ValueError("evaluation_start must be before evaluation_end")
+    if evaluation_end is not None:
+        # Keep the earlier candles as indicator warm-up, but never allow an
+        # order or exit to observe a candle closing after the evaluation window.
+        ordered = [bar for bar in ordered if bar.ts + HOUR_SECONDS <= evaluation_end]
     final_decision_time = ordered[-1].ts + HOUR_SECONDS if ordered else 0
     all_4h = resample_completed(ordered, 4 * HOUR_SECONDS, final_decision_time)
     all_1d = resample_completed(ordered, 24 * HOUR_SECONDS, final_decision_time)
@@ -334,6 +355,9 @@ def run_backtest(
     skipped_plans = 0
     unfilled_orders = 0
     index = max(0, config.warmup_hours - 1)
+    if evaluation_start is not None:
+        while index < len(ordered) and ordered[index].ts + HOUR_SECONDS < evaluation_start:
+            index += 1
 
     while index < len(ordered) - 1:
         decision_time = ordered[index].ts + HOUR_SECONDS
@@ -350,7 +374,12 @@ def run_backtest(
         )
         primary = plan.get("primary") or {}
         confidence = float(primary.get("confidence") or plan.get("confidence") or 0)
-        if plan.get("side") == "skip" or plan_payload_errors(plan) or confidence < config.min_confidence:
+        if (
+            plan.get("side") == "skip"
+            or plan_payload_errors(plan)
+            or confidence < config.min_confidence
+            or (plan_filter is not None and not plan_filter(plan))
+        ):
             skipped_plans += 1
             index += config.decision_interval_hours
             continue
@@ -370,6 +399,8 @@ def run_backtest(
             "overlapping_positions": False,
             "fees_bps_per_fill": config.fee_bps,
             "slippage_bps_per_fill": config.slippage_bps,
+            "evaluation_start": evaluation_start,
+            "evaluation_end": evaluation_end,
         },
         "config": asdict(config),
         "summary": summarize(trades, config),
