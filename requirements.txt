@@ -8,5 +8,5 @@ smartmoneyconcepts==0.0.27
 
 # trading/ module dependencies
 requests==2.34.2
-python-telegram-bot[job-queue]==22.5
+python-telegram-bot[job-queue]==22.8
 psycopg[binary]==3.2.13
