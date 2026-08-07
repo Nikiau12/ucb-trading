@@ -227,3 +227,28 @@ def test_plan_is_rejected_when_minimum_contract_exceeds_risk_budget():
 def test_price_formatter_preserves_exchange_tick_precision():
     assert telegram_render._fmt_price(63159.7, 0.1) == "63 159.7"
     assert telegram_render._fmt_price(0.07365, 0.00001) == "0.07365"
+
+
+def test_personal_contract_sizing_rounds_volume_and_caps_leverage():
+    sizing = trade_plan.position_size_for_contract(
+        {
+            "contract_size": 0.1,
+            "vol_unit": 1,
+            "min_vol": 1,
+            "max_vol": 100,
+            "max_leverage": 20,
+        },
+        entry=100,
+        stop=95,
+        deposit=100,
+        risk_pct=1,
+        leverage=50,
+    )
+
+    assert sizing["contract_vol"] == 2
+    assert sizing["qty"] == pytest.approx(0.2)
+    assert sizing["risk_usdt"] == pytest.approx(1.0)
+    assert sizing["position_usdt"] == pytest.approx(20.0)
+    assert sizing["effective_leverage"] == 20
+    assert sizing["margin_usdt"] == pytest.approx(1.0)
+    assert sizing["errors"] == []

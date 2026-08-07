@@ -77,6 +77,12 @@ function renderProfile(){
 }
 
 function signalMetrics(signal){
+  const server=signal?.sizing;
+  if(server&&Number.isFinite(Number(server.position_usdt))&&Number.isFinite(Number(server.margin_usdt))){
+    const entry=Number(signal.entry);
+    const stop=Number(signal.stop);
+    return{riskUsdt:Number(server.risk_usdt),position:Number(server.position_usdt),margin:Number(server.margin_usdt),stopPct:entry?Math.abs(entry-stop)/entry*100:0,leverage:Number(server.effective_leverage),contractVol:server.contract_vol,tradable:server.tradable!==false};
+  }
   const deposit=Number(profile?.deposit||0);
   const riskPct=Number(profile?.risk_pct||0);
   const leverage=Math.max(Number(profile?.leverage||1),1);
@@ -282,7 +288,7 @@ document.querySelectorAll('#detail-timeframe button').forEach(button=>button.add
 $('#signal-back').addEventListener('click',closeSignalDetail);
 tg?.BackButton?.onClick(closeSignalDetail);
 $('#language').addEventListener('change',async event=>{language=event.target.value;applyLanguage();await api('/api/settings',{method:'PATCH',body:JSON.stringify({language})})});
-$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);renderProfile();renderSignals();if(selectedSignal)renderSignalDetail(selectedSignal);$('#form-status').textContent=tr('saved');showToast(tr('saved'))});
+$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol));selectedSignal=selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||null:null;renderProfile();renderSignals();if(selectedSignal)renderSignalDetail(selectedSignal);$('#form-status').textContent=tr('saved');showToast(tr('saved'))});
 async function requestPayment(){showToast(tr('paymentHelp'));try{await api('/api/payment-instructions',{method:'POST'});tg?.close()}catch(error){if(!profile?.bot_username){showToast(tr('paymentUnavailable'));tg?.showAlert?.(tr('paymentUnavailable'));return}const url=`https://t.me/${profile.bot_username}?start=subscribe_${language}`;if(tg?.openTelegramLink)tg.openTelegramLink(url);else window.location.href=url}}
 $('#payment-button').addEventListener('click',requestPayment);
 document.querySelectorAll('.paywall-button').forEach(button=>button.addEventListener('click',requestPayment));

@@ -181,6 +181,66 @@ def _round_step(value: float, step: Decimal, rounding: str) -> float:
     return float(units * step)
 
 
+def position_size_for_contract(
+    rules: Dict[str, Any],
+    entry: float,
+    stop: float,
+    deposit: float,
+    risk_pct: float,
+    leverage: float,
+) -> Dict[str, Any]:
+    """Calculate a user-specific position using executable MEXC contract volume."""
+    risk_budget = max(0.0, float(deposit)) * (max(0.0, float(risk_pct)) / 100.0)
+    dist = abs(float(entry) - float(stop))
+    requested_leverage = max(1.0, float(leverage))
+    max_leverage = _positive_decimal(rules.get("max_leverage", rules.get("maxLeverage")))
+    effective_leverage = min(
+        requested_leverage,
+        float(max_leverage) if max_leverage is not None else requested_leverage,
+    )
+    contract_size = _positive_decimal(rules.get("contract_size", rules.get("contractSize")))
+    vol_unit = _positive_decimal(rules.get("vol_unit", rules.get("volUnit")))
+    min_vol = _positive_decimal(rules.get("min_vol", rules.get("minVol")))
+    max_vol = _positive_decimal(rules.get("max_vol", rules.get("maxVol")))
+    errors: List[str] = []
+
+    if dist <= 0:
+        errors.append("invalid_stop_distance")
+        qty = contract_vol = actual_risk = 0.0
+    elif contract_size is None or vol_unit is None:
+        qty = risk_budget / dist
+        contract_vol = None
+        actual_risk = risk_budget
+    else:
+        desired_qty = Decimal(str(risk_budget / dist))
+        desired_vol = desired_qty / contract_size
+        contract_vol_dec = (desired_vol / vol_unit).to_integral_value(rounding=ROUND_FLOOR) * vol_unit
+        if max_vol is not None:
+            contract_vol_dec = min(contract_vol_dec, max_vol)
+        if min_vol is not None and contract_vol_dec < min_vol:
+            errors.append("position_below_min_contract")
+            contract_vol_dec = Decimal("0")
+        qty = float(contract_vol_dec * contract_size)
+        contract_vol = float(contract_vol_dec)
+        actual_risk = qty * dist
+
+    position_usdt = qty * float(entry)
+    return {
+        "risk_budget_usdt": risk_budget,
+        "risk_usdt": actual_risk,
+        "qty": qty,
+        "contract_vol": contract_vol,
+        "contract_size": float(contract_size) if contract_size is not None else None,
+        "position_usdt": position_usdt,
+        "margin_usdt": position_usdt / effective_leverage,
+        "requested_leverage": requested_leverage,
+        "effective_leverage": effective_leverage,
+        "max_leverage": float(max_leverage) if max_leverage is not None else None,
+        "dist": dist,
+        "errors": errors,
+    }
+
+
 def normalize_for_contract(
     snapshot: Dict[str, Any],
     side: str,
@@ -190,15 +250,23 @@ def normalize_for_contract(
     tp2: float,
     deposit: float,
     risk_pct: float,
+    leverage: float = 1.0,
 ) -> Dict[str, Any]:
     """Make prices and size executable under the symbol's MEXC contract rules."""
     detail = snapshot.get("contract")
     if not isinstance(detail, dict):
         risk_usdt, qty, dist = risk_position_size(deposit, risk_pct, entry, stop)
+        effective_leverage = max(1.0, float(leverage))
+        position_usdt = qty * entry
         return {
             "entry": entry, "stop": stop, "tp1": tp1, "tp2": tp2,
             "risk_usdt": risk_usdt, "qty": qty, "dist": dist,
-            "contract_vol": None, "contract_size": None, "errors": [],
+            "contract_vol": None, "contract_size": None, "vol_unit": None,
+            "min_vol": None, "max_vol": None, "max_leverage": None,
+            "effective_leverage": effective_leverage,
+            "position_usdt": position_usdt,
+            "margin_usdt": position_usdt / effective_leverage,
+            "price_unit": None, "errors": [],
         }
 
     price_unit = _positive_decimal(detail.get("priceUnit"))
@@ -213,38 +281,29 @@ def normalize_for_contract(
             tp1 = _round_step(tp1, price_unit, ROUND_FLOOR)
             tp2 = _round_step(tp2, price_unit, ROUND_FLOOR)
 
-    risk_budget = deposit * (risk_pct / 100.0)
-    dist = abs(entry - stop)
+    sizing = position_size_for_contract(detail, entry, stop, deposit, risk_pct, leverage=leverage)
     contract_size = _positive_decimal(detail.get("contractSize"))
     vol_unit = _positive_decimal(detail.get("volUnit"))
     min_vol = _positive_decimal(detail.get("minVol"))
     max_vol = _positive_decimal(detail.get("maxVol"))
-    errors: List[str] = []
-
-    if dist <= 0 or contract_size is None or vol_unit is None:
-        qty = 0.0
-        contract_vol = None
-        errors.append("invalid_contract_rules")
-        actual_risk = 0.0
-    else:
-        desired_qty = Decimal(str(risk_budget / dist))
-        desired_vol = desired_qty / contract_size
-        contract_vol_dec = (desired_vol / vol_unit).to_integral_value(rounding=ROUND_FLOOR) * vol_unit
-        if max_vol is not None:
-            contract_vol_dec = min(contract_vol_dec, max_vol)
-        if min_vol is not None and contract_vol_dec < min_vol:
-            errors.append("position_below_min_contract")
-        qty = float(contract_vol_dec * contract_size)
-        contract_vol = float(contract_vol_dec)
-        actual_risk = qty * dist
+    max_leverage = _positive_decimal(detail.get("maxLeverage"))
+    if contract_size is None or vol_unit is None:
+        sizing["errors"].append("invalid_contract_rules")
 
     return {
         "entry": entry, "stop": stop, "tp1": tp1, "tp2": tp2,
-        "risk_usdt": actual_risk, "qty": qty, "dist": dist,
-        "contract_vol": contract_vol,
+        "risk_usdt": sizing["risk_usdt"], "qty": sizing["qty"], "dist": sizing["dist"],
+        "contract_vol": sizing["contract_vol"],
         "contract_size": float(contract_size) if contract_size is not None else None,
+        "vol_unit": float(vol_unit) if vol_unit is not None else None,
+        "min_vol": float(min_vol) if min_vol is not None else None,
+        "max_vol": float(max_vol) if max_vol is not None else None,
+        "max_leverage": float(max_leverage) if max_leverage is not None else None,
+        "effective_leverage": sizing["effective_leverage"],
+        "position_usdt": sizing["position_usdt"],
+        "margin_usdt": sizing["margin_usdt"],
         "price_unit": float(price_unit) if price_unit is not None else None,
-        "errors": errors,
+        "errors": sizing["errors"],
     }
 
 def clamp01(x: float) -> float:
@@ -629,14 +688,14 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
                 tp2_reason = "tp2=fix_order"
 
         normalized = normalize_for_contract(
-            snapshot, "long", entry, stop, tp1, tp2, deposit, risk_pct
+            snapshot, "long", entry, stop, tp1, tp2, deposit, risk_pct, lev
         )
         entry, stop = normalized["entry"], normalized["stop"]
         tp1, tp2 = normalized["tp1"], normalized["tp2"]
         risk_usdt, qty, dist = normalized["risk_usdt"], normalized["qty"], normalized["dist"]
 
         rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side="long")
-        margin_need = (qty * entry) / max(1e-9, lev)
+        margin_need = normalized["margin_usdt"]
         dist_entry_atr = abs(entry - float(lp)) / max(1e-9, float(atr4h))
 
         reasons = reasons_common + [
@@ -664,6 +723,11 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             "qty": qty,
             "contract_vol": normalized["contract_vol"],
             "contract_size": normalized["contract_size"],
+            "vol_unit": normalized["vol_unit"],
+            "min_vol": normalized["min_vol"],
+            "max_vol": normalized["max_vol"],
+            "max_leverage": normalized["max_leverage"],
+            "effective_leverage": normalized["effective_leverage"],
             "price_unit": normalized.get("price_unit"),
             "risk_usdt": risk_usdt,
             "margin_need": margin_need,
@@ -725,14 +789,14 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
                 tp2_reason = "tp2=fix_order"
 
         normalized = normalize_for_contract(
-            snapshot, "short", entry, stop, tp1, tp2, deposit, risk_pct
+            snapshot, "short", entry, stop, tp1, tp2, deposit, risk_pct, lev
         )
         entry, stop = normalized["entry"], normalized["stop"]
         tp1, tp2 = normalized["tp1"], normalized["tp2"]
         risk_usdt, qty, dist = normalized["risk_usdt"], normalized["qty"], normalized["dist"]
 
         rr1, rr2 = rr_metrics(entry, stop, tp1, tp2, side="short")
-        margin_need = (qty * entry) / max(1e-9, lev)
+        margin_need = normalized["margin_usdt"]
         dist_entry_atr = abs(entry - float(lp)) / max(1e-9, float(atr4h))
 
         reasons = reasons_common + [
@@ -760,6 +824,11 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
             "qty": qty,
             "contract_vol": normalized["contract_vol"],
             "contract_size": normalized["contract_size"],
+            "vol_unit": normalized["vol_unit"],
+            "min_vol": normalized["min_vol"],
+            "max_vol": normalized["max_vol"],
+            "max_leverage": normalized["max_leverage"],
+            "effective_leverage": normalized["effective_leverage"],
             "price_unit": normalized.get("price_unit"),
             "risk_usdt": risk_usdt,
             "margin_need": margin_need,
@@ -792,7 +861,8 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
         "price": float(lp),
         "used_cache": used_cache,
         "margin": margin,
-        "lev": float(lev),
+        "lev": float(primary.get("effective_leverage") or lev),
+        "requested_lev": float(lev),
         "trend": {"1d": t1d, "4h": t4h, "struct4h": struct4, "bos": bos, "regime": regime},
         "levels": {"support": sup, "resistance": res, "tol": tol, "mid": mr},
         "scenarios": {"long": long_s, "short": short_s},

@@ -21,6 +21,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from trading.trade_plan import position_size_for_contract
+
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -188,6 +190,16 @@ def init_db() -> None:
             );
             """
         )
+        cursor.execute(
+            """
+            ALTER TABLE signals ADD COLUMN IF NOT EXISTS price_unit NUMERIC;
+            ALTER TABLE signals ADD COLUMN IF NOT EXISTS contract_size NUMERIC;
+            ALTER TABLE signals ADD COLUMN IF NOT EXISTS vol_unit NUMERIC;
+            ALTER TABLE signals ADD COLUMN IF NOT EXISTS min_vol NUMERIC;
+            ALTER TABLE signals ADD COLUMN IF NOT EXISTS max_vol NUMERIC;
+            ALTER TABLE signals ADD COLUMN IF NOT EXISTS max_leverage NUMERIC;
+            """
+        )
         connection.commit()
 
 
@@ -249,6 +261,28 @@ def demo_profile(user: dict) -> dict:
         "paid_until": None,
         "payment_status": None,
         "bot_username": bot_username(),
+    }
+
+
+def attach_personal_sizing(signal: dict, profile: dict) -> dict:
+    sizing = position_size_for_contract(
+        signal,
+        signal.get("entry"),
+        signal.get("stop"),
+        profile.get("deposit") or 0,
+        profile.get("risk_pct") or 0,
+        profile.get("leverage") or 1,
+    )
+    return {
+        **signal,
+        "sizing": {
+            key: sizing[key]
+            for key in (
+                "risk_budget_usdt", "risk_usdt", "position_usdt", "margin_usdt",
+                "contract_vol", "effective_leverage", "requested_leverage", "max_leverage",
+            )
+        }
+        | {"tradable": not sizing["errors"], "errors": sizing["errors"]},
     }
 
 
@@ -398,11 +432,12 @@ def payment_instructions(x_telegram_init_data: str = Header(default="")):
 def signals(x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
     if not DATABASE_URL:
-        return [
+        profile = demo_profile(user)
+        return [attach_personal_sizing(signal, profile) for signal in [
             {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z"},
             {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z"},
             {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z"},
-        ]
+        ]]
     user_id = int(user["id"])
     usdt_only = "UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'"
     usdt_only_aliased = "UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'"
@@ -422,11 +457,22 @@ def signals(x_telegram_init_data: str = Header(default="")):
             (user_id,),
         )
         access = cursor.fetchone() or (0, None)
+        cursor.execute(
+            "SELECT deposit, risk_pct, leverage FROM user_profiles WHERE telegram_user_id = %s",
+            (user_id,),
+        )
+        profile_row = cursor.fetchone() or (None, 1, 10)
+        profile = {
+            "deposit": float(profile_row[0]) if profile_row[0] is not None else 0,
+            "risk_pct": float(profile_row[1]),
+            "leverage": float(profile_row[2]),
+        }
         has_paid_access = bool(access[1] and access[1] > datetime.now(timezone.utc))
         if has_paid_access:
             cursor.execute(
                 f"""
-                SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2, created_at
+                SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
+                       price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, created_at
                 FROM signals WHERE {usdt_only} ORDER BY created_at DESC LIMIT 30
                 """
             )
@@ -435,7 +481,8 @@ def signals(x_telegram_init_data: str = Header(default="")):
             cursor.execute(
                 f"""
                 SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
-                       s.stop, s.tp1, s.tp2, s.created_at
+                       s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
+                       s.min_vol, s.max_vol, s.max_leverage, s.created_at
                 FROM signals s
                 JOIN user_signal_access a ON a.signal_id = s.id
                 WHERE a.telegram_user_id = %s AND {usdt_only_aliased}
@@ -461,7 +508,8 @@ def signals(x_telegram_init_data: str = Header(default="")):
                 cursor.execute(
                     f"""
                     SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
-                           s.stop, s.tp1, s.tp2, s.created_at
+                           s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
+                           s.min_vol, s.max_vol, s.max_leverage, s.created_at
                     FROM signals s
                     JOIN user_signal_access a ON a.signal_id = s.id
                     WHERE a.telegram_user_id = %s AND {usdt_only_aliased}
@@ -471,14 +519,22 @@ def signals(x_telegram_init_data: str = Header(default="")):
                 )
                 rows = cursor.fetchall()
         connection.commit()
-    return [
+    return [attach_personal_sizing(
         {"id": row[0], "symbol": normalize_usdt_symbol(row[1]), "side": row[2], "confidence": float(row[3]),
          "price": float(row[4]) if row[4] is not None else None,
          "entry": float(row[5]) if row[5] is not None else None,
          "stop": float(row[6]) if row[6] is not None else None,
          "tp1": float(row[7]) if row[7] is not None else None,
          "tp2": float(row[8]) if row[8] is not None else None,
-         "created_at": row[9].isoformat()}
+         "price_unit": float(row[9]) if row[9] is not None else None,
+         "contract_size": float(row[10]) if row[10] is not None else None,
+         "vol_unit": float(row[11]) if row[11] is not None else None,
+         "min_vol": float(row[12]) if row[12] is not None else None,
+         "max_vol": float(row[13]) if row[13] is not None else None,
+         "max_leverage": float(row[14]) if row[14] is not None else None,
+         "created_at": row[15].isoformat()},
+        profile,
+    )
         for row in rows
     ]
 
