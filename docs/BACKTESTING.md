@@ -29,3 +29,95 @@ python -m trading.backtest btc_usdt_1h.csv \
 The report states its execution assumptions and includes net return, maximum
 drawdown, profit factor, average R, total fees and every simulated trade. A
 positive result is historical evidence, not a promise of future profitability.
+
+## Strict strategy research
+
+Use the separate research runner to prevent parameter selection on the final
+test period:
+
+```bash
+python -m evaluation.run_walk_forward \
+  --symbols BTC_USDT ETH_USDT SOL_USDT \
+  --candidate-set setup_v4 \
+  --candles 25000 \
+  --workers 4 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output walk-forward-report.json
+```
+
+The runner evaluates the declared candidates on training first. It opens
+validation only when a candidate passes the training gate, and opens the final
+test only after the validation gate passes. Historical candles are cached under
+`/tmp/ucb-walk-forward-data` by default and are not committed to the repository.
+
+## Separate profile per symbol
+
+To select and independently confirm one profile for each major contract:
+
+```bash
+python -m evaluation.run_symbol_optimization \
+  --symbols BTC_USDT ETH_USDT SOL_USDT \
+  --candles 25000 \
+  --workers 3 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output symbol-profile-report.json
+```
+
+The optimizer uses the same bounded profile library for every symbol. It chooses
+one winner per symbol on the selection window and does not fall back to a second
+profile if that winner fails confirmation. Validation and test remain protected
+by separate chronological gates.
+
+Additional research commands:
+
+```bash
+python -m evaluation.run_eth_range_research \
+  --candles 35000 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output eth-range-report.json
+
+python -m evaluation.run_btc_stability \
+  --candles 35000 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output btc-stability-report.json
+```
+
+The ETH runner expands only the old selection history. The BTC runner requires
+stability across four chronological windows before opening confirmation.
+
+BTC breakout/retest and ETH band-reversion research:
+
+```bash
+python -m evaluation.run_regime_strategy_research \
+  --iteration v3 \
+  --candles 35000 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output regime-strategy-v3-report.json
+```
+
+The v3 runner uses eight pre-registered setups per asset. BTC tests expiring
+retest entries, time stops and alternative payoff management; ETH tests
+structural ranges built from repeated support and resistance touches. A
+selected setup must
+survive four rolling training windows, doubled execution friction and a
+one-extra-hour entry delay before confirmation can be opened. It never opens
+the final test period.
+
+## Current native 4H + 1D protocol
+
+The corrected research path makes decisions and simulates execution on native
+4-hour candles. It never exposes hourly indicators or hourly candles to the
+strategy builder:
+
+```bash
+python -m evaluation.run_higher_timeframe_research \
+  --candles 35000 \
+  --data-end 2026-08-07T08:00:00Z \
+  --output higher-timeframe-report.json
+```
+
+The source API still supplies hourly OHLC rows because they are deterministically
+resampled into complete 4H candles. The signal sees only `kline_4h` and
+`kline_1d`; simulated entry, stop, targets and timeout are evaluated on 4H
+candles. Earlier hourly research runners are retained only for reproducibility
+and must not be used to approve the current strategy.

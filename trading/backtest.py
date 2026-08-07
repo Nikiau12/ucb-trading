@@ -8,11 +8,10 @@ resolved against the strategy (stop before take-profit).
 from __future__ import annotations
 
 import argparse
-import bisect
 import csv
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
@@ -22,6 +21,7 @@ from .trade_plan import make_plan, plan_payload_errors
 
 
 PlanBuilder = Callable[..., Dict[str, Any]]
+PlanFilter = Callable[[Dict[str, Any]], bool]
 HOUR_SECONDS = 60 * 60
 
 
@@ -34,20 +34,45 @@ class BacktestConfig:
     min_confidence: float = 0.60
     fee_bps: float = 4.0
     slippage_bps: float = 2.0
+    entry_delay_bars: int = 1
     entry_expiry_bars: int = 12
     max_holding_bars: int = 24 * 14
     warmup_hours: int = 24 * 60
     decision_interval_hours: int = 1
+    bar_interval_hours: int = 1
+
+    @property
+    def bar_seconds(self) -> int:
+        return self.bar_interval_hours * HOUR_SECONDS
+
+    @property
+    def warmup_bars(self) -> int:
+        return math.ceil(self.warmup_hours / self.bar_interval_hours)
+
+    @property
+    def decision_step_bars(self) -> int:
+        return self.decision_interval_hours // self.bar_interval_hours
 
     def validate(self) -> None:
         if self.initial_deposit <= 0 or not 0 < self.risk_pct <= 100:
             raise ValueError("Deposit and risk_pct must be positive")
         if self.leverage < 1 or self.fee_bps < 0 or self.slippage_bps < 0:
             raise ValueError("Leverage, fees and slippage must be non-negative")
-        if min(self.entry_expiry_bars, self.max_holding_bars, self.warmup_hours) < 1:
+        if min(
+            self.entry_delay_bars,
+            self.entry_expiry_bars,
+            self.max_holding_bars,
+            self.warmup_hours,
+        ) < 1:
             raise ValueError("Backtest window values must be positive")
+        if self.entry_delay_bars > self.entry_expiry_bars:
+            raise ValueError("entry_delay_bars cannot exceed entry_expiry_bars")
         if self.decision_interval_hours < 1:
             raise ValueError("decision_interval_hours must be positive")
+        if self.bar_interval_hours not in (1, 4):
+            raise ValueError("bar_interval_hours must be 1 or 4")
+        if self.decision_interval_hours % self.bar_interval_hours:
+            raise ValueError("decision_interval_hours must align with the bar interval")
 
 
 @dataclass(frozen=True)
@@ -70,6 +95,7 @@ class TradeResult:
     risk_usdt: float
     r_multiple: float
     holding_bars: int
+    signal_context: Dict[str, Any] = field(default_factory=dict)
 
 
 def _row(bar: Bar) -> List[float]:
@@ -89,7 +115,12 @@ def validate_bars(bars: Sequence[Bar]) -> List[Bar]:
     return ordered
 
 
-def resample_completed(bars: Sequence[Bar], period_seconds: int, decision_time: int) -> List[Bar]:
+def resample_completed(
+    bars: Sequence[Bar],
+    period_seconds: int,
+    decision_time: int,
+    source_period_seconds: int = HOUR_SECONDS,
+) -> List[Bar]:
     """Aggregate only full higher-timeframe candles closed by decision_time."""
     buckets: Dict[int, List[Bar]] = {}
     for bar in bars:
@@ -99,7 +130,7 @@ def resample_completed(bars: Sequence[Bar], period_seconds: int, decision_time: 
         buckets.setdefault(bucket_start, []).append(bar)
 
     result: List[Bar] = []
-    expected = period_seconds // HOUR_SECONDS
+    expected = period_seconds // source_period_seconds
     for bucket_start in sorted(buckets):
         group = buckets[bucket_start]
         if len(group) != expected:
@@ -120,16 +151,29 @@ def build_snapshot(
     history: Sequence[Bar],
     decision_time: int,
     contract_rules: Optional[Dict[str, Any]] = None,
+    source_interval_hours: int = 1,
 ) -> Dict[str, Any]:
-    closed_1h = [bar for bar in history if bar.ts + HOUR_SECONDS <= decision_time]
-    if not closed_1h:
+    source_seconds = source_interval_hours * HOUR_SECONDS
+    closed = [bar for bar in history if bar.ts + source_seconds <= decision_time]
+    if not closed:
         raise ValueError("No closed candles at decision time")
+    closed_1h = closed if source_interval_hours == 1 else []
+    closed_4h = (
+        closed
+        if source_interval_hours == 4
+        else resample_completed(closed, 4 * HOUR_SECONDS, decision_time)
+    )
     snapshot = {
         "symbol": symbol,
-        "ticker": {"data": {"lastPrice": closed_1h[-1].c}},
+        "ticker": {"data": {"lastPrice": closed[-1].c}},
         "kline_1h": {"data": [_row(bar) for bar in closed_1h]},
-        "kline_4h": {"data": [_row(bar) for bar in resample_completed(closed_1h, 4 * HOUR_SECONDS, decision_time)]},
-        "kline_1d": {"data": [_row(bar) for bar in resample_completed(closed_1h, 24 * HOUR_SECONDS, decision_time)]},
+        "kline_4h": {"data": [_row(bar) for bar in closed_4h]},
+        "kline_1d": {"data": [_row(bar) for bar in resample_completed(
+            closed,
+            24 * HOUR_SECONDS,
+            decision_time,
+            source_seconds,
+        )]},
         "stale": False,
     }
     if contract_rules is not None:
@@ -139,21 +183,35 @@ def build_snapshot(
 
 def _build_snapshot_from_precomputed(
     symbol: str,
-    bars_1h: Sequence[Bar],
+    base_bars: Sequence[Bar],
     bars_4h: Sequence[Bar],
     bars_1d: Sequence[Bar],
     signal_index: int,
     decision_time: int,
     contract_rules: Optional[Dict[str, Any]],
+    base_interval_hours: int,
 ) -> Dict[str, Any]:
-    end_4h = bisect.bisect_right(bars_4h, decision_time, key=lambda bar: bar.ts + 4 * HOUR_SECONDS)
-    end_1d = bisect.bisect_right(bars_1d, decision_time, key=lambda bar: bar.ts + 24 * HOUR_SECONDS)
-    closed_1h = bars_1h[max(0, signal_index - 499): signal_index + 1]
+    def completed_end_index(source: Sequence[Bar], period: int) -> int:
+        # Equivalent to bisect_right(..., key=...), without allocating a list
+        # on every decision and while remaining compatible with Python 3.9.
+        low, high = 0, len(source)
+        while low < high:
+            middle = (low + high) // 2
+            if source[middle].ts + period <= decision_time:
+                low = middle + 1
+            else:
+                high = middle
+        return low
+
+    end_4h = completed_end_index(bars_4h, 4 * HOUR_SECONDS)
+    end_1d = completed_end_index(bars_1d, 24 * HOUR_SECONDS)
+    closed_base = base_bars[max(0, signal_index - 499): signal_index + 1]
+    closed_1h = closed_base if base_interval_hours == 1 else []
     closed_4h = bars_4h[max(0, end_4h - 500):end_4h]
     closed_1d = bars_1d[max(0, end_1d - 400):end_1d]
     snapshot = {
         "symbol": symbol,
-        "ticker": {"data": {"lastPrice": closed_1h[-1].c}},
+        "ticker": {"data": {"lastPrice": closed_base[-1].c}},
         "kline_1h": {"data": [_row(bar) for bar in closed_1h]},
         "kline_4h": {"data": [_row(bar) for bar in closed_4h]},
         "kline_1d": {"data": [_row(bar) for bar in closed_1d]},
@@ -185,6 +243,7 @@ def _simulate_order(
     primary: Dict[str, Any],
     confidence: float,
     config: BacktestConfig,
+    signal_context: Optional[Dict[str, Any]] = None,
 ) -> tuple[Optional[TradeResult], int]:
     side = str(primary["side"]).lower()
     planned_entry = float(primary["entry"])
@@ -196,9 +255,22 @@ def _simulate_order(
     if qty <= 0 or risk_usdt <= 0:
         return None, signal_index + 1
 
-    last_entry_index = min(len(bars) - 1, signal_index + config.entry_expiry_bars)
+    entry_expiry_bars = int(primary.get("entry_expiry_bars") or config.entry_expiry_bars)
+    entry_expiry_bars = max(
+        config.entry_delay_bars,
+        min(entry_expiry_bars, config.entry_expiry_bars),
+    )
+    last_entry_index = min(len(bars) - 1, signal_index + entry_expiry_bars)
     entry_index = None
-    for index in range(signal_index + 1, last_entry_index + 1):
+    first_entry_index = signal_index + config.entry_delay_bars
+    cancel_below = primary.get("cancel_if_close_below")
+    cancel_above = primary.get("cancel_if_close_above")
+    for index in range(first_entry_index, last_entry_index + 1):
+        previous_close = bars[index - 1].c
+        if cancel_below is not None and previous_close < float(cancel_below):
+            return None, index
+        if cancel_above is not None and previous_close > float(cancel_above):
+            return None, index
         candle = bars[index]
         if candle.l <= planned_entry <= candle.h:
             entry_index = index
@@ -213,22 +285,29 @@ def _simulate_order(
     exit_fees = 0.0
     tp1_filled = False
     exit_reason = "timeout"
-    exit_index = min(len(bars) - 1, entry_index + config.max_holding_bars)
+    max_holding_bars = int(primary.get("max_holding_bars") or config.max_holding_bars)
+    max_holding_bars = max(1, min(max_holding_bars, config.max_holding_bars))
+    exit_index = min(len(bars) - 1, entry_index + max_holding_bars)
+    active_stop = stop
+    breakeven_after_tp1 = bool(primary.get("breakeven_after_tp1"))
 
     for index in range(entry_index, exit_index + 1):
         candle = bars[index]
-        stop_hit = candle.l <= stop if side == "long" else candle.h >= stop
+        stop_hit = candle.l <= active_stop if side == "long" else candle.h >= active_stop
         tp1_hit = candle.h >= tp1 if side == "long" else candle.l <= tp1
         tp2_hit = candle.h >= tp2 if side == "long" else candle.l <= tp2
 
         # Intrabar order is unknowable from OHLC. Stop-first is deliberately
         # pessimistic and prevents inflated backtest results.
         if stop_hit:
-            exit_price = _slipped(stop, side, "exit", config.slippage_bps)
+            exit_price = _slipped(active_stop, side, "exit", config.slippage_bps)
             gross += _pnl(side, entry_price, exit_price, remaining)
             exit_fees += _fee(exit_price, remaining, config.fee_bps)
             remaining = 0.0
-            exit_reason = "stop_after_tp1" if tp1_filled else "stop"
+            if tp1_filled and active_stop == entry_price:
+                exit_reason = "breakeven_after_tp1"
+            else:
+                exit_reason = "stop_after_tp1" if tp1_filled else "stop"
             exit_index = index
             break
 
@@ -245,6 +324,8 @@ def _simulate_order(
             exit_fees += _fee(exit_price, closed_qty, config.fee_bps)
             remaining -= closed_qty
             tp1_filled = True
+            if breakeven_after_tp1:
+                active_stop = entry_price
 
         if tp2_hit and remaining > 0:
             exit_price = _slipped(tp2, side, "exit", config.slippage_bps)
@@ -263,9 +344,9 @@ def _simulate_order(
     fees = entry_fee + exit_fees
     net = gross - fees
     result = TradeResult(
-        signal_time=bars[signal_index].ts + HOUR_SECONDS,
+        signal_time=bars[signal_index].ts + config.bar_seconds,
         entry_time=bars[entry_index].ts,
-        exit_time=bars[exit_index].ts + HOUR_SECONDS,
+        exit_time=bars[exit_index].ts + config.bar_seconds,
         side=side,
         confidence=confidence,
         planned_entry=planned_entry,
@@ -281,6 +362,7 @@ def _simulate_order(
         risk_usdt=risk_usdt,
         r_multiple=net / risk_usdt,
         holding_bars=exit_index - entry_index + 1,
+        signal_context=dict(signal_context or {}),
     )
     return result, exit_index + 1
 
@@ -323,22 +405,50 @@ def run_backtest(
     config: Optional[BacktestConfig] = None,
     contract_rules: Optional[Dict[str, Any]] = None,
     plan_builder: PlanBuilder = make_plan,
+    plan_filter: Optional[PlanFilter] = None,
+    evaluation_start: Optional[int] = None,
+    evaluation_end: Optional[int] = None,
 ) -> Dict[str, Any]:
     config = config or BacktestConfig()
     config.validate()
     ordered = validate_bars(bars)
-    final_decision_time = ordered[-1].ts + HOUR_SECONDS if ordered else 0
-    all_4h = resample_completed(ordered, 4 * HOUR_SECONDS, final_decision_time)
-    all_1d = resample_completed(ordered, 24 * HOUR_SECONDS, final_decision_time)
+    if evaluation_start is not None and evaluation_end is not None and evaluation_start >= evaluation_end:
+        raise ValueError("evaluation_start must be before evaluation_end")
+    if evaluation_end is not None:
+        # Keep the earlier candles as indicator warm-up, but never allow an
+        # order or exit to observe a candle closing after the evaluation window.
+        ordered = [bar for bar in ordered if bar.ts + config.bar_seconds <= evaluation_end]
+    final_decision_time = ordered[-1].ts + config.bar_seconds if ordered else 0
+    all_4h = (
+        ordered
+        if config.bar_interval_hours == 4
+        else resample_completed(ordered, 4 * HOUR_SECONDS, final_decision_time)
+    )
+    all_1d = resample_completed(
+        ordered,
+        24 * HOUR_SECONDS,
+        final_decision_time,
+        config.bar_seconds,
+    )
     trades: List[TradeResult] = []
     skipped_plans = 0
     unfilled_orders = 0
-    index = max(0, config.warmup_hours - 1)
+    index = max(0, config.warmup_bars - 1)
+    if evaluation_start is not None:
+        while index < len(ordered) and ordered[index].ts + config.bar_seconds < evaluation_start:
+            index += 1
 
     while index < len(ordered) - 1:
-        decision_time = ordered[index].ts + HOUR_SECONDS
+        decision_time = ordered[index].ts + config.bar_seconds
         snapshot = _build_snapshot_from_precomputed(
-            symbol, ordered, all_4h, all_1d, index, decision_time, contract_rules
+            symbol,
+            ordered,
+            all_4h,
+            all_1d,
+            index,
+            decision_time,
+            contract_rules,
+            config.bar_interval_hours,
         )
         equity = config.initial_deposit + sum(trade.net_pnl for trade in trades)
         plan = plan_builder(
@@ -350,12 +460,24 @@ def run_backtest(
         )
         primary = plan.get("primary") or {}
         confidence = float(primary.get("confidence") or plan.get("confidence") or 0)
-        if plan.get("side") == "skip" or plan_payload_errors(plan) or confidence < config.min_confidence:
+        if (
+            plan.get("side") == "skip"
+            or plan_payload_errors(plan)
+            or confidence < config.min_confidence
+            or (plan_filter is not None and not plan_filter(plan))
+        ):
             skipped_plans += 1
-            index += config.decision_interval_hours
+            index += config.decision_step_bars
             continue
 
-        trade, next_index = _simulate_order(ordered, index, primary, confidence, config)
+        signal_context = {
+            "trend": dict(plan.get("trend") or {}),
+            "levels": dict(plan.get("levels") or {}),
+            "reasons": list(primary.get("reasons") or []),
+        }
+        trade, next_index = _simulate_order(
+            ordered, index, primary, confidence, config, signal_context
+        )
         if trade is None:
             unfilled_orders += 1
         else:
@@ -365,11 +487,15 @@ def run_backtest(
     return {
         "methodology": {
             "signal_data": "closed candles only",
-            "first_entry_bar": "next 1h candle after signal",
+            "first_entry_bar": "configured closed-candle delay after signal",
+            "entry_delay_bars": config.entry_delay_bars,
+            "bar_interval_hours": config.bar_interval_hours,
             "ambiguous_intrabar_policy": "stop_first",
             "overlapping_positions": False,
             "fees_bps_per_fill": config.fee_bps,
             "slippage_bps_per_fill": config.slippage_bps,
+            "evaluation_start": evaluation_start,
+            "evaluation_end": evaluation_end,
         },
         "config": asdict(config),
         "summary": summarize(trades, config),

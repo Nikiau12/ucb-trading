@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 try:
     import psycopg
@@ -111,7 +111,7 @@ class AccessManager:
                     return {"chat_id": str(chat_id), **claim}
         return None
 
-    def record_payment_claim(self, chat_id: str, tx_hash: str, **details) -> dict | None:
+    def record_payment_claim(self, chat_id: str, tx_hash: str, **details) -> Optional[dict]:
         normalized = str(tx_hash).lower()
         if self.database_url and psycopg:
             try:

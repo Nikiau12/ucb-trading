@@ -419,8 +419,22 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
 
     # AUX RSI(1h)
     rsi_1h = None
+    ema20_1h = None
+    momentum_1h = "neutral"
+    candle_1h = "neutral"
     if closes_1h:
         rsi_1h, _ = rsi(closes_1h, 14, return_series=False)
+        ema20_1h, _ = ema(closes_1h, 20, return_series=False)
+        latest_1h = bars_1h[-1]
+        if latest_1h.c > latest_1h.o:
+            candle_1h = "bullish"
+        elif latest_1h.c < latest_1h.o:
+            candle_1h = "bearish"
+        if ema20_1h is not None:
+            if latest_1h.c > latest_1h.o and latest_1h.c > ema20_1h:
+                momentum_1h = "up"
+            elif latest_1h.c < latest_1h.o and latest_1h.c < ema20_1h:
+                momentum_1h = "down"
 
     # Levels from swings (4h+1d) for range + midrange context
     swing_prices = [s.price for s in highs4[-80:]] + [s.price for s in lows4[-80:]]
@@ -447,6 +461,10 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
     ]
     if rsi_1h is not None:
         reasons_common.append(f"rsi1h≈{rsi_1h:.1f}")
+    if ema20_1h is not None:
+        reasons_common.append(f"ema20_1h≈{ema20_1h:.2f}")
+    reasons_common.append(f"momentum1h={momentum_1h}")
+    reasons_common.append(f"candle1h={candle_1h}")
     if used_cache:
         reasons_common.append("used_cache_snapshot")
 
