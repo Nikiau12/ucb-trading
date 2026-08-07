@@ -84,3 +84,18 @@ python -m evaluation.run_btc_stability \
 
 The ETH runner expands only the old selection history. The BTC runner requires
 stability across four chronological windows before opening confirmation.
+
+BTC breakout/retest and ETH band-reversion research:
+
+```bash
+python -m evaluation.run_regime_strategy_research \
+  --iteration v2 \
+  --candles 35000 \
+  --data-end 2026-08-07T11:00:00Z \
+  --output regime-strategy-v2-report.json
+```
+
+The runner uses eight pre-registered setups per asset. A selected setup must
+survive four rolling training windows, doubled execution friction and a
+one-extra-hour entry delay before confirmation can be opened. It never opens
+the final test period.

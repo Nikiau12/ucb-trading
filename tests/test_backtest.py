@@ -115,6 +115,31 @@ def test_fees_and_slippage_reduce_reported_performance():
     assert realistic["summary"]["fees_paid"] > 0
 
 
+def test_entry_delay_stress_skips_the_first_eligible_fill_candle():
+    bars = _bars()
+    bars[2] = Bar(ts=2 * HOUR, o=100, h=101, l=99, c=100, v=10)
+    bars[3] = Bar(ts=3 * HOUR, o=105, h=106, l=104, c=105, v=10)
+    calls = 0
+
+    def builder(_snapshot, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return _plan() if calls == 1 else {"side": "skip", "confidence": 0, "reasons": ["test"]}
+
+    result = run_backtest(
+        bars,
+        config=BacktestConfig(
+            warmup_hours=2,
+            entry_delay_bars=2,
+            entry_expiry_bars=2,
+        ),
+        plan_builder=builder,
+    )
+
+    assert result["summary"]["trades"] == 0
+    assert result["unfilled_orders"] == 1
+
+
 def test_evaluation_window_uses_prior_bars_only_as_warmup():
     bars = _bars(12)
     calls = []

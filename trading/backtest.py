@@ -34,6 +34,7 @@ class BacktestConfig:
     min_confidence: float = 0.60
     fee_bps: float = 4.0
     slippage_bps: float = 2.0
+    entry_delay_bars: int = 1
     entry_expiry_bars: int = 12
     max_holding_bars: int = 24 * 14
     warmup_hours: int = 24 * 60
@@ -44,8 +45,15 @@ class BacktestConfig:
             raise ValueError("Deposit and risk_pct must be positive")
         if self.leverage < 1 or self.fee_bps < 0 or self.slippage_bps < 0:
             raise ValueError("Leverage, fees and slippage must be non-negative")
-        if min(self.entry_expiry_bars, self.max_holding_bars, self.warmup_hours) < 1:
+        if min(
+            self.entry_delay_bars,
+            self.entry_expiry_bars,
+            self.max_holding_bars,
+            self.warmup_hours,
+        ) < 1:
             raise ValueError("Backtest window values must be positive")
+        if self.entry_delay_bars > self.entry_expiry_bars:
+            raise ValueError("entry_delay_bars cannot exceed entry_expiry_bars")
         if self.decision_interval_hours < 1:
             raise ValueError("decision_interval_hours must be positive")
 
@@ -212,7 +220,8 @@ def _simulate_order(
 
     last_entry_index = min(len(bars) - 1, signal_index + config.entry_expiry_bars)
     entry_index = None
-    for index in range(signal_index + 1, last_entry_index + 1):
+    first_entry_index = signal_index + config.entry_delay_bars
+    for index in range(first_entry_index, last_entry_index + 1):
         candle = bars[index]
         if candle.l <= planned_entry <= candle.h:
             entry_index = index
@@ -404,7 +413,8 @@ def run_backtest(
     return {
         "methodology": {
             "signal_data": "closed candles only",
-            "first_entry_bar": "next 1h candle after signal",
+            "first_entry_bar": "configured closed-candle delay after signal",
+            "entry_delay_bars": config.entry_delay_bars,
             "ambiguous_intrabar_policy": "stop_first",
             "overlapping_positions": False,
             "fees_bps_per_fill": config.fee_bps,
