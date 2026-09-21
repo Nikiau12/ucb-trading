@@ -29,4 +29,4 @@ jobs:
         with:
           languages: ${{ matrix.language }}
       - name: Analyze
-        uses: github/codeql-action/analyze@e60ea984bd3baa95954f2856bcf24f9eaba46637 # v3
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v3
