@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from typing import Dict, Optional
+
+logger = logging.getLogger("ucb.state")
 
 try:
     from .trade_plan import plan_payload_errors
@@ -34,56 +37,6 @@ def _db_ready() -> bool:
     return bool(DATABASE_URL and psycopg)
 
 
-def _ensure_profiles_table(connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS user_profiles (
-            telegram_user_id BIGINT PRIMARY KEY,
-            language TEXT NOT NULL DEFAULT 'en',
-            deposit NUMERIC,
-            risk_pct NUMERIC NOT NULL DEFAULT 1,
-            leverage NUMERIC NOT NULL DEFAULT 10,
-            margin TEXT NOT NULL DEFAULT 'cross',
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-        """
-    )
-
-
-def _ensure_alert_state_table(connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS signal_alert_state (
-            symbol TEXT PRIMARY KEY,
-            side TEXT NOT NULL,
-            confidence NUMERIC NOT NULL,
-            entry NUMERIC,
-            stop NUMERIC,
-            tp1 NUMERIC,
-            tp2 NUMERIC,
-            sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-        """
-    )
-
-
-def _ensure_runtime_health_table(connection) -> None:
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS runtime_health (
-            component TEXT PRIMARY KEY,
-            status TEXT NOT NULL,
-            last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            last_success_at TIMESTAMPTZ,
-            last_error_at TIMESTAMPTZ,
-            duration_seconds NUMERIC,
-            consecutive_failures INTEGER NOT NULL DEFAULT 0,
-            details JSONB NOT NULL DEFAULT '{}'::jsonb
-        )
-        """
-    )
-
-
 def record_runtime_health(
     component: str,
     *,
@@ -97,7 +50,6 @@ def record_runtime_health(
     payload = json.dumps(details or {})
     try:
         with psycopg.connect(DATABASE_URL) as connection:
-            _ensure_runtime_health_table(connection)
             connection.execute(
                 """
                 INSERT INTO runtime_health (
@@ -129,7 +81,7 @@ def record_runtime_health(
             )
             connection.commit()
     except Exception as exc:
-        print(f"[state] runtime health write failed: {exc}")
+        logger.warning("runtime health write failed: %s", type(exc).__name__)
 
 
 def _plan_levels(plan: Optional[dict]) -> dict:
@@ -207,7 +159,6 @@ def should_send_alert(symbol: str, side: str, conf: float, plan: Optional[dict] 
     if _db_ready():
         try:
             with psycopg.connect(DATABASE_URL) as connection:
-                _ensure_alert_state_table(connection)
                 row = connection.execute(
                     """
                     SELECT side, confidence, entry, stop, tp1, tp2, EXTRACT(EPOCH FROM sent_at)
@@ -222,7 +173,8 @@ def should_send_alert(symbol: str, side: str, conf: float, plan: Optional[dict] 
             }
             return _alert_is_allowed(previous, side, levels, now)
         except Exception as exc:
-            print(f"[state] database alert dedup read failed: {exc}")
+            logger.warning("alert dedup read failed: %s", type(exc).__name__)
+            return False
     previous = _load().get("alerts", {}).get(symbol)
     return _alert_is_allowed(previous, side, levels, now)
 
@@ -235,7 +187,6 @@ def mark_sent(symbol: str, side: str, conf: float, plan: Optional[dict] = None) 
     if _db_ready():
         try:
             with psycopg.connect(DATABASE_URL) as connection:
-                _ensure_alert_state_table(connection)
                 connection.execute(
                     """
                     INSERT INTO signal_alert_state
@@ -255,7 +206,8 @@ def mark_sent(symbol: str, side: str, conf: float, plan: Optional[dict] = None) 
                 )
                 connection.commit()
         except Exception as exc:
-            print(f"[state] database alert dedup write failed: {exc}")
+            logger.warning("alert dedup write failed: %s", type(exc).__name__)
+        return
     state = _load()
     state.setdefault("alerts", {})[symbol] = {
         "side": side.upper(),
@@ -270,14 +222,14 @@ def get_user_lang(user_id: int) -> str:
     if _db_ready():
         try:
             with psycopg.connect(DATABASE_URL) as connection:
-                _ensure_profiles_table(connection)
                 row = connection.execute(
                     "SELECT language FROM user_profiles WHERE telegram_user_id = %s", (user_id,)
                 ).fetchone()
-                if row:
+                if row and row[0]:
                     return row[0]
         except Exception as exc:
-            print(f"[state] database language read failed: {exc}")
+            logger.warning("language read failed: %s", type(exc).__name__)
+        return "en"
     return _load().get("user_langs", {}).get(str(user_id), "en")
 
 
@@ -285,7 +237,6 @@ def set_user_lang(user_id: int, lang: str) -> None:
     if _db_ready():
         try:
             with psycopg.connect(DATABASE_URL) as connection:
-                _ensure_profiles_table(connection)
                 connection.execute(
                     """
                     INSERT INTO user_profiles (telegram_user_id, language) VALUES (%s, %s)
@@ -296,7 +247,8 @@ def set_user_lang(user_id: int, lang: str) -> None:
                 )
                 connection.commit()
         except Exception as exc:
-            print(f"[state] database language write failed: {exc}")
+            logger.warning("language write failed: %s", type(exc).__name__)
+        return
     state = _load()
     state.setdefault("user_langs", {})[str(user_id)] = lang
     _save(state)
@@ -309,7 +261,6 @@ def get_user_settings(user_id: int) -> dict:
     if _db_ready():
         try:
             with psycopg.connect(DATABASE_URL) as connection:
-                _ensure_profiles_table(connection)
                 row = connection.execute(
                     """
                     SELECT deposit, risk_pct, leverage, margin
@@ -325,7 +276,8 @@ def get_user_settings(user_id: int) -> dict:
                         "margin": row[3],
                     }
         except Exception as exc:
-            print(f"[state] database settings read failed: {exc}")
+            logger.warning("settings read failed: %s", type(exc).__name__)
+        return dict(_USER_DEFAULTS)
     saved = _load().get("user_settings", {}).get(str(user_id), {})
     return {**_USER_DEFAULTS, **saved}
 
@@ -335,7 +287,6 @@ def set_user_setting(user_id: int, key: str, value) -> None:
     if _db_ready() and db_column:
         try:
             with psycopg.connect(DATABASE_URL) as connection:
-                _ensure_profiles_table(connection)
                 connection.execute(
                     "INSERT INTO user_profiles (telegram_user_id) VALUES (%s) ON CONFLICT DO NOTHING",
                     (user_id,),
@@ -346,13 +297,16 @@ def set_user_setting(user_id: int, key: str, value) -> None:
                 )
                 connection.commit()
         except Exception as exc:
-            print(f"[state] database setting write failed: {exc}")
+            logger.warning("setting write failed: %s", type(exc).__name__)
+        return
+    if _db_ready():
+        return
     state = _load()
     state.setdefault("user_settings", {}).setdefault(str(user_id), {})[key] = value
     _save(state)
 
 
-def save_signal(plan: dict, symbol: str, side: str, confidence: float):
+def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: str = "scanner"):
     symbol = normalize_usdt_symbol(symbol)
     if not symbol or plan_payload_errors(plan):
         return None
@@ -361,46 +315,29 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float):
     primary = plan.get("primary") or {}
     tps = primary.get("tps") or []
     rules = _signal_contract_rules(plan)
+    origin = source if source in {"scanner", "manual"} else "manual"
     try:
         with psycopg.connect(DATABASE_URL) as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS signals (
-                    id BIGSERIAL PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL,
-                    confidence NUMERIC NOT NULL, price NUMERIC, entry NUMERIC, stop NUMERIC,
-                    tp1 NUMERIC, tp2 NUMERIC, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-            connection.execute(
-                """
-                ALTER TABLE signals ADD COLUMN IF NOT EXISTS price_unit NUMERIC;
-                ALTER TABLE signals ADD COLUMN IF NOT EXISTS contract_size NUMERIC;
-                ALTER TABLE signals ADD COLUMN IF NOT EXISTS vol_unit NUMERIC;
-                ALTER TABLE signals ADD COLUMN IF NOT EXISTS min_vol NUMERIC;
-                ALTER TABLE signals ADD COLUMN IF NOT EXISTS max_vol NUMERIC;
-                ALTER TABLE signals ADD COLUMN IF NOT EXISTS max_leverage NUMERIC;
-                """
-            )
             row = connection.execute(
                 """
                 INSERT INTO signals (
                     symbol, side, confidence, price, entry, stop, tp1, tp2,
-                    price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage
+                    price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
+                    source
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (symbol, side.upper(), confidence, plan.get("price"), primary.get("entry"),
                  primary.get("stop"), tps[0].get("price") if tps else None,
                  tps[1].get("price") if len(tps) > 1 else None,
                  rules["price_unit"], rules["contract_size"], rules["vol_unit"],
-                 rules["min_vol"], rules["max_vol"], rules["max_leverage"]),
+                 rules["min_vol"], rules["max_vol"], rules["max_leverage"], origin),
             ).fetchone()
             connection.commit()
             return row[0] if row else None
     except Exception as exc:
-        print(f"[state] signal history write failed: {exc}")
+        logger.warning("signal history write failed: %s", type(exc).__name__)
         return None
 
 
@@ -411,16 +348,6 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
         with psycopg.connect(DATABASE_URL) as connection:
             connection.execute(
                 """
-                CREATE TABLE IF NOT EXISTS user_signal_access (
-                    telegram_user_id BIGINT NOT NULL,
-                    signal_id BIGINT NOT NULL,
-                    granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    PRIMARY KEY (telegram_user_id, signal_id)
-                )
-                """
-            )
-            connection.execute(
-                """
                 INSERT INTO user_signal_access (telegram_user_id, signal_id)
                 VALUES (%s, %s) ON CONFLICT DO NOTHING
                 """,
@@ -428,4 +355,85 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
             )
             connection.commit()
     except Exception as exc:
-        print(f"[state] signal access write failed: {exc}")
+        logger.warning("signal access write failed: %s", type(exc).__name__)
+
+
+def should_persist_sent_marker(delivered_count: int) -> bool:
+    """A signal is sent only after at least one recipient actually got it."""
+    return int(delivered_count) > 0
+
+
+def load_alert_recipients(free_trial_signals: int) -> set[str]:
+    """Profiles with a deposit and either paid access or trial credits left."""
+    if not _db_ready():
+        recipients = set()
+        for user_id, settings in _load().get("user_settings", {}).items():
+            try:
+                deposit = float((settings or {}).get("deposit") or 0)
+            except (TypeError, ValueError):
+                deposit = 0
+            if deposit > 0:
+                recipients.add(str(user_id))
+        return recipients
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            rows = connection.execute(
+                """
+                SELECT p.telegram_user_id
+                FROM user_profiles p
+                LEFT JOIN subscriptions s ON s.telegram_user_id = p.telegram_user_id
+                WHERE p.deposit > 0
+                  AND (
+                    s.paid_until > NOW()
+                    OR COALESCE(s.trial_used, 0) < %s
+                  )
+                """,
+                (int(free_trial_signals),),
+            ).fetchall()
+        return {str(row[0]) for row in rows}
+    except Exception as exc:
+        logger.warning("recipient load failed: %s", type(exc).__name__)
+        return set()
+
+
+def cooldown_ready(kind: str, key: str, cooldown_seconds: int) -> bool:
+    if _db_ready():
+        try:
+            with psycopg.connect(DATABASE_URL) as connection:
+                row = connection.execute(
+                    """
+                    SELECT EXTRACT(EPOCH FROM last_sent_at)
+                    FROM scanner_cooldowns
+                    WHERE kind = %s AND alert_key = %s
+                    """,
+                    (kind, key),
+                ).fetchone()
+            if row is None or row[0] is None:
+                return True
+            return time.time() - float(row[0]) >= cooldown_seconds
+        except Exception as exc:
+            logger.warning("cooldown read failed: %s", type(exc).__name__)
+            return False
+    previous = _load().get("cooldowns", {}).get(f"{kind}:{key}", 0)
+    return time.time() - float(previous or 0) >= cooldown_seconds
+
+
+def mark_cooldown(kind: str, key: str) -> None:
+    if _db_ready():
+        try:
+            with psycopg.connect(DATABASE_URL) as connection:
+                connection.execute(
+                    """
+                    INSERT INTO scanner_cooldowns (kind, alert_key, last_sent_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (kind, alert_key) DO UPDATE SET last_sent_at = NOW()
+                    """,
+                    (kind, key),
+                )
+                connection.commit()
+        except Exception as exc:
+            logger.warning("cooldown write failed: %s", type(exc).__name__)
+        return
+    state = _load()
+    state.setdefault("cooldowns", {})[f"{kind}:{key}"] = time.time()
+    _save(state)

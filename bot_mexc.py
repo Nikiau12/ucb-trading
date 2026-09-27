@@ -11,17 +11,17 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
-from decimal import Decimal
 
 # Keep aiohttp's pure-Python parser as defense in depth for untrusted exchange
 # responses, even though the pinned aiohttp release includes the parser fixes.
 os.environ.setdefault("AIOHTTP_NO_EXTENSIONS", "1")
 
-from aiogram import Bot, Dispatcher, types, Router, F
+from aiogram import Bot, Dispatcher, types, Router, F, BaseMiddleware
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Message, CallbackQuery
 
 # ── старые модули ──
 from mexc.exchange_client_mexc import ExchangeClient
@@ -43,6 +43,11 @@ from core.config import (
     ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY, MINI_APP_URL,
 )
 from core.tron_payment import TronPaymentVerifier
+from core.chat_policy import is_private_chat, language_for_start
+from core.bot_commands import menu_commands
+from core.payment_reasons import payment_reason_key
+from core.worker_lock import hold_worker_lock
+from core.fsm_storage import PostgresFSMStorage
 
 # ── наши торговые модули из trading/ ──
 _TRADING_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading")
@@ -55,7 +60,9 @@ import scanner as sc
 import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import render_telegram_plan
-from user_input import is_deposit_input, parse_deposit_amount
+from auto_alert import render_auto_alert
+from user_input import is_deposit_input, parse_deposit_amount, parse_setting
+from miniapp.schema import apply_migrations
 
 logger = logging.getLogger("ucb.bot")
 
@@ -94,23 +101,10 @@ class DepositSetup(StatesGroup):
 # ПОЛЬЗОВАТЕЛИ
 # ═══════════════════════════════════════════
 
-def load_users():
-    if os.path.exists(USER_REGISTRY_FILE):
-        try:
-            with open(USER_REGISTRY_FILE) as f:
-                return set(json.load(f))
-        except Exception:
-            pass
-    return {str(TELEGRAM_CHAT_ID)} if TELEGRAM_CHAT_ID else set()
+def _user_id(message_or_user) -> str:
+    user = getattr(message_or_user, "from_user", message_or_user)
+    return str(user.id)
 
-def save_user(chat_id: str):
-    users = load_users()
-    if chat_id not in users:
-        users.add(chat_id)
-        with open(USER_REGISTRY_FILE, "w") as f:
-            json.dump(list(users), f)
-        return True
-    return False
 
 def _has_saved_deposit(user_id) -> bool:
     try:
@@ -119,8 +113,8 @@ def _has_saved_deposit(user_id) -> bool:
         return False
 
 
-# Users without a deposit finish onboarding before receiving automatic signals.
-active_users = {chat_id for chat_id in load_users() if _has_saved_deposit(chat_id)}
+# Recipients are loaded from Postgres after migrations, not from users.json.
+active_users = set()
 
 # ── старые сервисы ──
 exchange        = ExchangeClient()
@@ -149,16 +143,19 @@ payment_verifier = TronPaymentVerifier(
 )
 
 
-def _payment_paywall(chat_id) -> str:
-    lang = get_lang(int(chat_id))
+def _payment_paywall(user_id) -> str:
+    lang = get_lang(int(user_id))
+    invoice = access_manager.ensure_open_invoice(str(user_id))
+    if not invoice:
+        return _t(lang, "payment_save_failed")
     return _t(
         lang,
         "payment_paywall",
         free_signals=FREE_TRIAL_SIGNALS,
-        amount=USDT_PAYMENT_AMOUNT,
+        amount=html.escape(str(invoice["expected_amount"])),
         days=PAID_ACCESS_HOURS // 24,
-        network=USDT_PAYMENT_NETWORK,
-        wallet=USDT_PAYMENT_ADDRESS,
+        network=html.escape(str(USDT_PAYMENT_NETWORK)),
+        wallet=html.escape(str(USDT_PAYMENT_ADDRESS or "")),
     )
 
 
@@ -181,17 +178,48 @@ notifier = Notifier(
     paywall_formatter=_payment_paywall,
     trial_formatter=_trial_notice,
 )
-# Notifier may add the fallback chat from the environment; onboarding still applies.
-for _chat_id in list(notifier.active_users):
-    if not _has_saved_deposit(_chat_id):
-        notifier.active_users.discard(_chat_id)
+def refresh_recipients() -> None:
+    notifier.active_users.clear()
+    notifier.active_users.update(st.load_alert_recipients(FREE_TRIAL_SIGNALS))
+
+
+class PrivateChatMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        chat = getattr(event, "chat", None)
+        if chat is None and getattr(event, "message", None) is not None:
+            chat = event.message.chat
+        if chat is not None and not is_private_chat(getattr(chat, "type", None)):
+            user = getattr(event, "from_user", None)
+            lang = get_lang(user.id) if user is not None else "en"
+            text = _t(lang, "private_only")
+            if isinstance(event, CallbackQuery):
+                try:
+                    await event.answer(text[:180], show_alert=True)
+                except Exception:
+                    logger.warning("private-chat callback answer failed")
+            elif isinstance(event, Message):
+                try:
+                    await event.answer(text)
+                except Exception:
+                    logger.warning("private-chat reply failed")
+            return None
+        return await handler(event, data)
+
+
+router.message.middleware(PrivateChatMiddleware())
+router.callback_query.middleware(PrivateChatMiddleware())
 
 # ═══════════════════════════════════════════
 # ХЕЛПЕРЫ
 # ═══════════════════════════════════════════
 
-def is_admin(chat_id: str) -> bool:
-    return str(chat_id) in ADMIN_CHAT_IDS
+def is_admin(user_id) -> bool:
+    """Admin rights follow the Telegram user id.
+
+    ADMIN_CHAT_IDS keeps its name. In a private chat that id equals the chat
+    id, so existing private-chat values still work. A group id does not.
+    """
+    return str(user_id) in ADMIN_CHAT_IDS
 
 def format_ts(ts: int) -> str:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else "нет"
@@ -294,32 +322,48 @@ def _parse_plan_request(text: str, settings: dict):
         raise ValueError("unsupported plan parameter")
 
     deposit = float(settings["deposit"])
-    risk_pct = float(kv.get("risk", settings["risk_pct"]))
-    lev = float(kv.get("lev", settings["lev"]))
-    margin = kv.get("margin", settings["margin"])
-    if deposit <= 0 or risk_pct <= 0 or lev <= 0 or margin not in {"cross", "isolated"}:
+    _key, risk_pct = parse_setting("risk", kv.get("risk", settings["risk_pct"]))
+    _key, lev = parse_setting("lev", kv.get("lev", settings["lev"]))
+    _key, margin = parse_setting("margin", kv.get("margin", settings["margin"]))
+    if deposit <= 0:
         raise ValueError("invalid plan parameter")
     return symbol, deposit, risk_pct, lev, margin
 
-async def require_access(message: types.Message) -> bool:
-    chat_id = str(message.chat.id)
-    if is_admin(chat_id):
-        return True
-    allowed, mode = access_manager.consume_signal(chat_id)
+async def gate_access(message: types.Message) -> str | None:
+    """Return paid/trial/admin when the user may run a command. Do not debit yet."""
+    user_id = _user_id(message)
+    if is_admin(message.from_user.id):
+        return "admin"
+    allowed, mode = access_manager.check_access(user_id)
     if allowed:
-        if mode == "trial":
-            remaining = access_manager.status(chat_id)["trial_left"]
-            await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
-        return True
+        return mode
+    lang = get_lang(message.from_user.id)
     if mode == "cooldown":
-        wait = access_manager.status(chat_id)["trial_cooldown_left"]
+        wait = access_manager.status(user_id)["trial_cooldown_left"]
         await message.reply(
-            _t(get_lang(message.from_user.id), "trial_cooldown", minutes=_format_wait_minutes(wait)),
+            _t(lang, "trial_cooldown", minutes=_format_wait_minutes(wait)),
             parse_mode="HTML",
         )
-        return False
-    await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
-    return False
+        return None
+    await message.reply(_payment_paywall(user_id), parse_mode="HTML")
+    return None
+
+
+def debit_trial(user_id: str, mode: str | None) -> None:
+    if mode == "trial":
+        access_manager.consume_signal(str(user_id))
+
+
+async def _finish_callback(callback: types.CallbackQuery, text: str | None = None, **kwargs) -> None:
+    if text is not None and callback.message is not None:
+        try:
+            await callback.message.edit_text(text, **kwargs)
+        except Exception:
+            logger.warning("callback edit failed")
+    try:
+        await callback.answer()
+    except Exception:
+        logger.warning("callback answer failed")
 
 
 async def require_deposit(message: types.Message) -> bool:
@@ -341,7 +385,7 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
         return False
     text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
     await message.reply(text, parse_mode="HTML")
-    signal_id = st.save_signal(plan, symbol, side, _conf(plan))
+    signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
     if signal_id:
         st.grant_signal_access(message.from_user.id, signal_id)
     return True
@@ -358,8 +402,8 @@ def _access_status_text(chat_id: str, lang: str) -> str:
         "\n\n" + _t(
             lang,
             "status_payment",
-            tx=claim.get("tx_hash", "—"),
-            status=claim.get("status", "pending"),
+            tx=html.escape(str(claim.get("tx_hash", "—"))),
+            status=html.escape(str(claim.get("status", "pending"))),
         )
         if claim else ""
     )
@@ -378,38 +422,32 @@ def _access_status_text(chat_id: str, lang: str) -> str:
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
-    chat_id = str(message.chat.id)
-    is_new = save_user(chat_id)
-    access_manager.ensure_user(chat_id)
-    if is_new:
-        print(f"Новый пользователь: {chat_id}")
+    user_id = _user_id(message)
+    access_manager.ensure_user(user_id)
+    logger.info("command.start user_id=%s", user_id)
 
-    # Mini App payment buttons use /start subscribe_<language> deep links.
     start_payload = (message.text or "").split(maxsplit=1)
     payload = start_payload[1].strip().lower() if len(start_payload) > 1 else ""
-    if payload.startswith("subscribe_"):
-        lang = payload.removeprefix("subscribe_")
-        if lang not in {"en", "ru", "de", "fr", "es"}:
-            lang = get_lang(message.from_user.id)
+    lang, persist = language_for_start(get_lang(message.from_user.id), payload)
+    if persist:
         st.set_user_lang(message.from_user.id, lang)
+    if payload.startswith("subscribe_"):
         await state.clear()
-        await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
+        await message.reply(_payment_paywall(user_id), parse_mode="HTML")
         return
 
-    st.set_user_lang(message.from_user.id, "en")
     if not _has_saved_deposit(message.from_user.id):
-        notifier.active_users.discard(chat_id)
+        notifier.active_users.discard(user_id)
         await state.set_state(DepositSetup.waiting_for_amount)
-        await message.reply(
-            ENGLISH_START_MESSAGE,
-            parse_mode="HTML",
-            reply_markup=_lang_keyboard("en"),
+        text = ENGLISH_START_MESSAGE if lang == "en" else (
+            _t(lang, "welcome") + "\n\n" + _t(lang, "deposit_prompt")
         )
+        await message.reply(text, parse_mode="HTML", reply_markup=_lang_keyboard(lang))
         return
 
-    notifier.active_users.add(chat_id)
+    notifier.active_users.add(user_id)
     await state.clear()
-    await message.reply(_t("en", "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard("en"))
+    await message.reply(_t(lang, "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard(lang))
 
 
 @router.callback_query(lambda c: c.data.startswith("lang_"))
@@ -423,17 +461,19 @@ async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext)
         text += "\n\n" + _t(lang, "deposit_start_hint") + "\n\n" + _t(lang, "deposit_prompt")
         await state.set_state(DepositSetup.waiting_for_amount)
     else:
-        notifier.active_users.add(str(callback.message.chat.id))
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=reply_markup)
-    await callback.answer()
+        notifier.active_users.add(str(callback.from_user.id))
+    await _finish_callback(callback, text, parse_mode="HTML", reply_markup=reply_markup)
 
 
 @router.callback_query(F.data == "set_deposit")
 async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMContext):
     lang = get_lang(callback.from_user.id)
     await state.set_state(DepositSetup.waiting_for_amount)
-    await callback.message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
-    await callback.answer()
+    try:
+        await callback.message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
+    except Exception:
+        logger.warning("deposit prompt failed")
+    await _finish_callback(callback)
 
 
 @router.message(
@@ -449,9 +489,8 @@ async def handle_deposit_amount(message: types.Message, state: FSMContext):
         return
 
     st.set_user_setting(message.from_user.id, "deposit", deposit)
-    save_user(str(message.chat.id))
-    access_manager.ensure_user(str(message.chat.id))
-    notifier.active_users.add(str(message.chat.id))
+    access_manager.ensure_user(_user_id(message))
+    notifier.active_users.add(_user_id(message))
     await state.clear()
     await message.reply(
         _t(lang, "deposit_saved", deposit=f"{deposit:,.2f}"),
@@ -464,22 +503,20 @@ async def handle_deposit_amount(message: types.Message, state: FSMContext):
 async def cmd_help(message: types.Message):
     lang = get_lang(message.from_user.id)
     await message.reply(
-        _t(lang, "help",
-           top_n=SCAN_CFG["top_n_symbols"],
-           digest_hour=SCAN_CFG["daily_digest_utc_hour"]),
+        _t(lang, "help", top_n=SCAN_CFG["top_n_symbols"]),
         parse_mode="HTML",
     )
 
 
 @router.message(Command("subscribe"))
 async def cmd_subscribe(message: types.Message):
-    await message.reply(_payment_paywall(str(message.chat.id)), parse_mode="HTML")
+    await message.reply(_payment_paywall(_user_id(message)), parse_mode="HTML")
 
 
 @router.message(Command("status"))
 async def cmd_status(message: types.Message):
     lang = get_lang(message.from_user.id)
-    await message.reply(_access_status_text(str(message.chat.id), lang), parse_mode="HTML")
+    await message.reply(_access_status_text(_user_id(message), lang), parse_mode="HTML")
 
 
 @router.message(Command("paid"))
@@ -489,102 +526,114 @@ async def cmd_paid(message: types.Message):
     if len(parts) < 2:
         await message.reply(_t(lang, "payment_paid_usage"), parse_mode="HTML")
         return
-    chat_id = str(message.chat.id)
+    user_id = _user_id(message)
     tx_hash = parts[1].strip()
-    if access_manager.find_payment_by_tx_hash(tx_hash):
-        await message.reply(_t(lang, "payment_tx_used"), parse_mode="HTML")
+    invoice = access_manager.ensure_open_invoice(user_id)
+    if not invoice:
+        await message.reply(_t(lang, "payment_no_invoice"), parse_mode="HTML")
         return
 
     status_msg = await message.reply(_t(lang, "payment_checking"), parse_mode="HTML")
     try:
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, payment_verifier.verify, tx_hash)
-    except Exception as e:
-        print(f"Payment verification failed: {e}")
+        result = await loop.run_in_executor(
+            None,
+            lambda: payment_verifier.verify(tx_hash, expected_amount=invoice["expected_amount"]),
+        )
+    except Exception:
+        logger.warning("payment verification failed")
         await status_msg.edit_text(_t(lang, "payment_verify_error"), parse_mode="HTML")
         return
 
     if not result.get("ok"):
-        reason = result.get("reason")
-        key = {
-            "invalid_hash": "payment_invalid_hash",
-            "amount_too_low": "payment_amount_low",
-        }.get(reason, "payment_not_found")
         await status_msg.edit_text(
             _t(
                 lang,
-                key,
-                paid=result.get("paid_amount", "0"),
-                required=USDT_PAYMENT_AMOUNT,
+                payment_reason_key(result.get("reason")),
+                paid=html.escape(str(result.get("paid_amount", "0"))),
+                required=html.escape(str(result.get("required_amount", invoice["expected_amount"]))),
             ),
             parse_mode="HTML",
         )
         return
 
-    # Re-check after the network request to prevent two simultaneous claims.
-    if access_manager.find_payment_by_tx_hash(tx_hash):
-        await status_msg.edit_text(_t(lang, "payment_tx_used"), parse_mode="HTML")
-        return
-
     payment_details = {key: value for key, value in result.items() if key not in {"ok", "tx_hash"}}
-    claim = access_manager.record_payment_claim(chat_id, tx_hash, **payment_details)
-    if claim is None:
-        await status_msg.edit_text(_t(lang, "payment_tx_used"), parse_mode="HTML")
+    settled = access_manager.settle_payment(
+        user_id,
+        tx_hash,
+        paid_amount=result.get("paid_amount"),
+        expected_amount=invoice["expected_amount"],
+        hours=PAID_ACCESS_HOURS,
+        details=payment_details,
+    )
+    if not settled.get("ok"):
+        await status_msg.edit_text(
+            _t(lang, payment_reason_key(settled.get("reason"))),
+            parse_mode="HTML",
+        )
         return
-    paid_until = access_manager.grant_access(chat_id, hours=PAID_ACCESS_HOURS)
+    paid_until = int(settled["paid_until"])
     await status_msg.edit_text(
         _t(lang, "payment_approved", days=PAID_ACCESS_HOURS // 24, until=format_ts(paid_until)),
         parse_mode="HTML",
     )
     admin_msg = (
-        f"💸 <b>Оплата подтверждена автоматически</b>\n\nUser: <code>{chat_id}</code>\n"
-        f"Сумма: <b>{result['paid_amount']} USDT</b>\nTX: <code>{tx_hash}</code>\n"
-        f"Доступ до: <b>{format_ts(paid_until)}</b>\n\nРезервная отмена: <code>/revoke {chat_id}</code>"
+        "💸 <b>Payment confirmed</b>\n\n"
+        f"User: <code>{html.escape(user_id)}</code>\n"
+        f"Amount: <b>{html.escape(str(result.get('paid_amount')))} USDT</b>\n"
+        f"TX: <code>{html.escape(tx_hash)}</code>\n"
+        f"Access until: <b>{html.escape(format_ts(paid_until))}</b>"
     )
     for admin_id in ADMIN_CHAT_IDS:
         try:
             await bot_instance.send_message(chat_id=admin_id, text=admin_msg, parse_mode="HTML")
-        except Exception as e:
-            print(f"Admin notify failed {admin_id}: {e}")
+        except Exception:
+            logger.warning("admin payment notify failed admin_id=%s", admin_id)
 
 
 @router.message(Command("grant"))
 async def cmd_grant(message: types.Message):
-    if not is_admin(str(message.chat.id)):
-        await message.reply("⛔️ Только для админа.")
+    if not is_admin(message.from_user.id):
+        await message.reply("⛔️ Admin only.")
         return
     parts = message.text.split()
     if len(parts) < 2:
-        await message.reply("Использование: <code>/grant CHAT_ID [hours]</code>", parse_mode="HTML")
+        await message.reply("Usage: <code>/grant USER_ID [hours]</code>", parse_mode="HTML")
         return
     target = parts[1]
     hours = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else PAID_ACCESS_HOURS
     paid_until = access_manager.grant_access(target, hours=hours)
+    if not paid_until:
+        await message.reply(_t(get_lang(message.from_user.id), "payment_save_failed"), parse_mode="HTML")
+        return
+    safe_target = html.escape(target)
     await message.reply(
-        f"✅ Доступ выдан <code>{target}</code> до <b>{format_ts(paid_until)}</b>",
+        f"✅ Access granted to <code>{safe_target}</code> until <b>{html.escape(format_ts(paid_until))}</b>",
         parse_mode="HTML",
     )
     try:
         await bot_instance.send_message(
             chat_id=target,
-            text=f"✅ Оплата подтверждена. Доступ до <b>{format_ts(paid_until)}</b>.",
+            text=f"✅ Access is active until <b>{html.escape(format_ts(paid_until))}</b>.",
             parse_mode="HTML",
         )
     except Exception:
-        pass
+        logger.warning("grant notice failed")
 
 
 @router.message(Command("revoke"))
 async def cmd_revoke(message: types.Message):
-    if not is_admin(str(message.chat.id)):
-        await message.reply("⛔️ Только для админа.")
+    if not is_admin(message.from_user.id):
+        await message.reply("⛔️ Admin only.")
         return
     parts = message.text.split()
     if len(parts) < 2:
-        await message.reply("Использование: <code>/revoke CHAT_ID</code>", parse_mode="HTML")
+        await message.reply("Usage: <code>/revoke USER_ID</code>", parse_mode="HTML")
         return
-    access_manager.revoke_access(parts[1])
-    await message.reply(f"✅ Доступ <code>{parts[1]}</code> отключен.", parse_mode="HTML")
+    if not access_manager.revoke_access(parts[1]):
+        await message.reply(_t(get_lang(message.from_user.id), "payment_save_failed"), parse_mode="HTML")
+        return
+    await message.reply(f"✅ Access removed for <code>{html.escape(parts[1])}</code>.", parse_mode="HTML")
 
 
 # ═══════════════════════════════════════════
@@ -597,7 +646,7 @@ async def cmd_setup(message: types.Message):
         return
     parts = message.text.split()
     if len(parts) < 2:
-        await message.reply("ℹ️ Использование: <code>/setup BTC</code>", parse_mode="HTML")
+        await message.reply(_t(get_lang(message.from_user.id), "setup_usage"), parse_mode="HTML")
         return
     await _handle_setup(message, parts[1].upper())
 
@@ -618,18 +667,11 @@ async def cmd_plan(message: types.Message):
     if not await require_deposit(message):
         logger.info("command.plan.deposit_required message_id=%s", message.message_id)
         return
-    chat_id = str(message.chat.id)
-    if not is_admin(chat_id):
-        allowed, mode = access_manager.check_access(chat_id)
-        if not allowed:
-            if mode == "cooldown":
-                wait = access_manager.status(chat_id)["trial_cooldown_left"]
-                await message.reply(
-                    _t(get_lang(message.from_user.id), "trial_cooldown", minutes=_format_wait_minutes(wait)),
-                    parse_mode="HTML",
-                )
-                return
-            await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
+    user_id = _user_id(message)
+    mode = "admin"
+    if not is_admin(message.from_user.id):
+        mode = await gate_access(message)
+        if not mode:
             return
     uid  = message.from_user.id
     lang = get_lang(uid)
@@ -640,34 +682,22 @@ async def cmd_plan(message: types.Message):
         await message.reply(_t(lang, "plan_usage"), parse_mode="HTML")
         return
 
-    status_msg = await message.reply(_t(lang, "plan_loading", symbol=symbol), parse_mode="HTML")
+    status_msg = await message.reply(_t(lang, "plan_loading", symbol=html.escape(symbol)), parse_mode="HTML")
     try:
         loop     = asyncio.get_event_loop()
         snapshot = await loop.run_in_executor(None, snap.build_snapshot_with_fallback, symbol)
         plan     = core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
         side = str((plan.get("primary") or {}).get("side", "skip")).upper()
-        if not is_admin(chat_id) and side != "SKIP":
-            allowed, mode = access_manager.consume_signal(chat_id)
-            if not allowed:
-                if mode == "cooldown":
-                    wait = access_manager.status(chat_id)["trial_cooldown_left"]
-                    await status_msg.edit_text(
-                        _t(lang, "trial_cooldown", minutes=_format_wait_minutes(wait)),
-                        parse_mode="HTML",
-                    )
-                    return
-                await status_msg.edit_text(_payment_paywall(chat_id), parse_mode="HTML")
-                return
         text     = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
         await status_msg.edit_text(text, parse_mode="HTML")
         if side != "SKIP":
-            signal_id = st.save_signal(plan, symbol, side, _conf(plan))
+            signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
             if signal_id:
                 st.grant_signal_access(uid, signal_id)
-            if not is_admin(chat_id):
-                remaining = access_manager.status(chat_id)["trial_left"]
-                if access_manager.status(chat_id)["has_paid_access"] is False:
-                    await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
+            debit_trial(user_id, mode)
+            if mode == "trial":
+                remaining = access_manager.status(user_id)["trial_left"]
+                await message.reply(_trial_notice(user_id, remaining), parse_mode="HTML")
     except Exception as exc:
         logger.exception("command.plan.failed symbol=%s", symbol)
         await status_msg.edit_text(
@@ -684,26 +714,24 @@ async def cmd_set(message: types.Message):
     if not kv:
         await message.reply(_t(lang, "set_usage"), parse_mode="HTML")
         return
-    allowed = {"deposit": "deposit", "risk": "risk_pct", "lev": "lev", "margin": "margin"}
     updated = []
-    for k, v in kv.items():
-        if k not in allowed:
-            await message.reply(_t(lang, "set_unknown", key=k), parse_mode="HTML")
-            return
+    for key, raw in kv.items():
         try:
-            val = v if k == "margin" else float(v)
-        except ValueError:
-            await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+            storage_key, value = parse_setting(key, raw)
+        except ValueError as exc:
+            reason = str(exc)
+            if reason == "unknown":
+                await message.reply(_t(lang, "set_unknown", key=html.escape(key)), parse_mode="HTML")
+            elif reason == "deposit":
+                await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+            else:
+                await message.reply(_t(lang, "set_invalid", key=html.escape(key)), parse_mode="HTML")
             return
-        if k == "deposit" and val <= 0:
-            await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
-            return
-        st.set_user_setting(uid, allowed[k], val)
-        updated.append(f"{k}={v}")
+        st.set_user_setting(uid, storage_key, value)
+        updated.append(f"{html.escape(key)}={html.escape(raw)}")
     if _has_saved_deposit(uid):
-        save_user(str(message.chat.id))
-        access_manager.ensure_user(str(message.chat.id))
-        notifier.active_users.add(str(message.chat.id))
+        access_manager.ensure_user(str(uid))
+        notifier.active_users.add(str(uid))
     await message.reply(_t(lang, "set_saved", params=", ".join(updated)), parse_mode="HTML")
 
 
@@ -717,9 +745,9 @@ async def cmd_settings(message: types.Message):
     text    += _t(lang, "settings_deposit", val=f"{deposit:,.0f} USDT") if deposit else _t(lang, "settings_deposit_missing")
     text    += _t(lang, "settings_risk",   val=settings["risk_pct"])
     text    += _t(lang, "settings_lev",    val=settings["lev"])
-    text    += _t(lang, "settings_margin", val=settings["margin"])
+    text    += _t(lang, "settings_margin", val=html.escape(str(settings["margin"])))
     text    += _t(lang, "settings_change")
-    text    += "\n\n━━━━━━━━━━━━━━━━\n" + _access_status_text(str(message.chat.id), lang)
+    text    += "\n\n━━━━━━━━━━━━━━━━\n" + _access_status_text(str(uid), lang)
     await message.reply(text, parse_mode="HTML")
 
 
@@ -729,19 +757,11 @@ async def cmd_scan(message: types.Message):
     if not await require_deposit(message):
         logger.info("command.scan.deposit_required message_id=%s", message.message_id)
         return
-    chat_id = str(message.chat.id)
+    user_id = _user_id(message)
     access_mode = "admin"
-    if not is_admin(chat_id):
-        allowed, access_mode = access_manager.check_access(chat_id)
-        if not allowed:
-            if access_mode == "cooldown":
-                wait = access_manager.status(chat_id)["trial_cooldown_left"]
-                await message.reply(
-                    _t(get_lang(message.from_user.id), "trial_cooldown", minutes=_format_wait_minutes(wait)),
-                    parse_mode="HTML",
-                )
-                return
-            await message.reply(_payment_paywall(chat_id), parse_mode="HTML")
+    if not is_admin(message.from_user.id):
+        access_mode = await gate_access(message)
+        if not access_mode:
             return
     uid      = message.from_user.id
     lang     = get_lang(uid)
@@ -772,27 +792,17 @@ async def cmd_scan(message: types.Message):
             return
 
         limit = 1 if access_mode == "trial" else 5
-        if access_mode == "trial":
-            allowed, mode = access_manager.consume_signal(chat_id)
-            if not allowed:
-                if mode == "cooldown":
-                    wait = access_manager.status(chat_id)["trial_cooldown_left"]
-                    await status_msg.edit_text(
-                        _t(lang, "trial_cooldown", minutes=_format_wait_minutes(wait)),
-                        parse_mode="HTML",
-                    )
-                    return
-                await status_msg.edit_text(_payment_paywall(chat_id), parse_mode="HTML")
-                return
         delivered = 0
         await status_msg.edit_text(_t(lang, "scan_done", count=min(len(actionable), limit)), parse_mode="HTML")
         for plan in actionable[:limit]:
             if await _send_plan_and_record(message, plan, deposit, settings["risk_pct"], lang):
                 delivered += 1
             await asyncio.sleep(0.4)
-        if access_mode == "trial":
-            remaining = access_manager.status(chat_id)["trial_left"]
-            await message.reply(_trial_notice(chat_id, remaining), parse_mode="HTML")
+        if delivered:
+            debit_trial(user_id, access_mode)
+        if access_mode == "trial" and delivered:
+            remaining = access_manager.status(user_id)["trial_left"]
+            await message.reply(_trial_notice(user_id, remaining), parse_mode="HTML")
         elif len(actionable) > limit:
             await message.reply(_t(lang, "scan_more", count=len(actionable) - limit), parse_mode="HTML")
     except Exception as exc:
@@ -807,18 +817,21 @@ async def cmd_scan(message: types.Message):
 async def cmd_digest(message: types.Message):
     if not await require_deposit(message):
         return
-    if not await require_access(message):
+    mode = await gate_access(message)
+    if not mode:
         return
     uid      = message.from_user.id
     lang     = get_lang(uid)
     settings = st.get_user_settings(uid)
-    access_status = access_manager.status(str(message.chat.id))
-    detail_limit = 3 if is_admin(str(message.chat.id)) or access_status["has_paid_access"] else 1
+    access_status = access_manager.status(str(uid))
+    detail_limit = 3 if mode == "admin" or access_status["has_paid_access"] else 1
     status_msg = await message.reply(_t(lang, "digest_preparing"), parse_mode="HTML")
-    await _run_digest(str(message.chat.id), settings, lang, status_msg=status_msg, detail_limit=detail_limit)
+    delivered = await _run_digest(str(uid), settings, lang, status_msg=status_msg, detail_limit=detail_limit)
+    if delivered:
+        debit_trial(str(uid), mode)
 
 
-async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=3):
+async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=3) -> bool:
     loop = asyncio.get_event_loop()
     try:
         top_symbols = await loop.run_in_executor(None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"])
@@ -844,25 +857,29 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
         if high:
             lines.append(_t(lang, "digest_high", count=len(high)))
             for r in high[:15]:
-                sym  = r.get("symbol", "?")
-                side = str((r.get("primary") or {}).get("side", "?")).upper()
+                sym  = html.escape(str(r.get("symbol", "?")))
+                side = html.escape(str((r.get("primary") or {}).get("side", "?")).upper())
                 em   = "🟩" if side == "LONG" else "🟥"
                 lines.append(f"  {em} <code>{sym}</code> {side} conf={_conf(r):.2f}")
             lines.append("")
         if medium:
             lines.append(_t(lang, "digest_medium", count=len(medium)))
             for r in medium[:10]:
-                sym  = r.get("symbol", "?")
-                side = str((r.get("primary") or {}).get("side", "?")).upper()
+                sym  = html.escape(str(r.get("symbol", "?")))
+                side = html.escape(str((r.get("primary") or {}).get("side", "?")).upper())
                 lines.append(f"  • <code>{sym}</code> {side} conf={_conf(r):.2f}")
             lines.append("")
         lines.append(_t(lang, "digest_skipped", count=skipped))
         summary = "\n".join(lines)
 
-        if status_msg:
-            await status_msg.edit_text(summary, parse_mode="HTML")
-        else:
-            await bot_instance.send_message(chat_id=chat_id, text=summary, parse_mode="HTML")
+        try:
+            if status_msg:
+                await status_msg.edit_text(summary, parse_mode="HTML")
+            else:
+                await bot_instance.send_message(chat_id=chat_id, text=summary, parse_mode="HTML")
+        except Exception:
+            logger.warning("digest summary send failed")
+            return False
 
         for plan in high[:detail_limit]:
             full = render_telegram_plan(plan, deposit=settings["deposit"], risk_pct=settings["risk_pct"], lang=lang)
@@ -872,16 +889,21 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
             except (TypeError, ValueError):
                 user_id = 0
             side = str((plan.get("primary") or {}).get("side", "skip")).upper()
-            signal_id = st.save_signal(plan, plan.get("symbol", ""), side, _conf(plan))
+            signal_id = st.save_signal(plan, plan.get("symbol", ""), side, _conf(plan), source="manual")
             if signal_id and user_id:
                 st.grant_signal_access(user_id, signal_id)
             await asyncio.sleep(0.4)
-    except Exception as e:
-        err = _t(lang, "digest_error", error=e)
-        if status_msg:
-            await status_msg.edit_text(err, parse_mode="HTML")
-        else:
-            await bot_instance.send_message(chat_id=chat_id, text=err, parse_mode="HTML")
+        return True
+    except Exception as exc:
+        err = _t(lang, "digest_error", error=html.escape(str(exc)))
+        try:
+            if status_msg:
+                await status_msg.edit_text(err, parse_mode="HTML")
+            else:
+                await bot_instance.send_message(chat_id=chat_id, text=err, parse_mode="HTML")
+        except Exception:
+            logger.warning("digest error reply failed")
+        return False
 
 # ═══════════════════════════════════════════
 # SMC / SPIKE ЛОГИКА (старый функционал)
@@ -899,13 +921,16 @@ async def _fetch_mtf(symbol: str) -> dict:
 
 
 async def _handle_setup(message: types.Message, coin: str):
-    if not await require_access(message):
+    mode = await gate_access(message)
+    if not mode:
         return
+    lang = get_lang(message.from_user.id)
     symbol = await exchange.validate_symbol(coin)
     if not symbol:
-        await message.reply(f"❌ {coin} не найдена на MEXC.")
+        await message.reply(_t(lang, "coin_missing", coin=html.escape(coin)), parse_mode="HTML")
         return
-    await message.reply(f"🔍 Анализирую {symbol} по SMC (4h / 1d)...")
+    await message.reply(_t(lang, "setup_scanning", symbol=html.escape(symbol)), parse_mode="HTML")
+    delivered = False
     try:
         found = False
         for tf in ["4h", "1d"]:
@@ -920,19 +945,26 @@ async def _handle_setup(message: types.Message, coin: str):
                     dfs = await _fetch_mtf(symbol)
                     verdict = mtf_engine.analyze(dfs)
                     if verdict.setup_type.name != "NO_TRADE":
-                        msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict)
+                        msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict, lang=lang)
                         await message.reply(msg, parse_mode="HTML")
                         found = True
+                        delivered = True
         if not found:
-            await message.reply(f"🤷 Нет свежих SMC сетапов по {symbol} на 4h/1d.")
-    except Exception as e:
-        await message.reply(f"❌ Ошибка: {e}")
+            await message.reply(_t(lang, "setup_none", symbol=html.escape(symbol)), parse_mode="HTML")
+    except Exception as exc:
+        await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
+        return
+    if delivered:
+        debit_trial(_user_id(message), mode)
 
 
 async def _handle_spikes(message: types.Message):
-    if not await require_access(message):
+    mode = await gate_access(message)
+    if not mode:
         return
-    await message.reply("🚀 Сканирую всплески по Топ-250...")
+    lang = get_lang(message.from_user.id)
+    await message.reply(_t(lang, "spikes_scanning"), parse_mode="HTML")
+    delivered = False
     try:
         symbols = await exchange.get_top_pairs()
         found = []
@@ -946,15 +978,19 @@ async def _handle_spikes(message: types.Message):
                 found.append((symbol, spike))
             await asyncio.sleep(0.05)
         if not found:
-            await message.reply("🤷 Аномалий не обнаружено.")
+            await message.reply(_t(lang, "spikes_none"), parse_mode="HTML")
             return
         for sym, spk in found[:15]:
             coin_info = await coin_info_svc.get_coin_info(sym)
-            msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info)
+            msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info, lang=lang)
             await message.reply(msg, parse_mode="HTML")
+            delivered = True
             await asyncio.sleep(0.1)
-    except Exception as e:
-        await message.reply(f"❌ Ошибка: {e}")
+    except Exception as exc:
+        await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
+        return
+    if delivered:
+        debit_trial(_user_id(message), mode)
 
 # ═══════════════════════════════════════════
 # ОБРАБОТЧИК ТЕКСТА (natural language)
@@ -976,21 +1012,25 @@ async def handle_text(message: types.Message):
     if any(kw in text for kw in ("всплеск", "памп", "дамп", "spike", "pump", "dump", "сканер")):
         await _handle_spikes(message)
     elif any(kw in text for kw in ("анализ", "analyze", "analyse")) and coin:
-        if not await require_access(message):
+        mode = await gate_access(message)
+        if not mode:
             return
+        lang = get_lang(message.from_user.id)
         symbol = await exchange.validate_symbol(coin)
         if not symbol:
-            await message.reply(f"❌ {coin} не найдена.")
+            await message.reply(_t(lang, "coin_missing", coin=html.escape(coin)), parse_mode="HTML")
             return
-        await message.reply(f"🤖 Глубокий анализ {symbol} (15m→1w)...")
+        await message.reply(_t(lang, "analysis_running", symbol=html.escape(symbol)), parse_mode="HTML")
         try:
             dfs = await _fetch_mtf(symbol)
             analyses = {tf: smc_analyzer.analyze_tf(df) for tf, df in dfs.items() if df is not None}
             verdict = mtf_engine.analyze(dfs)
-            msg = notifier.format_full_analysis(symbol, analyses, verdict)
+            msg = notifier.format_full_analysis(symbol, analyses, verdict, lang=lang)
             await message.reply(msg, parse_mode="HTML")
-        except Exception as e:
-            await message.reply(f"❌ Ошибка: {e}")
+        except Exception as exc:
+            await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
+            return
+        debit_trial(_user_id(message), mode)
     elif any(kw in text for kw in ("сетап", "setup", "сигнал", "signal")) and coin:
         await _handle_setup(message, coin)
 
@@ -998,8 +1038,6 @@ async def handle_text(message: types.Message):
 # ФОНОВЫЕ ЦИКЛЫ
 # ═══════════════════════════════════════════
 
-last_spike_alert: dict = {}
-last_setup_alert: dict = {}
 _last_plan_1h_block: int = -1  # сканируем каждый час, повтор одной монеты — не чаще 4h
 
 # Токены которые не нужно торговать — стоковые и левериджные
@@ -1015,127 +1053,22 @@ def _is_usdt_pair(symbol: str) -> bool:
     normalized = market.replace("/", "_").replace("-", "_")
     return normalized.endswith("_USDT")
 
-def _fmt_price(p, price_unit=None) -> str:
-    if p is None or p == "?":
-        return "?"
-    try:
-        p = float(p)
-        if price_unit is not None:
-            unit = Decimal(str(price_unit)).normalize()
-            decimals = max(0, -unit.as_tuple().exponent)
-            return f"{p:,.{decimals}f}"
-        if p >= 10000: return f"{p:,.0f}"
-        if p >= 1000:  return f"{p:,.1f}"
-        if p >= 10:    return f"{p:.2f}"
-        if p >= 1:     return f"{p:.4f}"
-        return f"{p:.6f}"
-    except Exception:
-        return str(p)
-
-def _pct(a, b) -> str:
-    try:
-        return f"{abs(float(a) - float(b)) / float(b) * 100:.1f}%"
-    except Exception:
-        return ""
-
-def _rr(entry, stop, tp) -> str:
-    try:
-        risk   = abs(float(entry) - float(stop))
-        reward = abs(float(tp)    - float(entry))
-        return f"RR {reward / risk:.1f}x" if risk else ""
-    except Exception:
-        return ""
-
-def _fmt_usdt(value) -> str:
-    try:
-        return f"{float(value):,.2f}".replace(",", " ")
-    except (TypeError, ValueError):
-        return "—"
-
-
-def _fmt_auto_alert(
-    plan: dict,
-    symbol: str,
-    side: str,
-    conf: float,
-    deposit: float,
-    risk_pct: float,
-    leverage: float,
-    uses_reference_deposit: bool = False,
-) -> str:
-    p       = plan.get("primary") or {}
-    ctx     = plan.get("context") or {}
-    tps     = p.get("tps") or []
-    entry   = p.get("entry")
-    stop_p  = p.get("stop")
-    tp1     = tps[0]["price"] if tps else None
-    tp2     = tps[1]["price"] if len(tps) > 1 else None
-    price   = plan.get("price")
-    price_unit = p.get("price_unit")
-    regime  = str(ctx.get("regime", "")).upper() or "—"
-    trend1d = str(ctx.get("trend_1d", "")).upper() or "—"
-    why     = p.get("why") or []
-    arrow   = "↗️" if side == "LONG" else "↘️"
-    badge   = "🟢 LONG" if side == "LONG" else "🔴 SHORT"
-
-    try:
-        deposit = float(deposit)
-        risk_pct = float(risk_pct)
-        sizing = core_plan.position_size_for_contract(
-            p, float(entry), float(stop_p), deposit, risk_pct, float(leverage)
-        )
-        risk_usdt = sizing["risk_usdt"]
-        position_usdt = sizing["position_usdt"]
-        margin_usdt = sizing["margin_usdt"]
-        leverage = sizing["effective_leverage"]
-        contract_vol = sizing["contract_vol"]
-        leverage_limited = sizing["effective_leverage"] < sizing["requested_leverage"]
-        sizing_errors = sizing["errors"]
-    except (TypeError, ValueError, ZeroDivisionError):
-        risk_usdt = position_usdt = margin_usdt = None
-        contract_vol = None
-        leverage_limited = False
-        sizing_errors = []
-
-    lines = [
-        "━━━━━━━━━━━━━━━━━━",
-        f"📊 <b>СИГНАЛ — {badge}</b>",
-        "━━━━━━━━━━━━━━━━━━",
-        "",
-        f"🪙 <b><code>{symbol}</code></b>",
-        f"💵 Цена сейчас: <code>{_fmt_price(price, price_unit)}</code>",
-        f"🧭 Режим: <b>{regime}</b>  |  Тренд 1D: <b>{trend1d}</b>",
-        f"⭐️ Уверенность: <b>{conf:.2f}</b> / 1.0",
-        "",
-        "─────────────────",
-        f"{arrow} Вход:   <code>{_fmt_price(entry, price_unit)}</code>",
-        f"🛑 Стоп:  <code>{_fmt_price(stop_p, price_unit)}</code>  ({_pct(stop_p, entry)} от входа)",
-        f"🥅 TP1:   <code>{_fmt_price(tp1, price_unit)}</code>  (+{_pct(tp1, entry)})  {_rr(entry, stop_p, tp1)}",
-        f"🥅 TP2:   <code>{_fmt_price(tp2, price_unit)}</code>  (+{_pct(tp2, entry)})  {_rr(entry, stop_p, tp2)}",
-        "─────────────────",
-        f"💰 Депозит: <b>{_fmt_usdt(deposit)} USDT</b>",
-        f"📦 Объём позиции: <b>{_fmt_usdt(position_usdt)} USDT</b>",
-        f"🔒 Нужно маржи при x{leverage:g}: <b>{_fmt_usdt(margin_usdt)} USDT</b>",
-        f"🛡 Риск по стопу: <b>{_fmt_usdt(risk_usdt)} USDT</b> ({risk_pct:g}%)",
-        "─────────────────",
-    ]
-    if contract_vol is not None:
-        lines.insert(-1, f"📐 Контрактов MEXC: <b>{contract_vol:g}</b>")
-    if leverage_limited:
-        lines.insert(-1, "⚠️ Плечо снижено до максимума, разрешённого MEXC для этой монеты.")
-    if "position_below_min_contract" in sizing_errors:
-        lines.insert(-1, "⚠️ Для вашего риска минимальный контракт MEXC слишком велик; сделку открывать не нужно.")
-    if uses_reference_deposit:
-        lines.extend([
-            "⚠️ <i>Расчёт на примере 1 000 USDT.</i>",
-            "Укажи свой депозит через /start для личной суммы.",
-            "",
-        ])
-    if why:
-        lines.append(f"🔍 <i>{' · '.join(str(w) for w in why[:3])}</i>")
-        lines.append("")
-    lines.append(f"📋 Подробнее → /plan <code>{symbol}</code>")
-    return "\n".join(lines)
+async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render) -> int:
+    """Send one localized alert. Persist the cooldown only after a delivery."""
+    if not st.cooldown_ready(kind, key, cooldown_seconds):
+        return 0
+    delivered = 0
+    for chat_id in list(notifier.active_users):
+        try:
+            user_id = int(chat_id)
+        except (TypeError, ValueError):
+            continue
+        if await notifier.send_message_to_user(chat_id, render(get_lang(user_id))):
+            delivered += 1
+        await asyncio.sleep(0.1)
+    if st.should_persist_sent_marker(delivered):
+        st.mark_cooldown(kind, key)
+    return delivered
 
 
 async def market_scanner_loop():
@@ -1143,7 +1076,7 @@ async def market_scanner_loop():
     while True:
         try:
             cycle_started_at = time.monotonic()
-            now = time.time()
+            refresh_recipients()
             symbols = [symbol for symbol in await exchange.get_top_pairs() if _is_usdt_pair(symbol)]
 
             for i, symbol in enumerate(symbols):
@@ -1164,13 +1097,15 @@ async def market_scanner_loop():
                             if spike.get("quote_volume", 0) and spike["quote_volume"] < SMART_SPIKE_MIN_QUOTE_VOLUME:
                                 continue
                             key = f"{symbol}_{tf}_{spike['direction']}"
-                            if now - last_spike_alert.get(key, 0) > SPIKE_COOLDOWN:
-                                coin_info = await coin_info_svc.get_coin_info(symbol)
-                                await notifier.send_message(
-                                    notifier.format_spike_alert(symbol, tf, spike, coin_info=coin_info)
-                                )
-                                last_spike_alert[key] = now
-                                await asyncio.sleep(0.1)
+                            coin_info = await coin_info_svc.get_coin_info(symbol)
+                            await _deliver_localized(
+                                "spike",
+                                key,
+                                SPIKE_COOLDOWN,
+                                lambda lang, _symbol=symbol, _tf=tf, _spike=spike, _info=coin_info: (
+                                    notifier.format_spike_alert(_symbol, _tf, _spike, coin_info=_info, lang=lang)
+                                ),
+                            )
 
                     if tf in ["4h", "1d"] and is_smc:
                         smc_res = smc_analyzer.analyze_tf(df)
@@ -1184,33 +1119,33 @@ async def market_scanner_loop():
                             if verdict.setup_type.name == "NO_TRADE":
                                 continue
                             key = f"{symbol}_{tf}_{setup['type']}"
-                            if now - last_setup_alert.get(key, 0) > SETUP_COOLDOWN:
-                                await notifier.send_message(
-                                    notifier.format_smc_setup(symbol, tf, setup, score, verdict)
-                                )
-                                last_setup_alert[key] = now
-                                await asyncio.sleep(0.1)
+                            await _deliver_localized(
+                                "smc",
+                                key,
+                                SETUP_COOLDOWN,
+                                lambda lang, _symbol=symbol, _tf=tf, _setup=setup, _score=score, _verdict=verdict: (
+                                    notifier.format_smc_setup(
+                                        _symbol, _tf, _setup, _score, _verdict, lang=lang
+                                    )
+                                ),
+                            )
 
                 await asyncio.sleep(0.5)
 
-            # чистка кэша
-            now = time.time()
-            last_spike_alert.update({k: v for k, v in last_spike_alert.items() if now - v <= SPIKE_COOLDOWN})
-            last_setup_alert.update({k: v for k, v in last_setup_alert.items() if now - v <= SETUP_COOLDOWN})
             st.record_runtime_health(
                 "market_scanner",
                 success=True,
                 duration_seconds=time.monotonic() - cycle_started_at,
                 details={"symbols": len(symbols)},
             )
-            print("Фоновый цикл завершен. Ожидание 60 сек...")
+            logger.info("market scanner cycle finished; sleeping 60s")
             await asyncio.sleep(60)
 
         except asyncio.CancelledError:
             break
-        except Exception as e:
-            st.record_runtime_health("market_scanner", success=False, details={"error": type(e).__name__})
-            print(f"market_scanner_loop error: {e}")
+        except Exception as exc:
+            st.record_runtime_health("market_scanner", success=False, details={"error": type(exc).__name__})
+            logger.warning("market_scanner_loop error: %s", type(exc).__name__)
             await asyncio.sleep(10)
 
 
@@ -1227,15 +1162,15 @@ async def plan_scanner_loop():
 
             if minutes_since >= 5 and _last_plan_1h_block != block:
                 _last_plan_1h_block = block
-                print(f"[PlanScanner] 1h block {block:02d}:00 — starting...")
+                logger.info("plan scanner 1h block %02d:00 starting", block)
                 scan_started_at = time.monotonic()
                 try:
+                    refresh_recipients()
                     loop = asyncio.get_event_loop()
                     symbols = await loop.run_in_executor(
                         None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"]
                     )
                     symbols = _scan_symbols(symbols)
-                    # Используем системный дефолт для автоалёртов (без депозита пользователя)
                     results = await loop.run_in_executor(
                         None,
                         lambda: sc.scan_all(
@@ -1256,12 +1191,13 @@ async def plan_scanner_loop():
                         if not st.should_send_alert(symbol, side, conf, plan):
                             continue
 
-                        signal_id = st.save_signal(plan, symbol, side, conf)
+                        signal_id = st.save_signal(plan, symbol, side, conf, source="scanner")
+                        delivered_count = 0
                         for chat_id in list(notifier.active_users):
                             try:
                                 user_id = int(chat_id)
                             except (TypeError, ValueError):
-                                user_id = 0
+                                continue
                             settings = st.get_user_settings(user_id)
                             saved_deposit = settings.get("deposit")
                             try:
@@ -1270,7 +1206,7 @@ async def plan_scanner_loop():
                                 saved_deposit = 0
                             uses_reference = saved_deposit <= 0
                             deposit = SCAN_REFERENCE_DEPOSIT if uses_reference else saved_deposit
-                            alert = _fmt_auto_alert(
+                            alert = render_auto_alert(
                                 plan,
                                 symbol,
                                 side.upper(),
@@ -1278,15 +1214,18 @@ async def plan_scanner_loop():
                                 deposit=deposit,
                                 risk_pct=settings.get("risk_pct", TRADE_CFG["default_risk_pct"]),
                                 leverage=settings.get("lev", TRADE_CFG["default_lev"]),
+                                lang=get_lang(user_id),
                                 uses_reference_deposit=uses_reference,
                             )
-                            delivered = await notifier.send_message_to_user(chat_id, alert)
-                            if delivered and signal_id:
-                                st.grant_signal_access(user_id, signal_id)
-                        st.mark_sent(symbol, side, conf, plan)
-                        sent += 1
+                            if await notifier.send_message_to_user(chat_id, alert):
+                                delivered_count += 1
+                                if signal_id:
+                                    st.grant_signal_access(user_id, signal_id)
+                        if st.should_persist_sent_marker(delivered_count):
+                            st.mark_sent(symbol, side, conf, plan)
+                            sent += 1
                         await asyncio.sleep(0.5)
-                    print(f"[PlanScanner] Done: {len(results)} scanned, {sent} alerts sent")
+                    logger.info("plan scanner done: scanned=%s alerts=%s", len(results), sent)
                     st.record_runtime_health(
                         "plan_scanner",
                         success=True,
@@ -1306,12 +1245,12 @@ async def plan_scanner_loop():
                         duration_seconds=time.monotonic() - scan_started_at,
                         details={"error": type(e).__name__},
                     )
-                    print(f"[PlanScanner] Error: {e}")
+                    logger.warning("plan scanner error: %s", type(e).__name__)
 
         except asyncio.CancelledError:
             break
-        except Exception as e:
-            print(f"plan_scanner_loop error: {e}")
+        except Exception as exc:
+            logger.warning("plan_scanner_loop error: %s", type(exc).__name__)
 
         await asyncio.sleep(60)
 
@@ -1331,8 +1270,8 @@ async def listing_watcher_loop():
             await asyncio.sleep(MEXC_LISTING_CHECK_INTERVAL)
         except asyncio.CancelledError:
             break
-        except Exception as e:
-            print(f"listing_watcher_loop error: {e}")
+        except Exception as exc:
+            logger.warning("listing_watcher_loop error: %s", type(exc).__name__)
             await asyncio.sleep(60)
 
 # ═══════════════════════════════════════════
@@ -1344,9 +1283,20 @@ async def main():
         level=os.getenv("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    print("UCB_TRADING_BOT — unified system starting...")
-    dp = Dispatcher()
+    database_url = os.getenv("DATABASE_URL", "")
+    apply_migrations(database_url)
+    refresh_recipients()
+    lock = hold_worker_lock(database_url)
+    if lock is False:
+        raise SystemExit(1)
+    storage = PostgresFSMStorage(database_url) if database_url else MemoryStorage()
+    dp = Dispatcher(storage=storage)
     dp.include_router(router)
+    try:
+        await bot_instance.set_my_commands(menu_commands())
+    except Exception:
+        logger.warning("set_my_commands failed")
+    logger.info("UCB_TRADING_BOT starting")
     t1 = asyncio.create_task(market_scanner_loop())
     t2 = asyncio.create_task(plan_scanner_loop())
     t3 = asyncio.create_task(listing_watcher_loop())
@@ -1356,6 +1306,8 @@ async def main():
         t1.cancel(); t2.cancel(); t3.cancel()
         await exchange.close()
         await notifier.close()
+        if lock is not None:
+            lock.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

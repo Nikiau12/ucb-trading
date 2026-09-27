@@ -163,13 +163,19 @@ def test_security_headers_are_present(demo_client):
     assert response.headers["referrer-policy"] == "no-referrer"
 
 
-def test_health_and_prometheus_metrics_are_available(demo_client):
+def test_health_and_prometheus_metrics_are_available(demo_client, monkeypatch):
+    monkeypatch.setenv("METRICS_TOKEN", "metrics-secret")
     health = demo_client.get("/health")
     demo_client.get("/api/me")
     metrics = demo_client.get("/metrics")
 
     assert health.status_code == 200
-    assert health.json() == {"ok": True, "database": False, "mode": "demo", "scanner": None}
+    assert health.json() == {"ok": True}
+    assert metrics.status_code == 401
+    metrics = demo_client.get(
+        "/metrics",
+        headers={"Authorization": "Bearer metrics-secret"},
+    )
     assert metrics.status_code == 200
     assert "ucb_app_uptime_seconds" in metrics.text
     assert 'path="/api/me",status="200"' in metrics.text
@@ -186,6 +192,24 @@ def test_health_returns_503_when_production_database_is_unavailable(monkeypatch)
     response = miniapp.health()
 
     assert response.status_code == 503
+    assert json.loads(response.body) == {"ok": False}
+
+
+def test_signed_session_without_database_returns_503(monkeypatch):
+    token = "123456:test-token"
+    user = {"id": 42, "first_name": "Nikita", "language_code": "en"}
+    monkeypatch.setattr(miniapp, "BOT_TOKEN", token)
+    monkeypatch.setattr(miniapp, "DATABASE_URL", "")
+    monkeypatch.setattr(miniapp, "DEMO_MODE", True)
+    init_data = _signed_init_data(token, user)
+    with TestClient(miniapp.app) as client:
+        profile = client.get("/api/me", headers={"X-Telegram-Init-Data": init_data})
+        signals = client.get("/api/signals", headers={"X-Telegram-Init-Data": init_data})
+
+    assert profile.status_code == 503
+    assert signals.status_code == 503
+    assert "400.0" not in profile.text
+    assert "BTC_USDT" not in signals.text
 
 
 @pytest.mark.parametrize(

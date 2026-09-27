@@ -77,9 +77,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>conf</code>    — уверенность алгоритма (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>РАСПИСАНИЕ (UTC)</b>\n"
-            "Автосканирование: 00:05 / 04:05 / 08:05\n"
-            "                  12:05 / 16:05 / 20:05\n"
-            "Дайджест: {digest_hour}:00 ежедневно\n\n"
+            "Сканер планов: каждый час, с 5-й минуты.\n"
+            "Дайджест: только по команде /digest, без отдельного расписания.\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>ВАЖНО</b>\n"
             "Бот предоставляет аналитику, а не торговые сигналы.\n"
@@ -232,9 +231,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>conf</code>    — algorithm confidence (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>SCHEDULE (UTC)</b>\n"
-            "Auto-scan: 00:05 / 04:05 / 08:05\n"
-            "           12:05 / 16:05 / 20:05\n"
-            "Digest: {digest_hour}:00 daily\n\n"
+            "Plan scanner: every hour, starting at minute 05.\n"
+            "Digest: only when you send /digest. There is no daily schedule.\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>DISCLAIMER</b>\n"
             "The bot provides analytics, not trading signals.\n"
@@ -386,9 +384,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>conf</code>    — Algorithmus-Konfidenz (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>ZEITPLAN (UTC)</b>\n"
-            "Auto-Scan: 00:05 / 04:05 / 08:05\n"
-            "           12:05 / 16:05 / 20:05\n"
-            "Digest: {digest_hour}:00 täglich\n\n"
+            "Plan-Scanner: jede Stunde, ab Minute 05.\n"
+            "Digest: nur auf /digest. Es gibt keinen täglichen Zeitplan.\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>HINWEIS</b>\n"
             "Der Bot liefert Analysen, keine Handelssignale.\n"
@@ -540,9 +537,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>conf</code>    — confiance de l'algorithme (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>PLANNING (UTC)</b>\n"
-            "Scan auto : 00:05 / 04:05 / 08:05\n"
-            "            12:05 / 16:05 / 20:05\n"
-            "Digest : {digest_hour}:00 quotidiennement\n\n"
+            "Scanner de plans : chaque heure, à partir de la minute 05.\n"
+            "Digest : uniquement via /digest. Pas de planning quotidien.\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>AVERTISSEMENT</b>\n"
             "Le bot fournit des analyses, pas des signaux de trading.\n"
@@ -694,9 +690,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>conf</code>    — confianza del algoritmo (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>HORARIO (UTC)</b>\n"
-            "Escaneo auto: 00:05 / 04:05 / 08:05\n"
-            "              12:05 / 16:05 / 20:05\n"
-            "Digest: {digest_hour}:00 diariamente\n\n"
+            "Escáner de planes: cada hora, desde el minuto 05.\n"
+            "Digest: solo con /digest. No hay un horario diario.\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>AVISO</b>\n"
             "El bot proporciona análisis, no señales de trading.\n"
@@ -792,7 +787,8 @@ STRINGS["ru"].update({
         "1️⃣ Открой любую биржу или кошелёк (Binance, OKX, Trust Wallet…)\n"
         "2️⃣ Отправь <b>{amount} USDT</b> сетью <b>{network}</b> на адрес:\n"
         "<code>{wallet}</code>\n"
-        "⚠️ Только сеть TRC20 (TRON) — не ERC20 и не BEP20!\n\n"
+        "⚠️ Только сеть TRC20 (TRON) — не ERC20 и не BEP20!\n"
+        "Сумма уникальна для твоего счёта — отправь её точно.\n\n"
         "3️⃣ Скопируй хеш транзакции (TX Hash / TXID) и отправь:\n"
         "<code>/paid ВАШ_TX_HASH</code>\n\n"
         "Бот проверит перевод и активирует доступ автоматически (~1–2 мин).\n\n"
@@ -806,7 +802,7 @@ STRINGS["ru"].update({
     "payment_tx_used": "❌ Этот TX-хеш уже использован для другой подписки.",
     "payment_invalid_hash": "❌ Неверный TX-хеш. Он должен содержать 64 символа.",
     "payment_not_found": "⏳ Подтверждённый перевод пока не найден. Проверь сеть, адрес и TX-хеш, затем повтори /paid через несколько минут.",
-    "payment_amount_low": "❌ Получено {paid} USDT, требуется минимум {required} USDT.",
+    "payment_amount_low": "❌ Получено {paid} USDT, для этого счёта нужно ровно {required} USDT.",
     "payment_verify_error": "⚠️ Сервис проверки временно недоступен. Попробуй /paid ещё раз через несколько минут.",
     "payment_approved": "✅ Оплата подтверждена. Доступ активирован на <b>{days} дней</b>, до <b>{until}</b>.",
     "status_active": "✅ Оплачено до: <b>{until}</b>",
@@ -823,7 +819,8 @@ STRINGS["en"].update({
         "1️⃣ Open any exchange or wallet (Binance, OKX, Trust Wallet…)\n"
         "2️⃣ Send <b>{amount} USDT</b> via <b>{network}</b> to:\n"
         "<code>{wallet}</code>\n"
-        "⚠️ TRC20 (TRON) network only — not ERC20 or BEP20!\n\n"
+        "⚠️ TRC20 (TRON) network only — not ERC20 or BEP20!\n"
+        "This amount is unique to your invoice — send it exactly.\n\n"
         "3️⃣ Copy the transaction hash (TX Hash / TXID) and send:\n"
         "<code>/paid YOUR_TX_HASH</code>\n\n"
         "The bot verifies the transfer and activates access automatically (~1–2 min).\n\n"
@@ -837,7 +834,7 @@ STRINGS["en"].update({
     "payment_tx_used": "❌ This transaction hash has already been used for another subscription.",
     "payment_invalid_hash": "❌ Invalid transaction hash. It must contain 64 characters.",
     "payment_not_found": "⏳ Confirmed payment not found yet. Check the network, wallet and hash, then retry /paid in a few minutes.",
-    "payment_amount_low": "❌ Received {paid} USDT; at least {required} USDT is required.",
+    "payment_amount_low": "❌ Received {paid} USDT; this invoice requires exactly {required} USDT.",
     "payment_verify_error": "⚠️ The verification service is temporarily unavailable. Retry /paid in a few minutes.",
     "payment_approved": "✅ Payment confirmed. Access is active for <b>{days} days</b>, until <b>{until}</b>.",
     "status_active": "✅ Paid until: <b>{until}</b>",
@@ -851,6 +848,7 @@ STRINGS["de"].update({
         "🔒 <b>Deine kostenlosen Signale sind aufgebraucht</b>\n\n"
         "Zugang für <b>{days} Tage</b>: <b>{amount} USDT</b>.\n"
         "Netzwerk: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
+        "Dieser Betrag ist nur für deine Rechnung. Sende ihn exakt.\n"
         "Nach der Zahlung sende:\n<code>/paid TX_HASH</code>\n\n"
         "Der Bot prüft die Transaktion und aktiviert den Zugang automatisch."
     ),
@@ -862,7 +860,7 @@ STRINGS["de"].update({
     "payment_tx_used": "❌ Dieser Transaktions-Hash wurde bereits verwendet.",
     "payment_invalid_hash": "❌ Ungültiger Transaktions-Hash. Er muss 64 Zeichen enthalten.",
     "payment_not_found": "⏳ Bestätigte Zahlung noch nicht gefunden. Prüfe Netzwerk, Wallet und Hash und versuche /paid später erneut.",
-    "payment_amount_low": "❌ Erhalten: {paid} USDT; erforderlich: mindestens {required} USDT.",
+    "payment_amount_low": "❌ Erhalten: {paid} USDT; diese Rechnung verlangt genau {required} USDT.",
     "payment_verify_error": "⚠️ Der Prüfdienst ist vorübergehend nicht verfügbar. Versuche /paid später erneut.",
     "payment_approved": "✅ Zahlung bestätigt. Zugang für <b>{days} Tage</b> bis <b>{until}</b> aktiviert.",
     "status_active": "✅ Bezahlt bis: <b>{until}</b>",
@@ -876,6 +874,7 @@ STRINGS["fr"].update({
         "🔒 <b>Tes signaux gratuits sont épuisés</b>\n\n"
         "Accès pendant <b>{days} jours</b> : <b>{amount} USDT</b>.\n"
         "Réseau : <b>{network}</b>\nPortefeuille :\n<code>{wallet}</code>\n\n"
+        "Ce montant est unique pour ta facture : envoie-le exactement.\n"
         "Après le paiement, envoie :\n<code>/paid TX_HASH</code>\n\n"
         "Le bot vérifiera la transaction et activera automatiquement l'accès."
     ),
@@ -887,7 +886,7 @@ STRINGS["fr"].update({
     "payment_tx_used": "❌ Ce hash de transaction a déjà été utilisé.",
     "payment_invalid_hash": "❌ Hash incorrect. Il doit contenir 64 caractères.",
     "payment_not_found": "⏳ Paiement confirmé introuvable. Vérifie le réseau, le portefeuille et le hash, puis réessaie /paid.",
-    "payment_amount_low": "❌ Reçu : {paid} USDT ; minimum requis : {required} USDT.",
+    "payment_amount_low": "❌ Reçu : {paid} USDT ; cette facture exige exactement {required} USDT.",
     "payment_verify_error": "⚠️ Le service de vérification est indisponible. Réessaie /paid dans quelques minutes.",
     "payment_approved": "✅ Paiement confirmé. Accès activé pendant <b>{days} jours</b>, jusqu'au <b>{until}</b>.",
     "status_active": "✅ Payé jusqu'au : <b>{until}</b>",
@@ -901,6 +900,7 @@ STRINGS["es"].update({
         "🔒 <b>Tus señales gratuitas se han agotado</b>\n\n"
         "Acceso durante <b>{days} días</b>: <b>{amount} USDT</b>.\n"
         "Red: <b>{network}</b>\nBilletera:\n<code>{wallet}</code>\n\n"
+        "Este importe es único para tu factura: envíalo exacto.\n"
         "Después del pago, envía:\n<code>/paid TX_HASH</code>\n\n"
         "El bot verificará la transacción y activará el acceso automáticamente."
     ),
@@ -912,7 +912,7 @@ STRINGS["es"].update({
     "payment_tx_used": "❌ Este hash de transacción ya fue utilizado.",
     "payment_invalid_hash": "❌ Hash incorrecto. Debe contener 64 caracteres.",
     "payment_not_found": "⏳ Aún no se encontró el pago confirmado. Revisa la red, la billetera y el hash, y repite /paid.",
-    "payment_amount_low": "❌ Recibido: {paid} USDT; se requieren al menos {required} USDT.",
+    "payment_amount_low": "❌ Recibido: {paid} USDT; esta factura exige exactamente {required} USDT.",
     "payment_verify_error": "⚠️ El servicio de verificación no está disponible. Repite /paid en unos minutos.",
     "payment_approved": "✅ Pago confirmado. Acceso activado durante <b>{days} días</b>, hasta <b>{until}</b>.",
     "status_active": "✅ Pagado hasta: <b>{until}</b>",
@@ -922,7 +922,22 @@ STRINGS["es"].update({
 })
 
 
+try:
+    from .alert_strings import ALERT_STRINGS
+except ImportError:
+    from alert_strings import ALERT_STRINGS
+
+for _lang, _extra in ALERT_STRINGS.items():
+    STRINGS.setdefault(_lang, {}).update(_extra)
+
+
 def t(lang: str, key: str, **kwargs: Any) -> str:
     lang_strings = STRINGS.get(lang, STRINGS["en"])
     text = lang_strings.get(key) or STRINGS["en"].get(key, key)
-    return text.format(**kwargs) if kwargs else text
+    if not kwargs:
+        return text
+    safe = {
+        name: str(value).replace("{", "{{").replace("}", "}}")
+        for name, value in kwargs.items()
+    }
+    return text.format(**safe)

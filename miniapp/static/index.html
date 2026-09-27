@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#090b10">
   <title>UCB Trading</title>
   <link rel="stylesheet" href="/static/styles.css?v=20260803-2">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
 </head>
@@ -43,7 +43,7 @@
 
         <section class="trial-paywall" id="overview-paywall" hidden>
           <div class="paywall-copy"><span class="paywall-icon"><i data-lucide="lock-keyhole"></i></span><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="trialComplete">Free trial completed</h2><p data-i18n="trialCompleteCopy">You used 5 free signals. Subscribe to continue receiving new setups.</p></div></div>
-          <div class="paywall-action"><strong>29.99 <small>USDT / 30d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
+          <div class="paywall-action"><strong><span class="subscription-price">—</span> <small>USDT / <span class="subscription-days">—</span>d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
         </section>
 
         <section class="chart-section">
@@ -76,7 +76,7 @@
         <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
         <section class="trial-paywall compact" id="signals-paywall" hidden>
           <div class="paywall-copy"><span class="paywall-icon"><i data-lucide="lock-keyhole"></i></span><div><h2 data-i18n="trialComplete">Free trial completed</h2><p data-i18n="trialCompleteCopy">You used 5 free signals. Subscribe to continue receiving new setups.</p></div></div>
-          <div class="paywall-action"><strong>29.99 <small>USDT / 30d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
+          <div class="paywall-action"><strong><span class="subscription-price">—</span> <small>USDT / <span class="subscription-days">—</span>d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
         </section>
         <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <div id="signal-history" class="signal-list full"></div>
@@ -122,7 +122,7 @@
           <button class="primary-button" type="submit"><i data-lucide="save"></i><span data-i18n="saveSettings">Save settings</span></button>
           <p class="form-status" id="form-status" role="status"></p>
         </form>
-        <section class="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="monthlyAccess">Monthly access</h2><p data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price"><strong>29.99</strong><span>USDT / 30d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
+        <section class="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="monthlyAccess">Monthly access</h2><p data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price"><strong class="subscription-price">—</strong><span>USDT / <span class="subscription-days">—</span>d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
       </section>
     </main>
 

@@ -74,6 +74,10 @@ function renderProfile(){
   $('#access-metric').textContent=paid?tr('active'):paywalled?tr('inactive'):tr('trial');
   $('#access-detail').textContent=paid?new Date(profile.paid_until).toLocaleDateString(language):`${profile.trial_left} ${tr('signalsLeft')}`;
   document.querySelectorAll('.trial-paywall').forEach(element=>element.hidden=!paywalled);
+  const price=profile.payment_amount_usdt||profile.subscription_price_usdt||'—';
+  const days=profile.subscription_days??'—';
+  document.querySelectorAll('.subscription-price').forEach(node=>{node.textContent=price;});
+  document.querySelectorAll('.subscription-days').forEach(node=>{node.textContent=days;});
 }
 
 function signalMetrics(signal){

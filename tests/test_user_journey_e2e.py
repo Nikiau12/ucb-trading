@@ -93,7 +93,6 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     manager.trial_cooldown_seconds = 0
 
     monkeypatch.setattr(bot, "access_manager", manager)
-    monkeypatch.setattr(bot, "save_user", lambda _chat_id: True)
     monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: dict(settings))
     monkeypatch.setattr(bot.st, "set_user_lang", lambda _user_id, value: settings.update(language=value))
     monkeypatch.setattr(bot.st, "set_user_setting", lambda _user_id, key, value: settings.update({key: value}))
@@ -134,8 +133,8 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
 
         paid = FakeMessage("/paid " + "a" * 64)
         await bot.cmd_paid(paid)
-        assert manager.status("4242")["has_paid_access"] is True
-        assert manager.status("4242")["payment_claim"]["status"] == "approved"
+        assert manager.status("4242")["has_paid_access"] is False
+        assert any("invoice" in message.text.lower() for message in paid.replies)
 
         status = FakeMessage("/status")
         await bot.cmd_status(status)
