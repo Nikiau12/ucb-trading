@@ -633,22 +633,41 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
 
 
-@router.callback_query(lambda c: c.data.startswith("lang_"))
+async def _continue_after_language(callback: types.CallbackQuery, text: str, markup: InlineKeyboardMarkup) -> None:
+    """Show the one next step. A failed edit must not leave the language screen in place."""
+    message = callback.message
+    if message is not None:
+        try:
+            await message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        except Exception:
+            logger.warning("language step edit failed")
+            try:
+                await message.reply(text, parse_mode="HTML", reply_markup=markup)
+            except Exception:
+                logger.warning("language step reply failed")
+    try:
+        await callback.answer()
+    except Exception:
+        logger.warning("callback answer failed")
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("lang_"))
 async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext):
-    lang = callback.data.split("_")[1]
+    lang = callback.data.split("_", 1)[1]
     st.set_user_lang(callback.from_user.id, lang)
     settings = st.get_user_settings(callback.from_user.id)
     if not settings.get("deposit"):
-        text = _t(lang, "deposit_prompt")
-        markup = None
         await state.set_state(DepositSetup.waiting_for_amount)
+        text = _t(lang, "deposit_prompt")
+        markup = InlineKeyboardMarkup(inline_keyboard=[])
     else:
         notifier.active_users.add(str(callback.from_user.id))
+        await state.clear()
         text = _ready_text(lang, settings.get("deposit"), settings.get("risk_pct"))
         markup = _ready_keyboard(lang)
+    await _continue_after_language(callback, text, markup)
     await _set_user_commands(callback.from_user.id, lang)
     await _set_panel_menu(callback.from_user.id, lang)
-    await _finish_callback(callback, text, parse_mode="HTML", reply_markup=markup)
 
 
 @router.callback_query(F.data == "set_deposit")
