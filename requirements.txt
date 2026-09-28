@@ -1,5 +1,5 @@
 pandas==2.3.3
-numpy==1.26.4
+numpy==2.5.1
 ccxt==4.5.64
 aiogram==3.30.0
 aiohttp==3.14.3
