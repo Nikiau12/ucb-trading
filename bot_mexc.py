@@ -312,6 +312,16 @@ def _webapp_button(lang: str, label_key: str, url: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(text=_t(lang, label_key), web_app=WebAppInfo(url=url))
 
 
+def _no_setup_keyboard(lang: str) -> InlineKeyboardMarkup:
+    if MINI_APP_URL:
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            _webapp_button(lang, "open_setup", MINI_APP_URL)
+        ]])
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=_t(lang, "another_symbol"), callback_data="another_symbol")
+    ]])
+
+
 def _open_setup_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup | None:
     if not MINI_APP_URL or not signal_id:
         return None
@@ -717,6 +727,17 @@ async def handle_alert_later(callback: types.CallbackQuery):
     await _finish_callback(callback)
 
 
+@router.callback_query(F.data == "another_symbol")
+async def handle_another_symbol(callback: types.CallbackQuery):
+    lang = get_lang(callback.from_user.id)
+    try:
+        if callback.message is not None:
+            await callback.message.reply(_t(lang, "another_symbol_prompt"), parse_mode="HTML")
+    except Exception:
+        logger.warning("another symbol prompt failed")
+    await _finish_callback(callback)
+
+
 @router.callback_query(F.data.startswith("plan_for:"))
 async def handle_plan_for(callback: types.CallbackQuery):
     await _finish_callback(callback)
@@ -952,6 +973,7 @@ async def cmd_plan(message: types.Message):
         plan     = core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
         side = str((plan.get("primary") or {}).get("side", "skip")).upper()
         signal_id = None
+        markup = _no_setup_keyboard(lang)
         if side == "SKIP":
             text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
         else:
@@ -961,10 +983,11 @@ async def cmd_plan(message: types.Message):
             signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
             if signal_id:
                 st.grant_signal_access(uid, signal_id)
+            markup = _open_setup_keyboard(signal_id, lang)
         await status_msg.edit_text(
             text,
             parse_mode="HTML",
-            reply_markup=_open_setup_keyboard(signal_id, lang),
+            reply_markup=markup,
         )
         if side != "SKIP":
             debit_trial(user_id, mode)
