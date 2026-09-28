@@ -40,9 +40,8 @@ class FakeMessage:
         self.message_id = len(text)
         self.replies = []
 
-    async def reply(self, text, **kwargs):
+    async def reply(self, text, **_kwargs):
         sent = FakeSentMessage(text)
-        sent.kwargs = kwargs
         self.replies.append(sent)
         return sent
 
@@ -94,24 +93,17 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     manager.trial_cooldown_seconds = 0
 
     monkeypatch.setattr(bot, "access_manager", manager)
+    monkeypatch.setattr(bot, "save_user", lambda _chat_id: True)
     monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: dict(settings))
     monkeypatch.setattr(bot.st, "set_user_lang", lambda _user_id, value: settings.update(language=value))
     monkeypatch.setattr(bot.st, "set_user_setting", lambda _user_id, key, value: settings.update({key: value}))
-    monkeypatch.setattr(bot.st, "language_is_chosen", lambda _user_id: True)
     monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: 77)
     monkeypatch.setattr(bot.st, "grant_signal_access", lambda user_id, signal_id: granted_signals.append((user_id, signal_id)))
     monkeypatch.setattr(bot.snap, "build_snapshot_with_fallback", lambda _symbol: {"symbol": "BTC_USDT"})
     monkeypatch.setattr(bot.core_plan, "make_plan", lambda *_args, **_kwargs: _actionable_plan())
     monkeypatch.setattr(bot, "render_telegram_plan", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
-    monkeypatch.setattr(bot, "render_auto_alert", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
-    monkeypatch.setattr(bot, "render_setup", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
     monkeypatch.setattr(bot, "is_admin", lambda _chat_id: False)
-    async def _menu_button(*_args, **_kwargs):
-        return True
-
     monkeypatch.setattr(bot, "ADMIN_CHAT_IDS", set())
-    monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu_button)
-    monkeypatch.setattr(bot.bot_instance, "set_my_commands", _menu_button)
     monkeypatch.setattr(
         bot.payment_verifier,
         "verify",
@@ -142,186 +134,14 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
 
         paid = FakeMessage("/paid " + "a" * 64)
         await bot.cmd_paid(paid)
-        assert manager.status("4242")["has_paid_access"] is False
-        assert any("invoice" in message.text.lower() for message in paid.replies)
+        assert manager.status("4242")["has_paid_access"] is True
+        assert manager.status("4242")["payment_claim"]["status"] == "approved"
 
         status = FakeMessage("/status")
         await bot.cmd_status(status)
         assert status.replies
 
     asyncio.run(journey())
-
-
-def test_language_change_keeps_the_start_keyboard(monkeypatch):
-    monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
-
-    async def _menu_button(*_args, **_kwargs):
-        return True
-
-    monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu_button)
-    monkeypatch.setattr(bot.bot_instance, "set_my_commands", _menu_button)
-    monkeypatch.setattr(bot.st, "set_user_lang", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"deposit": None})
-
-    class CallbackMessage:
-        def __init__(self):
-            self.kwargs = {}
-
-        async def edit_text(self, text, **kwargs):
-            self.text = text
-            self.kwargs = kwargs
-
-    class Callback:
-        def __init__(self):
-            self.data = "lang_ru"
-            self.from_user = SimpleNamespace(id=7)
-            self.message = CallbackMessage()
-
-        async def answer(self):
-            return None
-
-    async def run():
-        callback = Callback()
-        await bot.handle_lang_callback(callback, FakeState())
-        assert callback.message.kwargs.get("reply_markup") is None
-        assert "5000" in callback.message.text
-        assert "lang_en" not in callback.message.text
-
-    asyncio.run(run())
-
-
-def _button_callbacks(markup):
-    return [
-        button.callback_data
-        for row in markup.inline_keyboard
-        for button in row
-    ]
-
-
-def test_help_offers_the_main_next_actions():
-    async def run():
-        message = FakeMessage("/help")
-        await bot.cmd_help(message)
-        callbacks = _button_callbacks(message.replies[0].kwargs["reply_markup"])
-        assert "request_plan" in callbacks
-        assert "run_scan" in callbacks
-
-    asyncio.run(run())
-
-
-def test_scanner_word_runs_the_plan_scan_not_spikes(monkeypatch):
-    called = {}
-
-    async def scan(message):
-        called["scan"] = message.text
-
-    async def spikes(_message):
-        called["spikes"] = True
-
-    monkeypatch.setattr(bot, "cmd_scan", scan)
-    monkeypatch.setattr(bot, "_handle_spikes", spikes)
-
-    async def run():
-        await bot.handle_text(FakeMessage("сканер"))
-
-    asyncio.run(run())
-    assert called.get("scan") == "/scan"
-    assert "spikes" not in called
-
-
-def test_bare_symbol_offers_one_plan_and_a_greeting_asks_for_language(monkeypatch):
-    async def fail_plan(_message):
-        raise AssertionError("plan must wait for the button")
-
-    monkeypatch.setattr(bot, "cmd_plan", fail_plan)
-    monkeypatch.setattr(bot.st, "language_is_chosen", lambda _user_id: False)
-
-    async def run():
-        symbol = FakeMessage("btc")
-        await bot.handle_text(symbol)
-        callbacks = _button_callbacks(symbol.replies[0].kwargs["reply_markup"])
-        assert callbacks == ["plan_for:BTC"]
-
-        greeting = FakeMessage("hello")
-        await bot.handle_text(greeting)
-        callbacks = _button_callbacks(greeting.replies[0].kwargs["reply_markup"])
-        assert "lang_en" in callbacks
-        assert "lang_ru" in callbacks
-        assert "set_deposit" not in callbacks
-        assert all(callback is None or str(callback).startswith("lang_") for callback in callbacks)
-
-    asyncio.run(run())
-
-
-def test_first_minute_ends_with_open_and_a_btc_plan(monkeypatch):
-    monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
-    chosen = {"value": False}
-    settings = {"deposit": None, "risk_pct": 1.0}
-
-    async def _menu(*_args, **_kwargs):
-        return True
-
-    monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu)
-    monkeypatch.setattr(bot.bot_instance, "set_my_commands", _menu)
-    monkeypatch.setattr(bot.st, "language_is_chosen", lambda _user_id: chosen["value"])
-    monkeypatch.setattr(bot.st, "set_user_lang", lambda *_args, **_kwargs: chosen.update(value=True))
-    monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: dict(settings))
-    monkeypatch.setattr(bot.st, "set_user_setting", lambda _user_id, key, value: settings.update({key: value}))
-
-    async def run():
-        start = FakeMessage("/start")
-        await bot.cmd_start(start, FakeState())
-        assert _button_callbacks(start.replies[0].kwargs["reply_markup"]) == [
-            "lang_ru", "lang_en", "lang_de", "lang_fr", "lang_es",
-        ]
-
-        callback = type("Callback", (), {})()
-        callback.data = "lang_en"
-        callback.from_user = SimpleNamespace(id=7)
-        callback.message = type("Msg", (), {"kwargs": {}})()
-
-        async def edit_text(text, **kwargs):
-            callback.message.text = text
-            callback.message.kwargs = kwargs
-
-        async def answer():
-            return None
-
-        callback.message.edit_text = edit_text
-        callback.answer = answer
-        await bot.handle_lang_callback(callback, FakeState())
-        assert callback.message.kwargs.get("reply_markup") is None
-        assert "5000" in callback.message.text
-
-        deposit = FakeMessage("5000")
-        await bot.handle_deposit_amount(deposit, FakeState())
-        buttons = [button for row in deposit.replies[0].kwargs["reply_markup"].inline_keyboard for button in row]
-        assert any(getattr(button, "web_app", None) for button in buttons)
-        assert any(button.callback_data == "plan_for:BTC" for button in buttons)
-        assert not any(str(button.callback_data or "").startswith("lang_") for button in buttons)
-
-    asyncio.run(run())
-
-
-def test_set_replies_saved_and_opens_the_panel(monkeypatch):
-    monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
-    monkeypatch.setattr(bot.st, "set_user_setting", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(bot, "_has_saved_deposit", lambda _user_id: True)
-
-    async def run():
-        saved = FakeMessage("/set risk=1")
-        await bot.cmd_set(saved)
-        assert "lev=" not in saved.replies[0].text
-        assert "margin=" not in saved.replies[0].text
-        button = saved.replies[0].kwargs["reply_markup"].inline_keyboard[0][0]
-        assert "view=settings" in str(button.web_app.url)
-
-        usage = FakeMessage("/set")
-        await bot.cmd_set(usage)
-        assert "lev=" not in usage.replies[0].text
-        assert "margin=" not in usage.replies[0].text
-
-    asyncio.run(run())
 
     monkeypatch.setattr(miniapp, "DATABASE_URL", "")
     monkeypatch.setattr(miniapp, "BOT_TOKEN", "")

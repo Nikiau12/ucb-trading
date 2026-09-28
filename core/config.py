@@ -7,11 +7,16 @@ load_dotenv()
 MEXC_API_KEY = os.getenv("MEXC_API_KEY", "")
 MEXC_API_SECRET = os.getenv("MEXC_API_SECRET", "")
 
+# BingX API Credentials (Bot 2 - AutoTrading)
+BINGX_API_KEY = os.getenv("BINGX_API_KEY", "")
+BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "")
+
+# AutoTrading Master Switch
+AUTO_TRADING_ENABLED = os.getenv("AUTO_TRADING_ENABLED", "False").lower() in ('true', '1', 't')
+
 # Telegram Bot Credentials
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-# Values are Telegram user ids. The variable name is unchanged: in a private
-# chat the user id equals the chat id, so existing private-chat values still work.
 ADMIN_CHAT_IDS = {
     chat_id.strip()
     for chat_id in os.getenv("ADMIN_CHAT_IDS", TELEGRAM_CHAT_ID).split(",")
@@ -68,8 +73,26 @@ RISK_PER_TRADE_PERCENT = 1.0 # 1% of total balance per trade
 MAX_OPEN_POSITIONS = 3
 LEVERAGE = 10
 
+# BingX AutoTrader Risk Management
+BINGX_MAX_OPEN_POSITIONS = 5 # Strict limit on concurrent open trades
+BINGX_BTC_ETH_MARGIN_PER_ORDER = 3.34 # 3.34 USDT на каждый из 3 ордеров в сетке (Итого ~10$ на сделку)
+BINGX_MARGIN_PER_ORDER = 2.0 # 2 USDT жесткой маржи на каждый из 3 ордеров в сетке (Итого риск на сделку 6$)
+BINGX_ALTCOIN_MARGIN = 2.0 # 2.0 USDT margin for altcoins
+BINGX_ALTCOIN_V9_MIN_SCORE = 80 # Усиленный фильтр для альткоинов V9 >= 80
+BINGX_ALTCOIN_MIN_VOLUME = 30000000 # Ликвидность: > 30M USDT суточного объема
+BINGX_BTC_TREND_FILTER = True # Включить корреляцию с биткоином
+BINGX_MOVE_SL_TO_BREAKEVEN = True # Автоматический перевод Стоп-Лосса в точку входа при достижении 10% ROE
+BINGX_FALSE_BREAKOUT_MARGIN = 10.0 # СТРОГО: 10 USDT маржи на сделку
+BINGX_LEVERAGE = 15 # Плечо x15 обеспечивает минимальный объем сделки (1$ * 15 = 15$)
+BINGX_DAILY_LOSS_LIMIT = 15.0 # Если убыток за день больше 15$, бот прекращает открывать сделки до конца дня
+
 # BTC-only trade policy
 BTC_LONG_ONLY_MODE = False # Разрешаем и BTC-лонги, и BTC-шорты, но только по дневному тренду
 BTC_REQUIRE_DAILY_UPTREND = True # Лонги только если BTC выше дневной EMA200 и EMA20 > EMA50; шорты зеркально по медвежьему тренду
 BTC_MAX_DAILY_ATR_PCT = 0.045 # Не входить, если дневной ATR выше 4.5% цены
 BTC_MIN_RISK_REWARD = 1.8 # Минимальный плановый RR для BTC-сделки
+
+# Flag Pattern Scanner Settings
+FLAG_MIN_POLE_PERCENT = 3.0 # Минимальное падение/рост для флагштока (%)
+FLAG_MAX_RETRACEMENT = 0.5 # Максимальный откат по фибо (50% флагштока)
+FLAG_MARGIN_PER_TRADE = 10.0 # Маржа на одну сделку по флагу

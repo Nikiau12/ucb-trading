@@ -5,6 +5,14 @@ structured trade plans with personalized risk and position sizing.
 
 [Launch the bot](https://t.me/ucbtrading_bot)
 
+<p align="center">
+  <img src="docs/assets/ucb-mini-app-overview.jpg"
+       alt="UCB Trading Telegram Mini App overview"
+       width="390">
+</p>
+
+<p align="center"><em>Mini App overview rendered with representative demo data.</em></p>
+
 [Product walkthrough](docs/PRODUCT_WALKTHROUGH.md) ·
 [Evaluation report](docs/EVALUATION_REPORT.md) ·
 [Build timeline](docs/BUILD_TIMELINE.md) ·
@@ -98,11 +106,12 @@ runtime.
 - PostgreSQL-backed profiles, subscriptions, signal history, and per-user
   signal access.
 - Multi-timeframe fusion across `15m`, `1h`, `4h`, `1d`, and `1w`.
-- Market-regime, price-structure, momentum, SMC, and spike analysis.
+- Market-regime, price-structure, momentum, SMC, spike, flag, and false-breakout
+  analysis.
 - Persistent alert deduplication across deployments.
 - Per-user position sizing based on deposit, risk percentage, leverage, and
   margin mode.
-- Mini App demo data only when the page is opened without Telegram `initData`. A valid Telegram session with no database returns HTTP 503.
+- Graceful Mini App demo data when no production database is configured.
 - Responsive, multilingual Mini App built with browser-native JavaScript.
 
 ## Technology
@@ -191,8 +200,7 @@ The most important environment variables are:
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot API authentication |
 | `TELEGRAM_CHAT_ID` | Default notification/admin chat |
-| `ADMIN_CHAT_IDS` | Comma-separated Telegram user ids. The name is unchanged; in a private chat the user id equals the chat id |
-| `METRICS_TOKEN` | Secret required by `GET /metrics` (`Authorization: Bearer` or `X-Metrics-Token`) |
+| `ADMIN_CHAT_IDS` | Comma-separated admin chat IDs |
 | `MINI_APP_URL` | Public HTTPS URL of the Telegram Mini App |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `FREE_TRIAL_SIGNALS` | Signals available before the paywall |
