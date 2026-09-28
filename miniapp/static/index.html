@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
   <title>UCB Trading</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260803-2">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/styles.css?v=20260928-4">
+  <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -18,98 +17,51 @@
         <div><strong>UCB</strong><small>TRADING DESK</small></div>
       </div>
       <div class="top-actions">
-        <label class="sr-only" for="language">Language</label>
-        <select id="language" class="language-select" aria-label="Language">
-          <option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option>
-          <option value="fr">FR</option><option value="es">ES</option>
-        </select>
-        <button class="icon-button" id="refresh" aria-label="Refresh" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+        <button class="icon-button" id="refresh" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg></button>
       </div>
     </header>
 
     <main>
       <section class="view active" id="overview-view" data-view="overview">
-        <div class="page-heading">
-          <div><p class="eyebrow" data-i18n="workspace">PRIVATE WORKSPACE</p><h1><span data-i18n="hello">Hello</span>, <span id="first-name">Trader</span></h1><p class="page-subtitle" data-i18n="tagline">Setups, risk and execution — one screen.</p></div>
-          <div class="market-state"><span></span><b data-i18n="marketLive">MEXC LIVE</b></div>
+        <div id="plan-empty" class="empty-state" hidden>
+          <p data-i18n="noSignals">No signals yet</p>
+          <button type="button" class="primary-button empty-action" data-empty-action="plan" data-i18n="requestPlan">Request a plan</button>
         </div>
-
-        <div class="metrics-grid">
-          <article class="metric"><span data-i18n="deposit">Deposit</span><strong id="deposit-metric">—</strong><small>USDT</small></article>
-          <article class="metric"><span data-i18n="riskTrade">Risk / trade</span><strong id="risk-metric">—</strong><small>%</small></article>
-          <article class="metric"><span data-i18n="leverage">Leverage</span><strong id="leverage-metric">—</strong><small data-i18n="cross">CROSS</small></article>
-          <article class="metric subscription"><span data-i18n="access">Access</span><strong id="access-metric">—</strong><small id="access-detail"></small></article>
-        </div>
-
-        <section class="trial-paywall" id="overview-paywall" hidden>
-          <div class="paywall-copy"><span class="paywall-icon"><i data-lucide="lock-keyhole"></i></span><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="trialComplete">Free trial completed</h2><p data-i18n="trialCompleteCopy">You used 5 free signals. Subscribe to continue receiving new setups.</p></div></div>
-          <div class="paywall-action"><strong>29.99 <small>USDT / 30d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
-        </section>
-
-        <section class="chart-section">
-          <div class="section-toolbar">
-            <div class="symbol-title"><img id="coin-icon" src="https://assets.coincap.io/assets/icons/btc@2x.png" alt=""><div><strong id="chart-symbol">BTC / USDT</strong><span id="chart-price">—</span></div></div>
-            <div class="chart-options">
-              <div class="segmented" id="symbol-picker" aria-label="Market">
-                <button class="selected" data-symbol="BTC_USDT">BTC</button><button data-symbol="ETH_USDT">ETH</button><button data-symbol="SOL_USDT">SOL</button>
-              </div>
-              <div class="segmented timeframe-picker" id="overview-timeframe" aria-label="Timeframe">
-                <button data-timeframe="15m">15m</button><button class="selected" data-timeframe="1h">1h</button><button data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
+        <div id="plan-body">
+          <div class="plan-head">
+            <div class="plan-identity"><span class="side" id="plan-side">LONG</span><h1 id="plan-symbol">—</h1></div>
+            <b id="plan-price" class="plan-price">—</b>
+            <p id="plan-confidence" class="plan-confidence"></p>
+          </div>
+          <section class="chart-section">
+            <div class="section-toolbar">
+              <div class="symbol-title"><span class="coin-dot" id="plan-coin"></span><div><strong id="chart-symbol">—</strong><span id="chart-price">—</span></div></div>
+              <div class="chart-options">
+                <div class="segmented chart-controls" id="overview-timeframe" aria-label="Timeframe">
+                  <button data-timeframe="15m">15m</button><button data-timeframe="1h">1h</button><button class="selected" data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
+                </div>
               </div>
             </div>
-          </div>
-          <div id="chart" aria-label="Price chart"></div>
-          <div class="chart-readout" aria-label="Chart context">
-            <div><span>TREND</span><strong id="chart-trend">—</strong></div>
-            <div><span>SETUP</span><strong id="chart-setup">MARKET VIEW</strong></div>
-            <div><span>TIMEFRAME</span><strong id="chart-timeframe">1H</strong></div>
-          </div>
-        </section>
-
-        <section class="signals-preview">
-          <div class="section-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h2 data-i18n="latestSignals">Latest signals</h2></div><button class="text-button" data-go="signals"><span data-i18n="viewAll">View all</span><i data-lucide="arrow-right"></i></button></div>
-          <div id="signal-preview" class="signal-list"></div>
-        </section>
+            <div class="chart-frame loading" id="chart-frame">
+              <div class="chart-skeleton" id="chart-skeleton" aria-hidden="true"></div>
+              <div id="chart" aria-label="Price chart"></div>
+            </div>
+            <div class="chart-readout" aria-label="Chart context">
+              <div><span data-i18n="regimeLabel">REGIME</span><strong id="chart-regime">—</strong></div>
+              <div><span data-i18n="timeframeLabel">TIMEFRAME</span><strong id="chart-timeframe">4H</strong></div>
+            </div>
+          </section>
+          <p class="sizing-caveat" id="plan-caveat" hidden></p>
+          <div class="plan-numbers" id="plan-numbers"></div>
+          <p id="plan-reason" class="plan-reason"></p>
+          <p class="plan-disclaimer" data-i18n="sizeDisclaimer">The bot calculates the size. You place the order.</p>
+        </div>
       </section>
 
       <section class="view" id="signals-view" data-view="signals">
         <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
-        <section class="trial-paywall compact" id="signals-paywall" hidden>
-          <div class="paywall-copy"><span class="paywall-icon"><i data-lucide="lock-keyhole"></i></span><div><h2 data-i18n="trialComplete">Free trial completed</h2><p data-i18n="trialCompleteCopy">You used 5 free signals. Subscribe to continue receiving new setups.</p></div></div>
-          <div class="paywall-action"><strong>29.99 <small>USDT / 30d</small></strong><button type="button" class="primary-button paywall-button"><i data-lucide="unlock-keyhole"></i><span data-i18n="unlockSignals">Unlock signals</span></button></div>
-        </section>
         <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <div id="signal-history" class="signal-list full"></div>
-      </section>
-
-      <section class="view signal-detail-view" id="signal-detail-view" data-view="signal-detail">
-        <button class="back-button" id="signal-back"><i data-lucide="arrow-left"></i><span data-i18n="backToSignals">Back to signals</span></button>
-        <div class="detail-heading">
-          <div class="detail-identity"><span class="coin-dot large" id="detail-coin"><span class="coin-fallback">BT</span><img src="https://assets.coincap.io/assets/icons/btc@2x.png" alt="" loading="lazy"></span><div><p class="eyebrow" data-i18n="tradeSetup">TRADE SETUP</p><h1 id="detail-symbol">BTC / USDT</h1><small id="detail-date"></small></div></div>
-          <div class="detail-status"><span class="side" id="detail-side">LONG</span><b id="detail-confidence">78%</b><small data-i18n="confidence">Confidence</small></div>
-        </div>
-
-        <section class="chart-section detail-chart-section">
-          <div class="detail-chart-toolbar">
-            <div><span data-i18n="livePrice">LIVE PRICE</span><strong id="detail-live-price">—</strong><small id="detail-price-change">—</small></div>
-            <div class="segmented timeframe-picker" id="detail-timeframe" aria-label="Signal timeframe">
-              <button data-timeframe="15m">15m</button><button class="selected" data-timeframe="1h">1h</button><button data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
-            </div>
-          </div>
-          <div id="detail-chart" aria-label="Signal price chart"></div>
-          <div class="level-legend">
-            <span class="entry"><i></i>Entry</span><span class="stop"><i></i>Stop</span><span class="tp"><i></i>TP1 / TP2</span>
-          </div>
-        </section>
-
-        <section class="detail-section">
-          <div class="section-heading"><div><p class="eyebrow" data-i18n="signalLevels">SIGNAL LEVELS</p><h2 data-i18n="executionPlan">Execution plan</h2></div></div>
-          <div class="detail-levels" id="detail-levels"></div>
-        </section>
-        <section class="detail-section">
-          <div class="section-heading"><div><p class="eyebrow" data-i18n="personalSizing">PERSONAL SIZING</p><h2 data-i18n="positionPlan">Position plan</h2></div></div>
-          <div class="detail-position" id="detail-position"></div>
-        </section>
       </section>
 
       <section class="view" id="settings-view" data-view="settings">
@@ -118,21 +70,43 @@
           <label><span data-i18n="depositUsdt">Deposit, USDT</span><input id="deposit-input" type="number" min="1" step="0.01" required></label>
           <label><span data-i18n="riskPercent">Risk per trade, %</span><input id="risk-input" type="number" min="0.1" max="5" step="0.1" required></label>
           <label><span data-i18n="leverageX">Leverage</span><input id="leverage-input" type="number" min="1" max="100" step="1" required></label>
+          <label><span data-i18n="languageLabel">Language</span><select id="language" class="language-select" aria-label="Language"><option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option><option value="fr">FR</option><option value="es">ES</option></select></label>
           <fieldset><legend data-i18n="marginMode">Margin mode</legend><div class="segmented wide"><label><input type="radio" name="margin" value="cross" checked><span data-i18n="cross">Cross</span></label><label><input type="radio" name="margin" value="isolated"><span data-i18n="isolated">Isolated</span></label></div></fieldset>
-          <button class="primary-button" type="submit"><i data-lucide="save"></i><span data-i18n="saveSettings">Save settings</span></button>
+          <button class="primary-button" type="submit"><span data-i18n="saveSettings">Save settings</span></button>
           <p class="form-status" id="form-status" role="status"></p>
         </form>
-        <section class="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="monthlyAccess">Monthly access</h2><p data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price"><strong>29.99</strong><span>USDT / 30d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
+        <section class="subscription-panel" id="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 id="subscription-title" data-i18n="monthlyAccess">Monthly access</h2><p id="subscription-copy" data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price" id="subscription-price-block"><strong class="subscription-price">—</strong><span>USDT / <span class="subscription-days">—</span>d</span></div><button class="secondary-button" id="payment-button"><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
       </section>
     </main>
 
+    <div class="payment-sheet" id="payment-sheet" hidden>
+    <section class="payment-panel" id="payment-panel">
+      <p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p>
+      <h2 data-i18n="unlockSignals">Unlock signals</h2>
+      <p id="payment-state" role="status"></p>
+      <p class="payment-amount"><span data-i18n="payExact">Exact amount</span> <strong id="payment-amount">—</strong> USDT</p>
+      <p class="payment-network"><span data-i18n="network">Network</span> <b id="payment-network">—</b></p>
+      <div class="payment-address"><code id="payment-address">—</code><button type="button" id="payment-copy" data-i18n="copyAddress">Copy</button></div>
+      <form id="payment-form">
+        <label><span data-i18n="txHash">Transaction hash</span><input id="payment-hash" name="tx_hash" autocomplete="off" spellcheck="false" inputmode="text" required></label>
+        <button class="primary-button" type="submit" data-i18n="submitHash">Submit hash</button>
+      </form>
+      <p class="payment-error" id="payment-error" hidden></p>
+      <button type="button" class="secondary-button" id="payment-retry" hidden data-i18n="retryPayment">Try again</button>
+      <div class="payment-success" id="payment-success" hidden>
+        <h2 data-i18n="accessOpen">Access open</h2>
+        <p data-i18n="accessOpenCopy">Access is open on this screen.</p>
+      </div>
+    </section>
+    </div>
+
     <nav class="bottom-nav" aria-label="Primary">
-      <button class="active" data-target="overview"><i data-lucide="layout-dashboard"></i><span data-i18n="overview">Overview</span></button>
-      <button data-target="signals"><i data-lucide="chart-candlestick"></i><span data-i18n="signals">Signals</span></button>
-      <button data-target="settings"><i data-lucide="sliders-horizontal"></i><span data-i18n="settings">Settings</span></button>
+      <button class="active" data-target="overview"><span data-i18n="overview">Overview</span></button>
+      <button data-target="signals"><span data-i18n="signals">Signals</span></button>
+      <button data-target="settings"><span data-i18n="settings">Settings</span></button>
     </nav>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/static/app.js?v=20260803-2"></script>
+  <script src="/static/app.js?v=20260928-4"></script>
 </body>
 </html>

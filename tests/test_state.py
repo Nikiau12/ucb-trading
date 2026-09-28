@@ -18,6 +18,9 @@ class _RuntimeConnection:
     def commit(self):
         return None
 
+    def fetchone(self):
+        return (9,)
+
 
 def _duplicate_target_plan():
     return {
@@ -59,6 +62,77 @@ def test_signal_contract_rules_are_extracted_for_history():
         "max_vol": 1000,
         "max_leverage": 50,
     }
+
+
+def test_personal_alerts_are_not_published_to_the_scanner_feed(monkeypatch):
+    connection = _RuntimeConnection()
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    assert state.save_alert_signal("BTC_USDT", "LONG", 0.78, source="scanner") is None
+    assert state.save_alert_signal("BTC_USDT", "LONG", 0.78, source="manual") is None
+    assert connection.calls == []
+
+    saved = state.save_alert_signal(
+        "BTC/USDT",
+        "SHORT",
+        1.4,
+        source="spike",
+        price=10,
+        entry=10,
+    )
+    assert saved == 9
+    params = connection.calls[0][1]
+    assert params[0] == "BTC_USDT"
+    assert params[1] == "SHORT"
+    assert params[2] == 1.0
+    assert params[-1] == "spike"
+
+    monkeypatch.setattr(state, "plan_payload_errors", lambda _plan: [])
+    state.save_signal({"primary": {}}, "ETH_USDT", "LONG", 0.78, source="manual")
+    assert connection.calls[1][1][-1] == "manual"
+
+
+def test_signal_context_stores_reason_regime_and_timeframe():
+    reason, regime, timeframe = state.signal_context({
+        "trend": {"1d": "up", "4h": "down", "regime": "trend"},
+        "primary": {"reasons": ["trend_1d=up", "entry_dist_ATR4h=1.2", "regime=trend"]},
+    })
+    assert "trend_1d=up" in reason
+    assert "entry" not in reason
+    assert "midrange" not in reason
+    assert "deposit" not in reason
+    assert regime == "1d=up;4h=down;regime=trend"
+    assert timeframe == "4h"
+
+
+def test_save_signal_persists_setup_context(monkeypatch):
+    connection = _RuntimeConnection()
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+    monkeypatch.setattr(state, "plan_payload_errors", lambda _plan: [])
+    state.save_signal(
+        {
+            "price": 100,
+            "trend": {"1d": "up", "4h": "down", "regime": "trend"},
+            "primary": {
+                "entry": 99,
+                "stop": 90,
+                "tps": [],
+                "reasons": ["trend_1d=up", "entry_dist_ATR4h=0.4"],
+            },
+        },
+        "ETH_USDT",
+        "LONG",
+        0.78,
+        source="manual",
+    )
+    params = connection.calls[0][1]
+    assert params[-1] == "manual"
+    assert params[-2] == "4h"
+    assert params[-3] == "1d=up;4h=down;regime=trend"
+    assert "trend_1d=up" in params[-4]
+    assert "entry" not in params[-4]
 
 
 def test_runtime_health_records_scanner_metrics(monkeypatch):
