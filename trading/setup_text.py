@@ -127,9 +127,9 @@ def render_setup(
     lang: str = "en",
     uses_reference_deposit: bool = False,
 ) -> str:
-    """Short setup shared by /plan, the auto-alert, scan, and digest."""
+    """Trade ticket for /plan. The long reason list stays on the Mini App."""
+    del conf, uses_reference_deposit
     primary = plan.get("primary") or {}
-    trend = plan.get("trend") or {}
     targets = primary.get("tps") or []
     entry = primary.get("entry")
     stop = primary.get("stop")
@@ -137,54 +137,31 @@ def render_setup(
     tp2 = targets[1]["price"] if len(targets) > 1 else None
     price_unit = primary.get("price_unit")
     direction = str(side or "").upper()
-    regime_raw = (
-        f"1d={trend.get('1d') or ''};4h={trend.get('4h') or ''};regime={trend.get('regime') or ''}"
-    )
-    reasons = primary.get("reasons") or plan.get("reasons") or []
-    reason_raw = " · ".join(str(item) for item in reasons if item)
-    risk_usdt = position_usdt = margin_usdt = None
-    leverage_limited = False
-    sizing_errors: list = []
+    position_usdt = None
     try:
         sizing = position_size_for_contract(
             primary, float(entry), float(stop), float(deposit), float(risk_pct), float(leverage)
         )
-        risk_usdt = sizing["risk_usdt"]
         position_usdt = sizing["position_usdt"]
-        margin_usdt = sizing["margin_usdt"]
-        leverage = sizing["effective_leverage"]
-        leverage_limited = sizing["effective_leverage"] < sizing["requested_leverage"]
-        sizing_errors = sizing["errors"]
     except (TypeError, ValueError, ZeroDivisionError, KeyError):
         pass
-
+    reasons = primary.get("reasons") or plan.get("reasons") or []
+    reason_raw = " · ".join(str(item) for item in reasons if item)
+    why = reason_text(lang, reason_raw).split(" · ", 1)[0]
     lines = [
         f"<b>{_esc(symbol)}</b> {_esc(direction)}",
         f"{_t(lang, 'alert_price_now')}: <code>{_esc(_fmt_price(plan.get('price'), price_unit))}</code>",
-        f"{_t(lang, 'alert_confidence')}: <b>{confidence_percent(conf)}</b>",
-    ]
-    regime = regime_text(lang, regime_raw)
-    if regime:
-        lines.append(f"{_t(lang, 'tf_regime')}: {_esc(regime)}")
-    lines.extend([
         f"{_t(lang, 'alert_entry')}: <code>{_esc(_fmt_price(entry, price_unit))}</code>",
         f"{_t(lang, 'alert_stop')}: <code>{_esc(_fmt_price(stop, price_unit))}</code>",
         f"TP1: <code>{_esc(_fmt_price(tp1, price_unit))}</code>",
         f"TP2: <code>{_esc(_fmt_price(tp2, price_unit))}</code>",
         f"{_t(lang, 'alert_position')}: <b>{_fmt_usdt(position_usdt)} USDT</b>",
-        f"{_t(lang, 'alert_margin')}: <b>{_fmt_usdt(margin_usdt)} USDT</b>",
-        f"{_t(lang, 'alert_risk')}: <b>{_fmt_usdt(risk_usdt)} USDT</b>",
-    ])
-    if leverage_limited:
-        lines.append(_t(lang, "alert_lev_capped"))
-    if "position_below_min_contract" in sizing_errors:
-        lines.append(_t(lang, "alert_min_contract"))
-    if uses_reference_deposit:
-        lines.append(_t(lang, "alert_reference"))
-    why = reason_text(lang, reason_raw)
+    ]
+    ratio = _reward_risk(entry, stop, tp1)
+    if ratio:
+        lines.append(ratio)
     if why:
         lines.append(why)
-    lines.append(_t(lang, "size_disclaimer"))
     return "\n".join(lines)
 
 

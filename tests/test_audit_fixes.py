@@ -158,7 +158,7 @@ def test_html_renderers_escape_interpolated_values():
     assert "&lt;script&gt;" in plan_text
     assert "<img>" not in alert
     assert "80%" in rendered
-    assert "80%" in plan_text
+    assert "━━━━" not in plan_text
     assert "/ 1.0" not in alert
     assert len(alert.splitlines()) <= 8
 
@@ -182,7 +182,7 @@ def test_confidence_percent_is_one_scale():
     plan_text = render_setup(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="en")
     alert = render_auto_alert(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="en")
     assert "78%" in rendered
-    assert "78%" in plan_text
+    assert "78%" not in plan_text
     assert "0.78" not in alert
     assert len(alert.splitlines()) <= 8
     assert "/ 1.0" not in alert
@@ -294,12 +294,55 @@ def test_russian_setup_uses_panel_words_without_english_tokens():
     assert "midrange" not in lowered
     assert "deposit" not in lowered
     assert len(text.splitlines()) <= 8
-    assert "Бот считает размер. Ордер ставишь ты." in plan_text
-    assert "исполнен" not in plan_text.lower()
-    assert "78%" in plan_text
+    assert "entry" not in plan_text.lower()
+    assert "midrange" not in plan_text.lower()
+    assert "━━━━" not in plan_text
     source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
     assert "render_setup(" in source
     assert 'callback_data="alert_later"' in source
+
+
+def test_plan_message_is_a_trade_ticket():
+    plan = {
+        "symbol": "BTC_USDT",
+        "price": 100,
+        "primary": {
+            "side": "long",
+            "entry": 100,
+            "stop": 90,
+            "price_unit": 0.1,
+            "tps": [{"price": 120}, {"price": 140}],
+            "reasons": [
+                "trend_1d=up",
+                "trend_4h=down",
+                "struct_4h=range",
+                "midrange=1",
+                "deposit=1000",
+            ],
+        },
+    }
+    btc = render_setup(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="ru")
+    eth = render_setup(dict(plan, symbol="ETH_USDT"), "ETH_USDT", "LONG", 0.78, 1000, 1, 10, lang="ru")
+    assert btc.replace("BTC_USDT", "ETH_USDT") == eth
+    lines = btc.splitlines()
+    assert lines[0] == "<b>BTC_USDT</b> LONG"
+    assert lines[1].startswith("Цена сейчас")
+    assert "Вход" in btc
+    assert "Стоп" in btc
+    assert "TP1" in btc and "TP2" in btc
+    assert "2.0R" in btc
+    assert "Объём позиции" in btc
+    assert btc.count("Тренд") == 1
+    assert "4Ч" not in btc
+    assert "78%" not in btc
+    assert "━━━━" not in btc
+    assert "🟩" not in btc
+    assert "entry" not in btc.lower()
+    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    plan_fn = source.split("async def cmd_plan", 1)[1].split("async def cmd_set", 1)[0]
+    assert "render_setup(" in plan_fn
+    assert "_open_setup_keyboard" in plan_fn
+    assert "render_scan_card(" not in plan_fn
 
 
 def test_scan_card_is_six_lines_and_opens_one_signal():
