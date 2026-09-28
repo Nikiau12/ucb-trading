@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 
@@ -52,4 +53,53 @@ def parse_deposit_amount(text: Optional[str]) -> float:
     if deposit <= 0 or deposit > 1_000_000_000:
         raise ValueError("deposit out of range")
     return deposit
+
+
+_GREETINGS = {
+    "hi",
+    "hello",
+    "hey",
+    "hey there",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "hola",
+    "buenos dias",
+    "buenas",
+    "bonjour",
+    "salut",
+    "hallo",
+    "guten tag",
+    "привет",
+    "хай",
+    "здравствуй",
+    "здравствуйте",
+    "добрый день",
+    "добрый вечер",
+    "доброе утро",
+}
+
+
+def is_greeting(text: Optional[str]) -> bool:
+    """True when the whole message is only a greeting."""
+    cleaned = re.sub(r"[!?.…,]+", "", str(text or "").strip().lower())
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned in _GREETINGS
+
+
+def asks_for_plan_scan(text: Optional[str]) -> bool:
+    """The word «сканер» starts the plan scan, not the spike scanner."""
+    return bool(re.search(r"(сканер|scanner)", str(text or "").lower()))
+
+
+def bare_plan_symbol(text: Optional[str]) -> Optional[str]:
+    """Return a coin base when the whole message is one symbol."""
+    token = str(text or "").strip()
+    if not token or any(char.isspace() for char in token) or token.startswith("/"):
+        return None
+    cleaned = token.upper().replace("-", "_").replace("/", "_")
+    base = cleaned[:-5] if cleaned.endswith("_USDT") else cleaned
+    if base == "USDT" or not re.fullmatch(r"[A-Z]{2,12}", base):
+        return None
+    return base
 

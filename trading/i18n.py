@@ -71,10 +71,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>ЧТО ЗНАЧИТ ПЛАН</b>\n"
-            "<code>entry</code>   — цена входа (лимитный ордер)\n"
-            "<code>stop</code>    — стоп-лосс\n"
-            "<code>tp1/tp2</code> — тейк-профиты (по 50% позиции)\n"
-            "<code>conf</code>    — уверенность алгоритма (0.0–1.0)\n\n"
+            "<b>Вход</b> — цена входа (лимитный ордер)\n"
+            "<b>Стоп</b> — стоп-лосс\n"
+            "<b>Тейк 1 / тейк 2</b> — тейк-профиты (по 50% позиции)\n"
+            "<b>Уверенность</b> — оценка алгоритма в процентах, например 78%\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>РАСПИСАНИЕ (UTC)</b>\n"
             "Сканер планов: каждый час, с 5-й минуты.\n"
@@ -118,7 +118,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Депозит берётся из сохранённых настроек. Изменить: <code>/set deposit=5000</code>"
         ),
         "scan_starting":   "🔍 Сканирую топ-{top_n} монет (~2–4 мин)...",
-        "scan_done":       "✅ Найдено {count} сетап(ов). Топ-5:",
+        "scan_done":       "✅ Найдено {count} сетап(ов). Топ-{limit}:",
+        "scan_done_one":   "✅ Найден {count} сетап.",
         "scan_none":       "🧊 Нет сетапов выше порога уверенности",
         "scan_more":       "...и ещё {count}. Используй /digest для полного обзора.",
         "scan_error":      "❌ Ошибка сканирования: {error}",
@@ -159,7 +160,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 сопротивление",
         "r_why":           "🔍 Почему",
         "r_risk_rule":     "🚨 Риск-правило",
-        "r_risk_text":     "<b>CROSS + плечо — без стопа нельзя.</b> Стоп обязателен.",
+        "r_risk_text":     "<b>{margin} + плечо — без стопа нельзя.</b> Стоп обязателен.",
         "r_skip_conf":     "🧊 Уверенность",
         "r_skip_reason":   "🔍 Причины",
         "r_cache_warn":    "⚠️<i>кэш</i>",
@@ -225,10 +226,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>WHAT THE PLAN MEANS</b>\n"
-            "<code>entry</code>   — entry price (limit order)\n"
-            "<code>stop</code>    — stop-loss\n"
-            "<code>tp1/tp2</code> — take-profits (50% of position each)\n"
-            "<code>conf</code>    — algorithm confidence (0.0–1.0)\n\n"
+            "<b>Entry</b> — entry price (limit order)\n"
+            "<b>Stop</b> — stop-loss\n"
+            "<b>TP1 / TP2</b> — take-profits (50% of position each)\n"
+            "<b>Confidence</b> — algorithm confidence as a percent, for example 78%\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>SCHEDULE (UTC)</b>\n"
             "Plan scanner: every hour, starting at minute 05.\n"
@@ -272,7 +273,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Your saved deposit is always used. Change it with <code>/set deposit=5000</code>."
         ),
         "scan_starting":   "🔍 Scanning top-{top_n} coins (~2–4 min)...",
-        "scan_done":       "✅ Found {count} setup(s). Top 5:",
+        "scan_done":       "✅ Found {count} setup(s). Top {limit}:",
+        "scan_done_one":   "✅ Found {count} setup.",
         "scan_none":       "🧊 No setups above confidence threshold",
         "scan_more":       "...and {count} more. Use /digest for a full overview.",
         "scan_error":      "❌ Scan error: {error}",
@@ -312,7 +314,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 resistance",
         "r_why":           "🔍 Why",
         "r_risk_rule":     "🚨 Risk rule",
-        "r_risk_text":     "<b>CROSS + leverage — stop-loss is mandatory.</b>",
+        "r_risk_text":     "<b>{margin} + leverage — stop-loss is mandatory.</b>",
         "r_skip_conf":     "🧊 Confidence",
         "r_skip_reason":   "🔍 Reasons",
         "r_cache_warn":    "⚠️<i>cache</i>",
@@ -378,10 +380,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>WAS DER PLAN BEDEUTET</b>\n"
-            "<code>entry</code>   — Einstiegskurs (Limit-Order)\n"
-            "<code>stop</code>    — Stop-Loss\n"
-            "<code>tp1/tp2</code> — Take-Profits (je 50 % der Position)\n"
-            "<code>conf</code>    — Algorithmus-Konfidenz (0.0–1.0)\n\n"
+            "<b>Einstieg</b> — Einstiegskurs (Limit-Order)\n"
+            "<b>Stop</b> — Stop-Loss\n"
+            "<b>TP1 / TP2</b> — Take-Profits (je 50 % der Position)\n"
+            "<b>Konfidenz</b> — Konfidenz des Algorithmus in Prozent, zum Beispiel 78%\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>ZEITPLAN (UTC)</b>\n"
             "Plan-Scanner: jede Stunde, ab Minute 05.\n"
@@ -425,7 +427,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Das gespeicherte Kapital wird immer verwendet. Ändern: <code>/set deposit=5000</code>"
         ),
         "scan_starting":   "🔍 Scanne Top-{top_n} Coins (~2–4 Min)...",
-        "scan_done":       "✅ {count} Setup(s) gefunden. Top 5:",
+        "scan_done":       "✅ {count} Setup(s) gefunden. Top {limit}:",
+        "scan_done_one":   "✅ {count} Setup gefunden.",
         "scan_none":       "🧊 Keine Setups über dem Schwellenwert",
         "scan_more":       "...und {count} weitere. Nutze /digest für eine vollständige Übersicht.",
         "scan_error":      "❌ Scan-Fehler: {error}",
@@ -465,7 +468,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 Widerstand",
         "r_why":           "🔍 Begründung",
         "r_risk_rule":     "🚨 Risikoregel",
-        "r_risk_text":     "<b>CROSS + Hebel — Stop-Loss ist Pflicht.</b>",
+        "r_risk_text":     "<b>{margin} + Hebel — Stop-Loss ist Pflicht.</b>",
         "r_skip_conf":     "🧊 Konfidenz",
         "r_skip_reason":   "🔍 Gründe",
         "r_cache_warn":    "⚠️<i>Cache</i>",
@@ -531,10 +534,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>CE QUE SIGNIFIE LE PLAN</b>\n"
-            "<code>entry</code>   — prix d'entrée (ordre limite)\n"
-            "<code>stop</code>    — stop-loss\n"
-            "<code>tp1/tp2</code> — take-profits (50 % de la position chacun)\n"
-            "<code>conf</code>    — confiance de l'algorithme (0.0–1.0)\n\n"
+            "<b>Entrée</b> — prix d'entrée (ordre limite)\n"
+            "<b>Stop</b> — stop-loss\n"
+            "<b>TP1 / TP2</b> — take-profits (50 % de la position chacun)\n"
+            "<b>Confiance</b> — confiance de l'algorithme en pourcentage, par exemple 78%\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>PLANNING (UTC)</b>\n"
             "Scanner de plans : chaque heure, à partir de la minute 05.\n"
@@ -578,7 +581,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Le dépôt enregistré est toujours utilisé. Modifier : <code>/set deposit=5000</code>"
         ),
         "scan_starting":   "🔍 Scan du top {top_n} en cours (~2–4 min)...",
-        "scan_done":       "✅ {count} setup(s) trouvé(s). Top 5 :",
+        "scan_done":       "✅ {count} setup(s) trouvé(s). Top {limit} :",
+        "scan_done_one":   "✅ {count} setup trouvé.",
         "scan_none":       "🧊 Aucun setup au-dessus du seuil de confiance",
         "scan_more":       "...et {count} de plus. Utilise /digest pour une vue complète.",
         "scan_error":      "❌ Erreur de scan : {error}",
@@ -618,7 +622,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 résistance",
         "r_why":           "🔍 Pourquoi",
         "r_risk_rule":     "🚨 Règle de risque",
-        "r_risk_text":     "<b>CROSS + levier — le stop-loss est obligatoire.</b>",
+        "r_risk_text":     "<b>{margin} + levier — le stop-loss est obligatoire.</b>",
         "r_skip_conf":     "🧊 Confiance",
         "r_skip_reason":   "🔍 Raisons",
         "r_cache_warn":    "⚠️<i>cache</i>",
@@ -684,10 +688,10 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>QUÉ SIGNIFICA EL PLAN</b>\n"
-            "<code>entry</code>   — precio de entrada (orden límite)\n"
-            "<code>stop</code>    — stop-loss\n"
-            "<code>tp1/tp2</code> — take-profits (50% de la posición c/u)\n"
-            "<code>conf</code>    — confianza del algoritmo (0.0–1.0)\n\n"
+            "<b>Entrada</b> — precio de entrada (orden límite)\n"
+            "<b>Stop</b> — stop-loss\n"
+            "<b>TP1 / TP2</b> — take-profits (50% de la posición c/u)\n"
+            "<b>Confianza</b> — confianza del algoritmo en porcentaje, por ejemplo 78%\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>HORARIO (UTC)</b>\n"
             "Escáner de planes: cada hora, desde el minuto 05.\n"
@@ -731,7 +735,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Siempre se usa el depósito guardado. Cámbialo con <code>/set deposit=5000</code>."
         ),
         "scan_starting":   "🔍 Escaneando top {top_n} monedas (~2–4 min)...",
-        "scan_done":       "✅ {count} setup(s) encontrado(s). Top 5:",
+        "scan_done":       "✅ {count} setup(s) encontrado(s). Top {limit}:",
+        "scan_done_one":   "✅ {count} setup encontrado.",
         "scan_none":       "🧊 Sin setups sobre el umbral de confianza",
         "scan_more":       "...y {count} más. Usa /digest para una vista completa.",
         "scan_error":      "❌ Error de escaneo: {error}",
@@ -771,7 +776,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 resistencia",
         "r_why":           "🔍 Por qué",
         "r_risk_rule":     "🚨 Regla de riesgo",
-        "r_risk_text":     "<b>CROSS + apalancamiento — el stop-loss es obligatorio.</b>",
+        "r_risk_text":     "<b>{margin} + apalancamiento — el stop-loss es obligatorio.</b>",
         "r_skip_conf":     "🧊 Confianza",
         "r_skip_reason":   "🔍 Razones",
         "r_cache_warn":    "⚠️<i>caché</i>",

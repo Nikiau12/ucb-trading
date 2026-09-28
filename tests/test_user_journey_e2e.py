@@ -40,8 +40,9 @@ class FakeMessage:
         self.message_id = len(text)
         self.replies = []
 
-    async def reply(self, text, **_kwargs):
+    async def reply(self, text, **kwargs):
         sent = FakeSentMessage(text)
+        sent.kwargs = kwargs
         self.replies.append(sent)
         return sent
 
@@ -107,6 +108,7 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
 
     monkeypatch.setattr(bot, "ADMIN_CHAT_IDS", set())
     monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu_button)
+    monkeypatch.setattr(bot.bot_instance, "set_my_commands", _menu_button)
     monkeypatch.setattr(
         bot.payment_verifier,
         "verify",
@@ -154,6 +156,7 @@ def test_language_change_keeps_the_start_keyboard(monkeypatch):
         return True
 
     monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu_button)
+    monkeypatch.setattr(bot.bot_instance, "set_my_commands", _menu_button)
     monkeypatch.setattr(bot.st, "set_user_lang", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"deposit": None})
 
@@ -188,6 +191,66 @@ def test_language_change_keeps_the_start_keyboard(monkeypatch):
             for button in buttons
         )
         assert "депозит" in callback.message.text.lower() or "deposit" in callback.message.text.lower()
+
+    asyncio.run(run())
+
+
+def _button_callbacks(markup):
+    return [
+        button.callback_data
+        for row in markup.inline_keyboard
+        for button in row
+    ]
+
+
+def test_help_offers_the_main_next_actions():
+    async def run():
+        message = FakeMessage("/help")
+        await bot.cmd_help(message)
+        callbacks = _button_callbacks(message.replies[0].kwargs["reply_markup"])
+        assert "request_plan" in callbacks
+        assert "run_scan" in callbacks
+
+    asyncio.run(run())
+
+
+def test_scanner_word_runs_the_plan_scan_not_spikes(monkeypatch):
+    called = {}
+
+    async def scan(message):
+        called["scan"] = message.text
+
+    async def spikes(_message):
+        called["spikes"] = True
+
+    monkeypatch.setattr(bot, "cmd_scan", scan)
+    monkeypatch.setattr(bot, "_handle_spikes", spikes)
+
+    async def run():
+        await bot.handle_text(FakeMessage("сканер"))
+
+    asyncio.run(run())
+    assert called.get("scan") == "/scan"
+    assert "spikes" not in called
+
+
+def test_bare_symbol_offers_one_plan_and_a_greeting_opens_the_start_keyboard(monkeypatch):
+    async def fail_plan(_message):
+        raise AssertionError("plan must wait for the button")
+
+    monkeypatch.setattr(bot, "cmd_plan", fail_plan)
+
+    async def run():
+        symbol = FakeMessage("btc")
+        await bot.handle_text(symbol)
+        callbacks = _button_callbacks(symbol.replies[0].kwargs["reply_markup"])
+        assert callbacks == ["plan_for:BTC"]
+
+        greeting = FakeMessage("hello")
+        await bot.handle_text(greeting)
+        callbacks = _button_callbacks(greeting.replies[0].kwargs["reply_markup"])
+        assert "lang_en" in callbacks
+        assert "set_deposit" in callbacks
 
     asyncio.run(run())
 

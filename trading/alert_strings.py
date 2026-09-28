@@ -22,6 +22,31 @@ ALERT_STRINGS = {
         "retry_setup": "Try again",
         "retry_spikes": "Try again",
         "menu_webapp": "Panel",
+        "run_scan": "Scan markets",
+        "plan_symbol": "Plan {symbol}",
+        "plan_symbol_prompt": "One plan for <b>{symbol}</b>.",
+        "listing_na": "n/a",
+        "listing_new": (
+            "🆕 <b>New MEXC pair: {symbol}</b>\n\n"
+            "Coin: <b>{name}</b>\n"
+            "CoinGecko rank: #{rank}\n"
+            "Market cap: {cap}\n"
+            "24h volume: {volume}\n"
+            "Risk profile: <b>{risk}</b>\n\n"
+            "⚠️ New listings often move sharply. Do not enter without a plan and a stop."
+        ),
+        "listing_news": (
+            "📰 <b>MEXC listing news</b>\n\n"
+            "<b>{title}</b>\n"
+            "Tickers: <b>{symbols}</b>\n"
+            "Published: {published}\n\n"
+            "Coin: <b>{name}</b>\n"
+            "CoinGecko rank: #{rank}\n"
+            "Market cap: {cap}\n"
+            "24h volume: {volume}\n"
+            "Risk profile: <b>{risk}</b>\n\n"
+            "Link: {url}"
+        ),
         "coin_missing": "❌ {coin} was not found on MEXC.",
         "command_error": "❌ Error: {error}",
         "analysis_running": "🤖 Deep analysis of {symbol} (15m→1w)...",
@@ -134,6 +159,31 @@ ALERT_STRINGS = {
         "retry_setup": "Повторить",
         "retry_spikes": "Повторить",
         "menu_webapp": "Панель",
+        "run_scan": "Сканировать",
+        "plan_symbol": "План {symbol}",
+        "plan_symbol_prompt": "Один план по <b>{symbol}</b>.",
+        "listing_na": "н/д",
+        "listing_new": (
+            "🆕 <b>Новая пара на MEXC: {symbol}</b>\n\n"
+            "Монета: <b>{name}</b>\n"
+            "Рейтинг CoinGecko: #{rank}\n"
+            "Market Cap: {cap}\n"
+            "24h Volume: {volume}\n"
+            "Риск-профиль: <b>{risk}</b>\n\n"
+            "⚠️ Новые листинги часто двигаются резко. Не входи без плана и стопа."
+        ),
+        "listing_news": (
+            "📰 <b>Новость MEXC по листингу</b>\n\n"
+            "<b>{title}</b>\n"
+            "Тикеры: <b>{symbols}</b>\n"
+            "Опубликовано: {published}\n\n"
+            "Монета: <b>{name}</b>\n"
+            "Рейтинг CoinGecko: #{rank}\n"
+            "Market Cap: {cap}\n"
+            "24h Volume: {volume}\n"
+            "Риск-профиль: <b>{risk}</b>\n\n"
+            "Ссылка: {url}"
+        ),
         "coin_missing": "❌ {coin} не найдена на MEXC.",
         "command_error": "❌ Ошибка: {error}",
         "analysis_running": "🤖 Глубокий анализ {symbol} (15m→1w)...",
@@ -246,6 +296,31 @@ ALERT_STRINGS = {
         "retry_setup": "Erneut versuchen",
         "retry_spikes": "Erneut versuchen",
         "menu_webapp": "Panel",
+        "run_scan": "Märkte scannen",
+        "plan_symbol": "Plan {symbol}",
+        "plan_symbol_prompt": "Ein Plan für <b>{symbol}</b>.",
+        "listing_na": "k. A.",
+        "listing_new": (
+            "🆕 <b>Neues MEXC-Paar: {symbol}</b>\n\n"
+            "Coin: <b>{name}</b>\n"
+            "CoinGecko-Rang: #{rank}\n"
+            "Marktkapitalisierung: {cap}\n"
+            "24h-Volumen: {volume}\n"
+            "Risikoprofil: <b>{risk}</b>\n\n"
+            "⚠️ Neue Listings bewegen sich oft stark. Nicht ohne Plan und Stop einsteigen."
+        ),
+        "listing_news": (
+            "📰 <b>MEXC-Listing-News</b>\n\n"
+            "<b>{title}</b>\n"
+            "Ticker: <b>{symbols}</b>\n"
+            "Veröffentlicht: {published}\n\n"
+            "Coin: <b>{name}</b>\n"
+            "CoinGecko-Rang: #{rank}\n"
+            "Marktkapitalisierung: {cap}\n"
+            "24h-Volumen: {volume}\n"
+            "Risikoprofil: <b>{risk}</b>\n\n"
+            "Link: {url}"
+        ),
         "coin_missing": "❌ {coin} wurde auf MEXC nicht gefunden.",
         "command_error": "❌ Fehler: {error}",
         "analysis_running": "🤖 Tiefenanalyse von {symbol} (15m→1w)...",
@@ -335,6 +410,31 @@ ALERT_STRINGS = {
         "retry_setup": "Réessayer",
         "retry_spikes": "Réessayer",
         "menu_webapp": "Panneau",
+        "run_scan": "Scanner les marchés",
+        "plan_symbol": "Plan {symbol}",
+        "plan_symbol_prompt": "Un plan pour <b>{symbol}</b>.",
+        "listing_na": "n/d",
+        "listing_new": (
+            "🆕 <b>Nouvelle paire MEXC : {symbol}</b>\n\n"
+            "Monnaie : <b>{name}</b>\n"
+            "Rang CoinGecko : #{rank}\n"
+            "Capitalisation : {cap}\n"
+            "Volume 24h : {volume}\n"
+            "Profil de risque : <b>{risk}</b>\n\n"
+            "⚠️ Les nouveaux listings bougent souvent fort. N'entre pas sans plan ni stop."
+        ),
+        "listing_news": (
+            "📰 <b>Actualité de listing MEXC</b>\n\n"
+            "<b>{title}</b>\n"
+            "Tickers : <b>{symbols}</b>\n"
+            "Publié : {published}\n\n"
+            "Monnaie : <b>{name}</b>\n"
+            "Rang CoinGecko : #{rank}\n"
+            "Capitalisation : {cap}\n"
+            "Volume 24h : {volume}\n"
+            "Profil de risque : <b>{risk}</b>\n\n"
+            "Lien : {url}"
+        ),
         "coin_missing": "❌ {coin} est introuvable sur MEXC.",
         "command_error": "❌ Erreur : {error}",
         "analysis_running": "🤖 Analyse approfondie de {symbol} (15m→1w)...",
@@ -424,6 +524,31 @@ ALERT_STRINGS = {
         "retry_setup": "Reintentar",
         "retry_spikes": "Reintentar",
         "menu_webapp": "Panel",
+        "run_scan": "Escanear mercados",
+        "plan_symbol": "Plan {symbol}",
+        "plan_symbol_prompt": "Un plan para <b>{symbol}</b>.",
+        "listing_na": "n/d",
+        "listing_new": (
+            "🆕 <b>Nuevo par en MEXC: {symbol}</b>\n\n"
+            "Moneda: <b>{name}</b>\n"
+            "Ranking CoinGecko: #{rank}\n"
+            "Capitalización: {cap}\n"
+            "Volumen 24h: {volume}\n"
+            "Perfil de riesgo: <b>{risk}</b>\n\n"
+            "⚠️ Los listados nuevos se mueven con fuerza. No entres sin un plan y un stop."
+        ),
+        "listing_news": (
+            "📰 <b>Noticia de listado en MEXC</b>\n\n"
+            "<b>{title}</b>\n"
+            "Tickers: <b>{symbols}</b>\n"
+            "Publicado: {published}\n\n"
+            "Moneda: <b>{name}</b>\n"
+            "Ranking CoinGecko: #{rank}\n"
+            "Capitalización: {cap}\n"
+            "Volumen 24h: {volume}\n"
+            "Perfil de riesgo: <b>{risk}</b>\n\n"
+            "Enlace: {url}"
+        ),
         "coin_missing": "❌ {coin} no se encontró en MEXC.",
         "command_error": "❌ Error: {error}",
         "analysis_running": "🤖 Análisis profundo de {symbol} (15m→1w)...",

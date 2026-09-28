@@ -26,6 +26,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    BotCommandScopeChat,
     MenuButtonWebApp,
     WebAppInfo,
     Message,
@@ -70,7 +71,14 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
-from user_input import is_deposit_input, parse_deposit_amount, parse_setting
+from user_input import (
+    asks_for_plan_scan,
+    bare_plan_symbol,
+    is_deposit_input,
+    is_greeting,
+    parse_deposit_amount,
+    parse_setting,
+)
 from miniapp.schema import apply_migrations
 
 logger = logging.getLogger("ucb.bot")
@@ -265,6 +273,30 @@ def _one_action_keyboard(lang: str, label_key: str, callback_data: str) -> Inlin
     ]])
 
 
+def _help_keyboard(lang: str) -> InlineKeyboardMarkup:
+    rows = [[
+        InlineKeyboardButton(text=_t(lang, "request_plan"), callback_data="request_plan"),
+        InlineKeyboardButton(text=_t(lang, "run_scan"), callback_data="run_scan"),
+    ]]
+    if MINI_APP_URL:
+        rows.append([
+            InlineKeyboardButton(
+                text=_t(lang, "mini_app_button"),
+                web_app=WebAppInfo(url=MINI_APP_URL),
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _plan_symbol_keyboard(lang: str, symbol: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=_t(lang, "plan_symbol", symbol=symbol),
+            callback_data=f"plan_for:{symbol}",
+        )
+    ]])
+
+
 def _chart_url(symbol: str) -> str:
     parts = urlparse(MINI_APP_URL)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
@@ -313,6 +345,18 @@ def _remember_personal_alert(user_id, **fields) -> None:
             st.grant_signal_access(int(user_id), signal_id)
         except (TypeError, ValueError):
             logger.warning("alert access grant skipped")
+
+
+async def _set_user_commands(chat_id, lang: str) -> None:
+    if chat_id is None:
+        return
+    try:
+        await bot_instance.set_my_commands(
+            menu_commands(lang),
+            scope=BotCommandScopeChat(chat_id=int(chat_id)),
+        )
+    except Exception:
+        logger.warning("set_my_commands failed")
 
 
 async def _set_panel_menu(chat_id=None, lang: str = "en") -> None:
@@ -512,6 +556,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
     lang, persist = language_for_start(get_lang(message.from_user.id), payload)
     if persist:
         st.set_user_lang(message.from_user.id, lang)
+    chat_id = getattr(getattr(message, "chat", None), "id", None) or message.from_user.id
+    await _set_user_commands(chat_id, lang)
     if payload.startswith("subscribe_"):
         await state.clear()
         await message.reply(_payment_paywall(user_id), parse_mode="HTML")
@@ -547,6 +593,7 @@ async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext)
         await state.set_state(DepositSetup.waiting_for_amount)
     else:
         notifier.active_users.add(str(callback.from_user.id))
+    await _set_user_commands(callback.from_user.id, lang)
     await _set_panel_menu(callback.from_user.id, lang)
     await _finish_callback(callback, text, parse_mode="HTML", reply_markup=_lang_keyboard(lang))
 
@@ -579,6 +626,25 @@ async def handle_retry_setup(callback: types.CallbackQuery):
     if not coin:
         return
     await _handle_setup(_CommandView(callback.message, callback.from_user, f"/setup {coin}"), coin)
+
+
+@router.callback_query(F.data == "run_scan")
+async def handle_run_scan(callback: types.CallbackQuery):
+    await _finish_callback(callback)
+    if callback.message is None:
+        return
+    await cmd_scan(_CommandView(callback.message, callback.from_user, "/scan"))
+
+
+@router.callback_query(F.data.startswith("plan_for:"))
+async def handle_plan_for(callback: types.CallbackQuery):
+    await _finish_callback(callback)
+    if callback.message is None:
+        return
+    coin = _callback_symbol(callback.data.split(":", 1)[1])
+    if not coin:
+        return
+    await cmd_plan(_CommandView(callback.message, callback.from_user, f"/plan {coin}_USDT"))
 
 
 @router.callback_query(F.data == "retry_spikes")
@@ -619,6 +685,7 @@ async def cmd_help(message: types.Message):
     await message.reply(
         _t(lang, "help", top_n=SCAN_CFG["top_n_symbols"]),
         parse_mode="HTML",
+        reply_markup=_help_keyboard(lang),
     )
 
 
@@ -913,7 +980,12 @@ async def cmd_scan(message: types.Message):
 
         limit = 1 if access_mode == "trial" else 5
         delivered = 0
-        await status_msg.edit_text(_t(lang, "scan_done", count=min(len(actionable), limit)), parse_mode="HTML")
+        shown = min(len(actionable), limit)
+        done_key = "scan_done_one" if limit == 1 else "scan_done"
+        await status_msg.edit_text(
+            _t(lang, done_key, count=shown, limit=limit),
+            parse_mode="HTML",
+        )
         for plan in actionable[:limit]:
             if await _send_plan_and_record(message, plan, deposit, settings["risk_pct"], lang):
                 delivered += 1
@@ -1158,7 +1230,15 @@ _SKIP_WORDS = {"ПО", "НА", "ДАЙ", "И", "В", "ЗА", "THE", "A", "BY", "
 
 @router.message(F.text)
 async def handle_text(message: types.Message):
-    text  = message.text.lower()
+    text = message.text.lower()
+    lang = get_lang(message.from_user.id)
+    if is_greeting(message.text):
+        await message.reply(_t(lang, "choose_lang"), parse_mode="HTML", reply_markup=_lang_keyboard(lang))
+        return
+    if asks_for_plan_scan(message.text):
+        await cmd_scan(_CommandView(message, message.from_user, "/scan"))
+        return
+
     words = message.text.split()
 
     coin = next(
@@ -1167,7 +1247,7 @@ async def handle_text(message: types.Message):
         None,
     )
 
-    if any(kw in text for kw in ("всплеск", "памп", "дамп", "spike", "pump", "dump", "сканер")):
+    if any(kw in text for kw in ("всплеск", "памп", "дамп", "spike", "pump", "dump")):
         await _handle_spikes(message)
     elif any(kw in text for kw in ("анализ", "analyze", "analyse")) and coin:
         mode = await gate_access(message)
@@ -1191,6 +1271,14 @@ async def handle_text(message: types.Message):
         debit_trial(_user_id(message), mode)
     elif any(kw in text for kw in ("сетап", "setup", "сигнал", "signal")) and coin:
         await _handle_setup(message, coin)
+    else:
+        symbol = bare_plan_symbol(message.text)
+        if symbol:
+            await message.reply(
+                _t(lang, "plan_symbol_prompt", symbol=html.escape(symbol)),
+                parse_mode="HTML",
+                reply_markup=_plan_symbol_keyboard(lang, symbol),
+            )
 
 # ═══════════════════════════════════════════
 # ФОНОВЫЕ ЦИКЛЫ
@@ -1237,8 +1325,8 @@ async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render,
     return delivered
 
 
-async def _broadcast_personal(text: str, alert: dict) -> None:
-    """Deliver one shared listing text and keep it in each recipient's history."""
+async def _broadcast_personal(render, alert: dict | None = None) -> None:
+    """Deliver a listing in each recipient's language and keep it in their history."""
     signal_id = None
     saved = False
     for chat_id in list(notifier.active_users):
@@ -1246,8 +1334,8 @@ async def _broadcast_personal(text: str, alert: dict) -> None:
             user_id = int(chat_id)
         except (TypeError, ValueError):
             continue
-        if await notifier.send_message_to_user(chat_id, text):
-            if not saved:
+        if await notifier.send_message_to_user(chat_id, render(get_lang(user_id))):
+            if alert and not saved:
                 saved = True
                 signal_id = st.save_alert_signal(**alert)
             if signal_id:
@@ -1474,32 +1562,38 @@ async def listing_watcher_loop():
                 symbol = item["symbols"][0] if item.get("symbols") else ""
                 coin_info = await coin_info_svc.get_coin_info(symbol) if symbol else {}
                 listing_symbol = _listing_symbol(symbol)
-                text = notifier.format_listing_news_alert(item, coin_info=coin_info)
-                if listing_symbol:
-                    await _broadcast_personal(text, {
+                announcement = item
+                details = coin_info
+                await _broadcast_personal(
+                    lambda lang, news=announcement, info=details: notifier.format_listing_news_alert(
+                        news, coin_info=info, lang=lang
+                    ),
+                    {
                         "symbol": listing_symbol,
                         "side": "LONG",
                         "confidence": 0,
                         "source": "listing",
                         "price": None,
-                    })
-                else:
-                    await notifier.send_message(text)
+                    } if listing_symbol else None,
+                )
                 await asyncio.sleep(0.2)
             for symbol in (await listing_watcher.check_new_markets(exchange))[:20]:
                 coin_info = await coin_info_svc.get_coin_info(symbol)
                 listing_symbol = _listing_symbol(symbol)
-                text = notifier.format_listing_alert(symbol, coin_info=coin_info)
-                if listing_symbol:
-                    await _broadcast_personal(text, {
+                market = symbol
+                details = coin_info
+                await _broadcast_personal(
+                    lambda lang, pair=market, info=details: notifier.format_listing_alert(
+                        pair, coin_info=info, lang=lang
+                    ),
+                    {
                         "symbol": listing_symbol,
                         "side": "LONG",
                         "confidence": 0,
                         "source": "listing",
                         "price": None,
-                    })
-                else:
-                    await notifier.send_message(text)
+                    } if listing_symbol else None,
+                )
                 await asyncio.sleep(0.2)
             await asyncio.sleep(MEXC_LISTING_CHECK_INTERVAL)
         except asyncio.CancelledError:
@@ -1527,7 +1621,9 @@ async def main():
     dp = Dispatcher(storage=storage)
     dp.include_router(router)
     try:
-        await bot_instance.set_my_commands(menu_commands())
+        await bot_instance.set_my_commands(menu_commands("en"))
+        for code in ("ru", "de", "fr", "es"):
+            await bot_instance.set_my_commands(menu_commands(code), language_code=code)
     except Exception:
         logger.warning("set_my_commands failed")
     await _set_panel_menu(lang="en")

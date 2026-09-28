@@ -13,7 +13,7 @@ if str(TRADING_DIR) not in sys.path:
 from aiogram.exceptions import TelegramRetryAfter  # noqa: E402
 
 from core.access_manager import AccessManager, decide_consume
-from core.bot_commands import PUBLIC_COMMANDS
+from core.bot_commands import PUBLIC_COMMANDS, menu_commands
 from core.chat_policy import is_private_chat, language_for_start
 from core.notifier import Notifier
 from core.payment_reasons import payment_reason_key
@@ -179,9 +179,30 @@ def test_confidence_percent_is_one_scale():
     assert "78%" in alert
     assert "0.78" not in alert
     assert "/ 1.0" not in alert
+    isolated = dict(plan, margin="isolated")
+    named = render_telegram_plan(isolated, deposit=1000, risk_pct=1, lang="en")
+    assert "ISOLATED + leverage" in named
+    assert "CROSS +" not in named
+    assert "Топ-5" not in t("ru", "scan_done_one", count=1)
+    assert "Top 5" not in t("en", "scan_done_one", count=1)
+    assert "Top" not in t("en", "scan_done_one", count=1)
     assert "≥65%" in t("en", "digest_high", count=1)
     assert "0.65" not in t("en", "digest_high", count=1)
     assert "50–65%" in t("ru", "digest_medium", count=2)
+
+
+def test_listing_alerts_follow_the_recipient_language():
+    english = Notifier().format_listing_alert("NEW_USDT", {"name": "New", "rank": 4}, lang="en")
+    russian = Notifier().format_listing_alert("NEW_USDT", {"name": "New"}, lang="ru")
+    assert "New MEXC pair" in english
+    assert "Новая пара" not in english
+    assert "Новая пара" in russian
+    news = Notifier().format_listing_news_alert(
+        {"title": "Lists NEW", "url": "https://mexc.example", "symbols": ["NEW"], "published_at": "2026-01-01"},
+        lang="de",
+    )
+    assert "Listing-News" in news
+    assert "Новость" not in news
 
 
 def test_smc_confidence_renders_as_percent():
@@ -248,6 +269,15 @@ def test_help_describes_the_hourly_scanner_and_manual_digest():
     assert "/digest" in help_text
     assert "00:05" not in help_text
     assert "04:05" not in help_text
+    assert "78%" in help_text
+    assert "0.0–1.0" not in help_text
+    assert "<code>conf</code>" not in help_text
+    russian = t("ru", "help", top_n=80)
+    assert "78%" in russian
+    assert "<code>entry</code>" not in russian
+    assert "<code>stop</code>" not in russian
+    assert "<code>conf</code>" not in russian
+    assert "0.0–1.0" not in russian
 
 
 def test_config_does_not_carry_a_bot_token():
@@ -274,6 +304,20 @@ def test_public_menu_omits_admin_commands():
     commands = {name for name, _description in PUBLIC_COMMANDS}
     assert "grant" not in commands
     assert "revoke" not in commands
+    assert "setup" not in commands
+    assert "spikes" not in commands
+    russian = {item.command: item.description for item in menu_commands("ru")}
+    english = {item.command: item.description for item in menu_commands("en")}
+    assert set(russian) == set(english)
+    assert "setup" not in russian
+    assert "spikes" not in russian
+    assert russian["plan"] != english["plan"]
+    assert "План" in russian["plan"]
+    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    assert 'Command("setup")' in source
+    assert 'Command("spikes")' in source
+    assert "BotCommandScopeChat" in source
+    assert "language_code=code" in source
 
 
 def test_payment_reasons_stay_distinct():

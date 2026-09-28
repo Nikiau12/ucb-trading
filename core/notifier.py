@@ -161,9 +161,9 @@ class Notifier:
     async def close(self):
         pass # The bot session will be closed by the main aiogram loop
 
-    def _money(self, value):
+    def _money(self, value, na="н/д"):
         if value is None:
-            return "н/д"
+            return na
         try:
             value = float(value)
         except (TypeError, ValueError):
@@ -195,41 +195,39 @@ class Notifier:
         }
         return labels.get(str(risk_label or "unknown").lower(), labels["unknown"])
 
-    def format_listing_alert(self, symbol, coin_info=None):
+    def format_listing_alert(self, symbol, coin_info=None, lang="en"):
         coin_info = coin_info or {}
-        rank = coin_info.get("rank") or "н/д"
-        safe_symbol = html.escape(str(symbol))
-        safe_name = html.escape(str(coin_info.get('name', symbol)))
-        safe_risk = html.escape(str(coin_info.get('risk_label', 'unknown')))
-        return (
-            f"🆕 <b>Новая пара на MEXC: {safe_symbol}</b>\n\n"
-            f"Монета: <b>{safe_name}</b>\n"
-            f"Рейтинг CoinGecko: #{rank}\n"
-            f"Market Cap: {self._money(coin_info.get('market_cap'))}\n"
-            f"24h Volume: {self._money(coin_info.get('volume_24h'))}\n"
-            f"Риск-профиль: <b>{safe_risk}</b>\n\n"
-            f"⚠️ Новые листинги часто двигаются резко. Не входи без плана и стопа."
+        na = _tr(lang, "listing_na")
+        rank = coin_info.get("rank") or na
+        return _tr(
+            lang,
+            "listing_new",
+            symbol=html.escape(str(symbol)),
+            name=html.escape(str(coin_info.get("name", symbol))),
+            rank=html.escape(str(rank)),
+            cap=html.escape(self._money(coin_info.get("market_cap"), na=na)),
+            volume=html.escape(self._money(coin_info.get("volume_24h"), na=na)),
+            risk=html.escape(str(coin_info.get("risk_label", "unknown"))),
         )
 
-    def format_listing_news_alert(self, announcement, coin_info=None):
+    def format_listing_news_alert(self, announcement, coin_info=None, lang="en"):
         coin_info = coin_info or {}
-        title = html.escape(str(announcement.get("title", "MEXC listing news")))
-        url = html.escape(str(announcement.get("url", "")))
-        symbols = ", ".join(announcement.get("symbols", [])) or "н/д"
-        rank = coin_info.get("rank") or "н/д"
-        safe_name = html.escape(str(coin_info.get('name', symbols)))
-        safe_risk = html.escape(str(coin_info.get('risk_label', 'unknown')))
-        return (
-            f"📰 <b>Новость MEXC по листингу</b>\n\n"
-            f"<b>{title}</b>\n"
-            f"Тикеры: <b>{html.escape(symbols)}</b>\n"
-            f"Опубликовано: {html.escape(str(announcement.get('published_at', 'н/д')))}\n\n"
-            f"Монета: <b>{safe_name}</b>\n"
-            f"Рейтинг CoinGecko: #{rank}\n"
-            f"Market Cap: {self._money(coin_info.get('market_cap'))}\n"
-            f"24h Volume: {self._money(coin_info.get('volume_24h'))}\n"
-            f"Риск-профиль: <b>{safe_risk}</b>\n\n"
-            f"Ссылка: {url}"
+        announcement = announcement or {}
+        na = _tr(lang, "listing_na")
+        symbols = ", ".join(str(item) for item in announcement.get("symbols", [])) or na
+        rank = coin_info.get("rank") or na
+        return _tr(
+            lang,
+            "listing_news",
+            title=html.escape(str(announcement.get("title") or na)),
+            url=html.escape(str(announcement.get("url") or "")),
+            symbols=html.escape(symbols),
+            published=html.escape(str(announcement.get("published_at") or na)),
+            name=html.escape(str(coin_info.get("name", symbols))),
+            rank=html.escape(str(rank)),
+            cap=html.escape(self._money(coin_info.get("market_cap"), na=na)),
+            volume=html.escape(self._money(coin_info.get("volume_24h"), na=na)),
+            risk=html.escape(str(coin_info.get("risk_label", "unknown"))),
         )
 
     def format_spike_alert(self, symbol, timeframe, spike_data, coin_info=None, lang="en"):

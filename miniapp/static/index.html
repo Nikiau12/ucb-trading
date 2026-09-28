@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
   <title>UCB Trading</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260928-1">
+  <link rel="stylesheet" href="/static/styles.css?v=20260928-2">
   <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
@@ -109,6 +109,7 @@
         <section class="detail-section">
           <div class="section-heading"><div><p class="eyebrow" data-i18n="personalSizing">PERSONAL SIZING</p><h2 data-i18n="positionPlan">Position plan</h2></div></div>
           <div class="detail-position" id="detail-position"></div>
+          <p class="sizing-caveat" id="detail-sizing-note" hidden></p>
         </section>
       </section>
 
@@ -122,7 +123,7 @@
           <button class="primary-button" type="submit"><i data-lucide="save"></i><span data-i18n="saveSettings">Save settings</span></button>
           <p class="form-status" id="form-status" role="status"></p>
         </form>
-        <section class="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 data-i18n="monthlyAccess">Monthly access</h2><p data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price"><strong class="subscription-price">—</strong><span>USDT / <span class="subscription-days">—</span>d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
+        <section class="subscription-panel" id="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 id="subscription-title" data-i18n="monthlyAccess">Monthly access</h2><p id="subscription-copy" data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price" id="subscription-price-block"><strong class="subscription-price">—</strong><span>USDT / <span class="subscription-days">—</span>d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
       </section>
     </main>
 
@@ -151,6 +152,6 @@
     </nav>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/static/app.js?v=20260928-1"></script>
+  <script src="/static/app.js?v=20260928-2"></script>
 </body>
 </html>

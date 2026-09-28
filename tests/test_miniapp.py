@@ -245,6 +245,25 @@ def test_payment_screen_stays_open_until_a_verified_hash():
     assert "showPaymentSuccess" in script
 
 
+def test_remaining_interface_gaps_are_in_the_mini_app():
+    root = ROOT_DIR / "miniapp" / "static"
+    html = (root / "index.html").read_text()
+    script = (root / "app.js").read_text()
+    css = (root / "styles.css").read_text()
+
+    assert "width:390px" not in css
+    assert "right:24px" not in css
+    assert 'id="subscription-title"' in html
+    assert 'id="detail-sizing-note"' in html
+    assert "syncSymbolPicker" in script
+    assert "filterEmpty" in script
+    assert "saveFailed" in script
+    assert "const previous=language" in script
+    assert "position_below_min_contract" in script
+    assert "settingsAccessCopy" in script
+    assert "pay.hidden=paid" in script
+
+
 def test_unverified_payment_hash_does_not_open_access(monkeypatch):
     token = "123456:test-token"
     user = {"id": 42, "first_name": "Nikita", "language_code": "en"}
