@@ -71,6 +71,7 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
+from setup_text import signal_query
 from user_input import (
     asks_for_plan_scan,
     bare_plan_symbol,
@@ -297,20 +298,21 @@ def _plan_symbol_keyboard(lang: str, symbol: str) -> InlineKeyboardMarkup:
     ]])
 
 
-def _chart_url(symbol: str) -> str:
+def _signal_app_url(signal_id: int) -> str:
     parts = urlparse(MINI_APP_URL)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query["symbol"] = symbol
+    query.pop("symbol", None)
+    query.update(dict(parse_qsl(signal_query(signal_id))))
     return urlunparse(parts._replace(query=urlencode(query)))
 
 
-def _chart_keyboard(symbol: str, lang: str) -> InlineKeyboardMarkup | None:
-    if not MINI_APP_URL or not symbol:
+def _open_setup_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup | None:
+    if not MINI_APP_URL or not signal_id:
         return None
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
-            text=_t(lang, "open_chart"),
-            web_app=WebAppInfo(url=_chart_url(symbol)),
+            text=_t(lang, "open_setup"),
+            web_app=WebAppInfo(url=_signal_app_url(int(signal_id))),
         )
     ]])
 
@@ -508,11 +510,24 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
     side = str((plan.get("primary") or {}).get("side", "skip")).upper()
     if not symbol or side == "SKIP":
         return False
-    text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
-    await message.reply(text, parse_mode="HTML")
+    text = render_auto_alert(
+        plan,
+        symbol,
+        side,
+        _conf(plan),
+        deposit,
+        risk_pct,
+        float(plan.get("lev") or plan.get("requested_lev") or 10),
+        lang=lang,
+    )
     signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
     if signal_id:
         st.grant_signal_access(message.from_user.id, signal_id)
+    await message.reply(
+        text,
+        parse_mode="HTML",
+        reply_markup=_open_setup_keyboard(signal_id, lang),
+    )
     return True
 
 
@@ -869,13 +884,22 @@ async def cmd_plan(message: types.Message):
         snapshot = await loop.run_in_executor(None, snap.build_snapshot_with_fallback, symbol)
         plan     = core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
         side = str((plan.get("primary") or {}).get("side", "skip")).upper()
-        text     = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
-        chart = _chart_keyboard(symbol, lang) if side != "SKIP" else None
-        await status_msg.edit_text(text, parse_mode="HTML", reply_markup=chart)
-        if side != "SKIP":
+        signal_id = None
+        if side == "SKIP":
+            text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
+        else:
+            text = render_auto_alert(
+                plan, symbol, side, _conf(plan), deposit, risk_pct, lev, lang=lang,
+            )
             signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
             if signal_id:
                 st.grant_signal_access(uid, signal_id)
+        await status_msg.edit_text(
+            text,
+            parse_mode="HTML",
+            reply_markup=_open_setup_keyboard(signal_id, lang),
+        )
+        if side != "SKIP":
             debit_trial(user_id, mode)
             if mode == "trial":
                 remaining = access_manager.status(user_id)["trial_left"]
@@ -1083,16 +1107,30 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
             return False
 
         for plan in high[:detail_limit]:
-            full = render_telegram_plan(plan, deposit=settings["deposit"], risk_pct=settings["risk_pct"], lang=lang)
-            await bot_instance.send_message(chat_id=chat_id, text=full, parse_mode="HTML")
             try:
                 user_id = int(chat_id)
             except (TypeError, ValueError):
                 user_id = 0
             side = str((plan.get("primary") or {}).get("side", "skip")).upper()
+            full = render_auto_alert(
+                plan,
+                plan.get("symbol", ""),
+                side,
+                _conf(plan),
+                settings["deposit"],
+                settings["risk_pct"],
+                float(plan.get("lev") or settings.get("lev") or 10),
+                lang=lang,
+            )
             signal_id = st.save_signal(plan, plan.get("symbol", ""), side, _conf(plan), source="manual")
             if signal_id and user_id:
                 st.grant_signal_access(user_id, signal_id)
+            await bot_instance.send_message(
+                chat_id=chat_id,
+                text=full,
+                parse_mode="HTML",
+                reply_markup=_open_setup_keyboard(signal_id, lang),
+            )
             await asyncio.sleep(0.4)
         return True
     except Exception as exc:
@@ -1517,7 +1555,11 @@ async def plan_scanner_loop():
                                 lang=get_lang(user_id),
                                 uses_reference_deposit=uses_reference,
                             )
-                            if await notifier.send_message_to_user(chat_id, alert):
+                            if await notifier.send_message_to_user(
+                                chat_id,
+                                alert,
+                                reply_markup=_open_setup_keyboard(signal_id, get_lang(user_id)),
+                            ):
                                 delivered_count += 1
                                 if signal_id:
                                     st.grant_signal_access(user_id, signal_id)

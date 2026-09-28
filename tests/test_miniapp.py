@@ -254,8 +254,22 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "width:390px" not in css
     assert "right:24px" not in css
     assert 'id="subscription-title"' in html
-    assert 'id="detail-sizing-note"' in html
+    assert 'id="chart-skeleton"' in html
+    assert 'id="chart-frame"' in html
+    assert 'id="payment-sheet"' in html
+    assert 'data-i18n="sizeDisclaimer"' in html
+    assert 'data-i18n="hello"' not in html
+    assert "исполнен" not in html
+    assert "executionPlan" not in html
+    assert "/paid" not in html
+    assert "font:16px/1.45" in css
+    assert "min-height:44px" in css
+    assert "chart-skeleton" in css
     assert "syncSymbolPicker" in script
+    assert "signal_id" in script
+    assert "setHeaderColor?.('#090b10')" in script
+    assert "MainButton" in script
+    assert "riskUsdt/distance" not in script
     assert "filterEmpty" in script
     assert "saveFailed" in script
     assert "const previous=language" in script

@@ -254,12 +254,50 @@ def test_commands_stay_in_private_chats_and_start_keeps_language():
     assert language_for_start("ru", "subscribe_de") == ("de", True)
 
 
+def test_setup_deep_link_opens_the_signal_id():
+    from setup_text import signal_query
+
+    assert signal_query(42) == "signal_id=42"
+    assert "symbol=" not in signal_query(42)
+    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    assert "signal_query" in source
+    assert 'query.pop("symbol", None)' in source
+    assert "open_setup" in source
+
+
+def test_russian_setup_uses_panel_words_without_english_tokens():
+    plan = {
+        "symbol": "BTC_USDT",
+        "price": 100,
+        "trend": {"1d": "up", "4h": "down", "regime": "trend"},
+        "primary": {
+            "side": "long",
+            "confidence": 0.78,
+            "entry": 100,
+            "stop": 90,
+            "tps": [{"price": 120}, {"price": 140}],
+            "reasons": ["trend_1d=up", "entry_dist_ATR4h=0.4", "midrange=1", "deposit=1000"],
+        },
+    }
+    text = render_auto_alert(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="ru")
+    lowered = text.lower()
+    assert "Вход" in text
+    assert "entry" not in lowered
+    assert "midrange" not in lowered
+    assert "deposit" not in lowered
+    assert "Бот считает размер. Ордер ставишь ты." in text
+    assert "исполнен" not in lowered
+    assert "78%" in text
+
+
 def test_paid_feed_is_scanner_only_and_trial_feed_is_granted_only():
     assert "source = 'scanner'" in miniapp.PAID_SIGNALS_SQL
     assert "s.source <> 'scanner'" in miniapp.PAID_SIGNALS_SQL
     assert "user_signal_access" in miniapp.PAID_SIGNALS_SQL
     assert "user_signal_access" in miniapp.TRIAL_SIGNALS_SQL
     assert "source = 'scanner'" not in miniapp.TRIAL_SIGNALS_SQL
+    assert "NOT IN ('spike', 'smc', 'listing')" in miniapp.PAID_SIGNALS_SQL
+    assert "NOT IN ('spike', 'smc', 'listing')" in miniapp.TRIAL_SIGNALS_SQL
     assert "INSERT INTO user_signal_access" not in inspect.getsource(miniapp.signals)
 
 

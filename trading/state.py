@@ -306,6 +306,20 @@ def set_user_setting(user_id: int, key: str, value) -> None:
     _save(state)
 
 
+def signal_context(plan: dict) -> tuple[str, str, str]:
+    """Reason, 1D/4H regime, and setup timeframe stored with the signal."""
+    trend = plan.get("trend") or {}
+    primary = plan.get("primary") or {}
+    reasons = [str(item) for item in (primary.get("reasons") or plan.get("reasons") or []) if item]
+    safe = [
+        item for item in reasons
+        if not any(token in item.lower() for token in ("entry", "midrange", "deposit"))
+    ]
+    reason = " · ".join(safe)[:500]
+    regime = f"1d={trend.get('1d') or ''};4h={trend.get('4h') or ''};regime={trend.get('regime') or ''}"
+    return reason, regime, "4h"
+
+
 def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: str = "scanner"):
     symbol = normalize_usdt_symbol(symbol)
     if not symbol or plan_payload_errors(plan):
@@ -315,6 +329,7 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
     primary = plan.get("primary") or {}
     tps = primary.get("tps") or []
     rules = _signal_contract_rules(plan)
+    reason, regime, timeframe = signal_context(plan)
     origin = source if source in {"scanner", "manual"} else "manual"
     try:
         with psycopg.connect(DATABASE_URL) as connection:
@@ -323,16 +338,17 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                 INSERT INTO signals (
                     symbol, side, confidence, price, entry, stop, tp1, tp2,
                     price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
-                    source
+                    reason, regime, timeframe, source
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (symbol, side.upper(), confidence, plan.get("price"), primary.get("entry"),
                  primary.get("stop"), tps[0].get("price") if tps else None,
                  tps[1].get("price") if len(tps) > 1 else None,
                  rules["price_unit"], rules["contract_size"], rules["vol_unit"],
-                 rules["min_vol"], rules["max_vol"], rules["max_leverage"], origin),
+                 rules["min_vol"], rules["max_vol"], rules["max_leverage"],
+                 reason, regime, timeframe, origin),
             ).fetchone()
             connection.commit()
             return row[0] if row else None

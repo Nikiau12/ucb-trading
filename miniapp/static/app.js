@@ -2,23 +2,23 @@ const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
 
 const translations = {
-  en:{workspace:'PRIVATE WORKSPACE',hello:'Hello',marketLive:'MEXC LIVE',deposit:'Deposit',riskTrade:'Risk / trade',leverage:'Leverage',access:'Access',cross:'Cross',isolated:'Isolated',scanner:'MARKET SCANNER',latestSignals:'Latest signals',viewAll:'View all',signalHistory:'Signal history',all:'All',riskProfile:'RISK PROFILE',settings:'Settings',depositUsdt:'Deposit, USDT',riskPercent:'Risk per trade, %',leverageX:'Leverage',marginMode:'Margin mode',saveSettings:'Save settings',subscription:'SUBSCRIPTION',monthlyAccess:'Monthly access',subscriptionCopy:'Automatic signals, scanner and full position plans.',paymentInstructions:'Payment instructions',overview:'Overview',signals:'Signals',trial:'Trial',signalsLeft:'signals left',active:'Active',inactive:'Inactive',entry:'Entry',stop:'Stop',confidence:'Confidence',saved:'Settings saved',paymentHelp:'Opening payment instructions in the bot...',paymentUnavailable:'Could not open the bot. Close the app and send /subscribe.',noSignals:'No signals yet',currentPrice:'Current price',tp1:'TP1',tp2:'TP2',positionSize:'Position size',marginRequired:'Required margin',stopRisk:'Stop risk',backToSignals:'Back to signals',tradeSetup:'TRADE SETUP',livePrice:'LIVE PRICE',signalLevels:'SIGNAL LEVELS',executionPlan:'Execution plan',personalSizing:'PERSONAL SIZING',positionPlan:'Position plan',trialComplete:'Free trial completed',trialCompleteCopy:'You used 5 free signals. Subscribe to continue receiving new setups.',unlockSignals:'Unlock signals',marketOffline:'MEXC OFFLINE',bullish:'BULLISH',bearish:'BEARISH',marketView:'MARKET VIEW',legendEntry:'Entry',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'TIMEFRAME',requestPlan:'Request a plan',payExact:'Exact amount',copyAddress:'Copy',txHash:'Transaction hash',submitHash:'Submit hash',paymentFailed:'Payment was not confirmed. Check the hash and try again.',retryPayment:'Try again',accessOpen:'Access open',accessOpenCopy:'Access is open on this screen.',listing:'Listing',copied:'Address copied',filterEmpty:'No {side} signals in this filter.',saveFailed:'Could not save settings.',settingsAccessCopy:'Access is open. You do not need to pay again.',levCapped:'Leverage was reduced to the MEXC maximum for this market.',minContract:'The minimum MEXC contract is too large for this risk. Do not open the trade.'},
-  ru:{workspace:'ЛИЧНЫЙ КАБИНЕТ',hello:'Привет',marketLive:'MEXC ОНЛАЙН',deposit:'Депозит',riskTrade:'Риск / сделку',leverage:'Плечо',access:'Доступ',cross:'Кросс',isolated:'Изолированная',scanner:'СКАНЕР РЫНКА',latestSignals:'Последние сигналы',viewAll:'Все сигналы',signalHistory:'История сигналов',all:'Все',riskProfile:'РИСК-ПРОФИЛЬ',settings:'Настройки',depositUsdt:'Депозит, USDT',riskPercent:'Риск на сделку, %',leverageX:'Кредитное плечо',marginMode:'Режим маржи',saveSettings:'Сохранить',subscription:'ПОДПИСКА',monthlyAccess:'Месячный доступ',subscriptionCopy:'Автосигналы, сканер и полные торговые планы.',paymentInstructions:'Инструкция по оплате',overview:'Обзор',signals:'Сигналы',trial:'Пробный доступ',signalsLeft:'сигналов осталось',active:'Активна',inactive:'Неактивна',entry:'Вход',stop:'Стоп',confidence:'Уверенность',saved:'Настройки сохранены',paymentHelp:'Открываю инструкцию по оплате в боте...',paymentUnavailable:'Не удалось открыть бота. Закрой приложение и отправь /subscribe.',noSignals:'Сигналов пока нет',currentPrice:'Цена сейчас',tp1:'TP1',tp2:'TP2',positionSize:'Объём позиции',marginRequired:'Нужно маржи',stopRisk:'Риск по стопу',backToSignals:'Назад к сигналам',tradeSetup:'ТОРГОВЫЙ СЕТАП',livePrice:'ЦЕНА ОНЛАЙН',signalLevels:'УРОВНИ СИГНАЛА',executionPlan:'План исполнения',personalSizing:'ПЕРСОНАЛЬНЫЙ РАСЧЁТ',positionPlan:'План позиции',trialComplete:'Пробный доступ завершён',trialCompleteCopy:'Ты использовал 5 бесплатных сигналов. Оформи подписку, чтобы получать новые сетапы.',unlockSignals:'Открыть доступ',marketOffline:'MEXC НЕ В СЕТИ',bullish:'РОСТ',bearish:'ПАДЕНИЕ',marketView:'ОБЗОР РЫНКА',legendEntry:'Вход',legendStop:'Стоп',legendTargets:'TP1 / TP2',trendLabel:'ТРЕНД',setupLabel:'СЕТАП',timeframeLabel:'ТАЙМФРЕЙМ',requestPlan:'Запросить план',payExact:'Точная сумма',copyAddress:'Копировать',txHash:'Хеш транзакции',submitHash:'Отправить хеш',paymentFailed:'Платёж не подтверждён. Проверь хеш и повтори.',retryPayment:'Повторить',accessOpen:'Доступ открыт',accessOpenCopy:'Доступ открыт на этом экране.',listing:'Листинг',copied:'Адрес скопирован',filterEmpty:'В фильтре {side} пусто.',saveFailed:'Не удалось сохранить настройки.',settingsAccessCopy:'Доступ открыт. Повторная оплата не нужна.',levCapped:'Плечо снижено до максимума MEXC для этой монеты.',minContract:'Минимальный контракт MEXC слишком велик для этого риска. Сделку открывать не нужно.'},
-  de:{workspace:'PRIVATER ARBEITSBEREICH',hello:'Hallo',marketLive:'MEXC LIVE',deposit:'Kapital',riskTrade:'Risiko / Trade',leverage:'Hebel',access:'Zugang',cross:'Cross',isolated:'Isoliert',scanner:'MARKTSCANNER',latestSignals:'Neueste Signale',viewAll:'Alle anzeigen',signalHistory:'Signalverlauf',all:'Alle',riskProfile:'RISIKOPROFIL',settings:'Einstellungen',depositUsdt:'Kapital, USDT',riskPercent:'Risiko pro Trade, %',leverageX:'Hebel',marginMode:'Margin-Modus',saveSettings:'Speichern',subscription:'ABONNEMENT',monthlyAccess:'Monatlicher Zugang',subscriptionCopy:'Automatische Signale, Scanner und vollständige Pläne.',paymentInstructions:'Zahlungsanleitung',overview:'Übersicht',signals:'Signale',trial:'Testzugang',signalsLeft:'Signale übrig',active:'Aktiv',inactive:'Inaktiv',entry:'Einstieg',stop:'Stop',confidence:'Konfidenz',saved:'Einstellungen gespeichert',paymentHelp:'Zahlungsanleitung wird im Bot geöffnet...',paymentUnavailable:'Der Bot konnte nicht geöffnet werden. Schließe die App und sende /subscribe.',noSignals:'Noch keine Signale',currentPrice:'Aktueller Preis',tp1:'TP1',tp2:'TP2',positionSize:'Positionsgröße',marginRequired:'Benötigte Margin',stopRisk:'Stop-Risiko',backToSignals:'Zurück zu Signalen',tradeSetup:'TRADE-SETUP',livePrice:'LIVE-PREIS',signalLevels:'SIGNALNIVEAUS',executionPlan:'Ausführungsplan',personalSizing:'PERSÖNLICHE GRÖSSE',positionPlan:'Positionsplan',trialComplete:'Testphase beendet',trialCompleteCopy:'Du hast 5 kostenlose Signale genutzt. Abonniere, um neue Setups zu erhalten.',unlockSignals:'Signale freischalten',marketOffline:'MEXC OFFLINE',bullish:'STEIGEND',bearish:'FALLEND',marketView:'MARKTÜBERBLICK',legendEntry:'Einstieg',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'ZEITRAHMEN',requestPlan:'Plan anfordern',payExact:'Genauer Betrag',copyAddress:'Kopieren',txHash:'Transaktions-Hash',submitHash:'Hash senden',paymentFailed:'Zahlung nicht bestätigt. Prüfe den Hash und versuche es erneut.',retryPayment:'Erneut versuchen',accessOpen:'Zugang offen',accessOpenCopy:'Der Zugang ist auf diesem Bildschirm offen.',listing:'Listing',copied:'Adresse kopiert',filterEmpty:'Keine {side}-Signale in diesem Filter.',saveFailed:'Einstellungen konnten nicht gespeichert werden.',settingsAccessCopy:'Der Zugang ist offen. Eine erneute Zahlung ist nicht nötig.',levCapped:'Der Hebel wurde auf das MEXC-Maximum für diesen Markt gesenkt.',minContract:'Der minimale MEXC-Kontrakt ist für dieses Risiko zu groß. Trade nicht eröffnen.'},
-  fr:{workspace:'ESPACE PRIVÉ',hello:'Bonjour',marketLive:'MEXC EN DIRECT',deposit:'Dépôt',riskTrade:'Risque / trade',leverage:'Levier',access:'Accès',cross:'Cross',isolated:'Isolée',scanner:'SCANNER DU MARCHÉ',latestSignals:'Derniers signaux',viewAll:'Tout voir',signalHistory:'Historique des signaux',all:'Tous',riskProfile:'PROFIL DE RISQUE',settings:'Paramètres',depositUsdt:'Dépôt, USDT',riskPercent:'Risque par trade, %',leverageX:'Levier',marginMode:'Mode de marge',saveSettings:'Enregistrer',subscription:'ABONNEMENT',monthlyAccess:'Accès mensuel',subscriptionCopy:'Signaux automatiques, scanner et plans complets.',paymentInstructions:'Instructions de paiement',overview:'Aperçu',signals:'Signaux',trial:'Essai',signalsLeft:'signaux restants',active:'Actif',inactive:'Inactif',entry:'Entrée',stop:'Stop',confidence:'Confiance',saved:'Paramètres enregistrés',paymentHelp:'Ouverture des instructions de paiement dans le bot...',paymentUnavailable:'Impossible d\'ouvrir le bot. Ferme l\'application et envoie /subscribe.',noSignals:'Aucun signal',currentPrice:'Prix actuel',tp1:'TP1',tp2:'TP2',positionSize:'Taille de position',marginRequired:'Marge requise',stopRisk:'Risque au stop',backToSignals:'Retour aux signaux',tradeSetup:'CONFIGURATION',livePrice:'PRIX EN DIRECT',signalLevels:'NIVEAUX DU SIGNAL',executionPlan:'Plan d\'exécution',personalSizing:'TAILLE PERSONNELLE',positionPlan:'Plan de position',trialComplete:'Essai terminé',trialCompleteCopy:'Tu as utilisé 5 signaux gratuits. Abonne-toi pour continuer à recevoir de nouveaux setups.',unlockSignals:'Débloquer les signaux',marketOffline:'MEXC HORS LIGNE',bullish:'HAUSSIER',bearish:'BAISSIER',marketView:'VUE DU MARCHÉ',legendEntry:'Entrée',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDANCE',setupLabel:'SETUP',timeframeLabel:'UNITÉ DE TEMPS',requestPlan:'Demander un plan',payExact:'Montant exact',copyAddress:'Copier',txHash:'Hash de transaction',submitHash:'Envoyer le hash',paymentFailed:'Paiement non confirmé. Vérifie le hash et réessaie.',retryPayment:'Réessayer',accessOpen:'Accès ouvert',accessOpenCopy:'L\'accès est ouvert sur cet écran.',listing:'Listing',copied:'Adresse copiée',filterEmpty:'Aucun signal {side} dans ce filtre.',saveFailed:'Impossible d\'enregistrer les paramètres.',settingsAccessCopy:'L\'accès est ouvert. Un nouveau paiement n\'est pas nécessaire.',levCapped:'Le levier a été réduit au maximum MEXC de ce marché.',minContract:'Le contrat minimum MEXC est trop grand pour ce risque. N\'ouvre pas le trade.'},
-  es:{workspace:'ESPACIO PRIVADO',hello:'Hola',marketLive:'MEXC EN VIVO',deposit:'Depósito',riskTrade:'Riesgo / operación',leverage:'Apalancamiento',access:'Acceso',cross:'Cruzado',isolated:'Aislado',scanner:'ESCÁNER DE MERCADO',latestSignals:'Últimas señales',viewAll:'Ver todas',signalHistory:'Historial de señales',all:'Todas',riskProfile:'PERFIL DE RIESGO',settings:'Ajustes',depositUsdt:'Depósito, USDT',riskPercent:'Riesgo por operación, %',leverageX:'Apalancamiento',marginMode:'Modo de margen',saveSettings:'Guardar',subscription:'SUSCRIPCIÓN',monthlyAccess:'Acceso mensual',subscriptionCopy:'Señales automáticas, escáner y planes completos.',paymentInstructions:'Instrucciones de pago',overview:'Resumen',signals:'Señales',trial:'Prueba',signalsLeft:'señales restantes',active:'Activo',inactive:'Inactivo',entry:'Entrada',stop:'Stop',confidence:'Confianza',saved:'Ajustes guardados',paymentHelp:'Abriendo las instrucciones de pago en el bot...',paymentUnavailable:'No se pudo abrir el bot. Cierra la aplicación y envía /subscribe.',noSignals:'Aún no hay señales',currentPrice:'Precio actual',tp1:'TP1',tp2:'TP2',positionSize:'Tamaño de posición',marginRequired:'Margen necesario',stopRisk:'Riesgo al stop',backToSignals:'Volver a señales',tradeSetup:'CONFIGURACIÓN',livePrice:'PRECIO EN VIVO',signalLevels:'NIVELES DE SEÑAL',executionPlan:'Plan de ejecución',personalSizing:'TAMAÑO PERSONAL',positionPlan:'Plan de posición',trialComplete:'Prueba finalizada',trialCompleteCopy:'Has usado 5 señales gratis. Suscríbete para seguir recibiendo nuevos setups.',unlockSignals:'Desbloquear señales',marketOffline:'MEXC SIN CONEXIÓN',bullish:'ALCISTA',bearish:'BAJISTA',marketView:'VISTA DEL MERCADO',legendEntry:'Entrada',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDENCIA',setupLabel:'SETUP',timeframeLabel:'MARCO TEMPORAL',requestPlan:'Pedir un plan',payExact:'Importe exacto',copyAddress:'Copiar',txHash:'Hash de la transacción',submitHash:'Enviar hash',paymentFailed:'El pago no se confirmó. Revisa el hash e inténtalo de nuevo.',retryPayment:'Reintentar',accessOpen:'Acceso abierto',accessOpenCopy:'El acceso está abierto en esta pantalla.',listing:'Listing',copied:'Dirección copiada',filterEmpty:'No hay señales {side} en este filtro.',saveFailed:'No se pudieron guardar los ajustes.',settingsAccessCopy:'El acceso está abierto. No hace falta pagar otra vez.',levCapped:'El apalancamiento se redujo al máximo de MEXC para este mercado.',minContract:'El contrato mínimo de MEXC es demasiado grande para este riesgo. No abras la operación.'}
+  en:{workspace:'PRIVATE WORKSPACE',hello:'Hello',marketLive:'MEXC LIVE',deposit:'Deposit',riskTrade:'Risk / trade',leverage:'Leverage',access:'Access',cross:'Cross',isolated:'Isolated',scanner:'MARKET SCANNER',latestSignals:'Latest signals',viewAll:'View all',signalHistory:'Signal history',all:'All',riskProfile:'RISK PROFILE',settings:'Settings',depositUsdt:'Deposit, USDT',riskPercent:'Risk per trade, %',leverageX:'Leverage',marginMode:'Margin mode',saveSettings:'Save settings',subscription:'SUBSCRIPTION',monthlyAccess:'Monthly access',subscriptionCopy:'Automatic signals, scanner and full position plans.',paymentInstructions:'Payment instructions',overview:'Overview',signals:'Signals',trial:'Trial',signalsLeft:'signals left',active:'Active',inactive:'Inactive',entry:'Entry',stop:'Stop',confidence:'Confidence',saved:'Settings saved',paymentHelp:'Opening payment instructions in the bot...',paymentUnavailable:'Could not open the bot. Close the app and send /subscribe.',noSignals:'No signals yet',currentPrice:'Current price',tp1:'TP1',tp2:'TP2',positionSize:'Position size',marginRequired:'Margin required',stopRisk:'Stop risk',backToSignals:'Back to signals',tradeSetup:'TRADE SETUP',livePrice:'LIVE PRICE',signalLevels:'SIGNAL LEVELS',executionPlan:'Execution plan',personalSizing:'PERSONAL SIZING',positionPlan:'Position plan',trialComplete:'Free trial completed',trialCompleteCopy:'You used 5 free signals. Subscribe to continue receiving new setups.',unlockSignals:'Unlock signals',marketOffline:'MEXC OFFLINE',bullish:'BULLISH',bearish:'BEARISH',marketView:'MARKET VIEW',legendEntry:'Entry',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'TIMEFRAME',requestPlan:'Request a plan',payExact:'Exact amount',copyAddress:'Copy',txHash:'Transaction hash',submitHash:'Submit hash',paymentFailed:'Payment was not confirmed. Check the hash and try again.',retryPayment:'Try again',accessOpen:'Access open',accessOpenCopy:'Access is open on this screen.',listing:'Listing',copied:'Address copied',filterEmpty:'No {side} signals in this filter.',saveFailed:'Could not save settings.',settingsAccessCopy:'Access is open. You do not need to pay again.',levCapped:'Leverage was reduced to the MEXC maximum for this market.',minContract:'The minimum MEXC contract is too large for this risk. Do not open the trade.',sizeDisclaimer:'The bot calculates the size. You place the order.',regimeLabel:'Regime',network:'Network',flat:'Flat',regimeTrend:'Trend',regimeRange:'Range',needAccess:'Need access',openMexc:'Open in MEXC',copiedSetup:'Setup copied',confidenceNote:'Rules estimate, not a probability.',tf1d:'1D trend',tf4h:'4H trend',tfStruct:'4H structure'},
+  ru:{workspace:'ЛИЧНЫЙ КАБИНЕТ',hello:'Привет',marketLive:'MEXC ОНЛАЙН',deposit:'Депозит',riskTrade:'Риск / сделку',leverage:'Плечо',access:'Доступ',cross:'Кросс',isolated:'Изолированная',scanner:'СКАНЕР РЫНКА',latestSignals:'Последние сигналы',viewAll:'Все сигналы',signalHistory:'История сигналов',all:'Все',riskProfile:'РИСК-ПРОФИЛЬ',settings:'Настройки',depositUsdt:'Депозит, USDT',riskPercent:'Риск на сделку, %',leverageX:'Кредитное плечо',marginMode:'Режим маржи',saveSettings:'Сохранить',subscription:'ПОДПИСКА',monthlyAccess:'Месячный доступ',subscriptionCopy:'Автосигналы, сканер и полные торговые планы.',paymentInstructions:'Инструкция по оплате',overview:'Обзор',signals:'Сигналы',trial:'Пробный доступ',signalsLeft:'сигналов осталось',active:'Активна',inactive:'Неактивна',entry:'Вход',stop:'Стоп',confidence:'Уверенность',saved:'Настройки сохранены',paymentHelp:'Открываю инструкцию по оплате в боте...',paymentUnavailable:'Не удалось открыть бота. Закрой приложение и отправь /subscribe.',noSignals:'Сигналов пока нет',currentPrice:'Цена сейчас',tp1:'TP1',tp2:'TP2',positionSize:'Объём позиции',marginRequired:'Нужно маржи',stopRisk:'Риск по стопу',backToSignals:'Назад к сигналам',tradeSetup:'ТОРГОВЫЙ СЕТАП',livePrice:'ЦЕНА ОНЛАЙН',signalLevels:'УРОВНИ СИГНАЛА',levelsTitle:'Уровни',personalSizing:'ПЕРСОНАЛЬНЫЙ РАСЧЁТ',positionPlan:'План позиции',trialComplete:'Пробный доступ завершён',trialCompleteCopy:'Ты использовал 5 бесплатных сигналов. Оформи подписку, чтобы получать новые сетапы.',unlockSignals:'Открыть доступ',marketOffline:'MEXC НЕ В СЕТИ',bullish:'РОСТ',bearish:'ПАДЕНИЕ',marketView:'ОБЗОР РЫНКА',legendEntry:'Вход',legendStop:'Стоп',legendTargets:'TP1 / TP2',trendLabel:'ТРЕНД',setupLabel:'СЕТАП',timeframeLabel:'ТАЙМФРЕЙМ',requestPlan:'Запросить план',payExact:'Точная сумма',copyAddress:'Копировать',txHash:'Хеш транзакции',submitHash:'Отправить хеш',paymentFailed:'Платёж не подтверждён. Проверь хеш и повтори.',retryPayment:'Повторить',accessOpen:'Доступ открыт',accessOpenCopy:'Доступ открыт на этом экране.',listing:'Листинг',copied:'Адрес скопирован',filterEmpty:'В фильтре {side} пусто.',saveFailed:'Не удалось сохранить настройки.',settingsAccessCopy:'Доступ открыт. Повторная оплата не нужна.',levCapped:'Плечо снижено до максимума MEXC для этой монеты.',minContract:'Минимальный контракт MEXC слишком велик для этого риска. Сделку открывать не нужно.',sizeDisclaimer:'Бот считает размер. Ордер ставишь ты.',regimeLabel:'Режим',network:'Сеть',flat:'Флэт',regimeTrend:'Тренд',regimeRange:'Диапазон',needAccess:'Нужен доступ',openMexc:'Открыть в MEXC',copiedSetup:'Сетап скопирован',confidenceNote:'Оценка правил, не вероятность.',tf1d:'Тренд 1Д',tf4h:'Тренд 4Ч',tfStruct:'Структура 4Ч'},
+  de:{workspace:'PRIVATER ARBEITSBEREICH',hello:'Hallo',marketLive:'MEXC LIVE',deposit:'Kapital',riskTrade:'Risiko / Trade',leverage:'Hebel',access:'Zugang',cross:'Cross',isolated:'Isoliert',scanner:'MARKTSCANNER',latestSignals:'Neueste Signale',viewAll:'Alle anzeigen',signalHistory:'Signalverlauf',all:'Alle',riskProfile:'RISIKOPROFIL',settings:'Einstellungen',depositUsdt:'Kapital, USDT',riskPercent:'Risiko pro Trade, %',leverageX:'Hebel',marginMode:'Margin-Modus',saveSettings:'Speichern',subscription:'ABONNEMENT',monthlyAccess:'Monatlicher Zugang',subscriptionCopy:'Automatische Signale, Scanner und vollständige Pläne.',paymentInstructions:'Zahlungsanleitung',overview:'Übersicht',signals:'Signale',trial:'Testzugang',signalsLeft:'Signale übrig',active:'Aktiv',inactive:'Inaktiv',entry:'Einstieg',stop:'Stop',confidence:'Konfidenz',saved:'Einstellungen gespeichert',paymentHelp:'Zahlungsanleitung wird im Bot geöffnet...',paymentUnavailable:'Der Bot konnte nicht geöffnet werden. Schließe die App und sende /subscribe.',noSignals:'Noch keine Signale',currentPrice:'Aktueller Preis',tp1:'TP1',tp2:'TP2',positionSize:'Positionsgröße',marginRequired:'Benötigte Margin',stopRisk:'Stop-Risiko',backToSignals:'Zurück zu Signalen',tradeSetup:'TRADE-SETUP',livePrice:'LIVE-PREIS',signalLevels:'SIGNALNIVEAUS',executionPlan:'Ausführungsplan',personalSizing:'PERSÖNLICHE GRÖSSE',positionPlan:'Positionsplan',trialComplete:'Testphase beendet',trialCompleteCopy:'Du hast 5 kostenlose Signale genutzt. Abonniere, um neue Setups zu erhalten.',unlockSignals:'Signale freischalten',marketOffline:'MEXC OFFLINE',bullish:'STEIGEND',bearish:'FALLEND',marketView:'MARKTÜBERBLICK',legendEntry:'Einstieg',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'ZEITRAHMEN',requestPlan:'Plan anfordern',payExact:'Genauer Betrag',copyAddress:'Kopieren',txHash:'Transaktions-Hash',submitHash:'Hash senden',paymentFailed:'Zahlung nicht bestätigt. Prüfe den Hash und versuche es erneut.',retryPayment:'Erneut versuchen',accessOpen:'Zugang offen',accessOpenCopy:'Der Zugang ist auf diesem Bildschirm offen.',listing:'Listing',copied:'Adresse kopiert',filterEmpty:'Keine {side}-Signale in diesem Filter.',saveFailed:'Einstellungen konnten nicht gespeichert werden.',settingsAccessCopy:'Der Zugang ist offen. Eine erneute Zahlung ist nicht nötig.',levCapped:'Der Hebel wurde auf das MEXC-Maximum für diesen Markt gesenkt.',minContract:'Der minimale MEXC-Kontrakt ist für dieses Risiko zu groß. Trade nicht eröffnen.',sizeDisclaimer:'Der Bot berechnet die Größe. Die Order setzt du.',regimeLabel:'Regime',network:'Netzwerk',flat:'Seitwärts',regimeTrend:'Trend',regimeRange:'Range',needAccess:'Zugang nötig',openMexc:'In MEXC öffnen',copiedSetup:'Setup kopiert',confidenceNote:'Regeleinschätzung, keine Wahrscheinlichkeit.',tf1d:'Trend 1D',tf4h:'Trend 4H',tfStruct:'Struktur 4H'},
+  fr:{workspace:'ESPACE PRIVÉ',hello:'Bonjour',marketLive:'MEXC EN DIRECT',deposit:'Dépôt',riskTrade:'Risque / trade',leverage:'Levier',access:'Accès',cross:'Cross',isolated:'Isolée',scanner:'SCANNER DU MARCHÉ',latestSignals:'Derniers signaux',viewAll:'Tout voir',signalHistory:'Historique des signaux',all:'Tous',riskProfile:'PROFIL DE RISQUE',settings:'Paramètres',depositUsdt:'Dépôt, USDT',riskPercent:'Risque par trade, %',leverageX:'Levier',marginMode:'Mode de marge',saveSettings:'Enregistrer',subscription:'ABONNEMENT',monthlyAccess:'Accès mensuel',subscriptionCopy:'Signaux automatiques, scanner et plans complets.',paymentInstructions:'Instructions de paiement',overview:'Aperçu',signals:'Signaux',trial:'Essai',signalsLeft:'signaux restants',active:'Actif',inactive:'Inactif',entry:'Entrée',stop:'Stop',confidence:'Confiance',saved:'Paramètres enregistrés',paymentHelp:'Ouverture des instructions de paiement dans le bot...',paymentUnavailable:'Impossible d\'ouvrir le bot. Ferme l\'application et envoie /subscribe.',noSignals:'Aucun signal',currentPrice:'Prix actuel',tp1:'TP1',tp2:'TP2',positionSize:'Taille de position',marginRequired:'Marge requise',stopRisk:'Risque au stop',backToSignals:'Retour aux signaux',tradeSetup:'CONFIGURATION',livePrice:'PRIX EN DIRECT',signalLevels:'NIVEAUX DU SIGNAL',executionPlan:'Plan d\'exécution',personalSizing:'TAILLE PERSONNELLE',positionPlan:'Plan de position',trialComplete:'Essai terminé',trialCompleteCopy:'Tu as utilisé 5 signaux gratuits. Abonne-toi pour continuer à recevoir de nouveaux setups.',unlockSignals:'Débloquer les signaux',marketOffline:'MEXC HORS LIGNE',bullish:'HAUSSIER',bearish:'BAISSIER',marketView:'VUE DU MARCHÉ',legendEntry:'Entrée',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDANCE',setupLabel:'SETUP',timeframeLabel:'UNITÉ DE TEMPS',requestPlan:'Demander un plan',payExact:'Montant exact',copyAddress:'Copier',txHash:'Hash de transaction',submitHash:'Envoyer le hash',paymentFailed:'Paiement non confirmé. Vérifie le hash et réessaie.',retryPayment:'Réessayer',accessOpen:'Accès ouvert',accessOpenCopy:'L\'accès est ouvert sur cet écran.',listing:'Listing',copied:'Adresse copiée',filterEmpty:'Aucun signal {side} dans ce filtre.',saveFailed:'Impossible d\'enregistrer les paramètres.',settingsAccessCopy:'L\'accès est ouvert. Un nouveau paiement n\'est pas nécessaire.',levCapped:'Le levier a été réduit au maximum MEXC de ce marché.',minContract:'Le contrat minimum MEXC est trop grand pour ce risque. N\'ouvre pas le trade.',sizeDisclaimer:'Le bot calcule la taille. Tu passes l\'ordre.',regimeLabel:'Régime',network:'Réseau',flat:'Plat',regimeTrend:'Tendance',regimeRange:'Range',needAccess:'Accès requis',openMexc:'Ouvrir dans MEXC',copiedSetup:'Setup copié',confidenceNote:'Estimation des règles, pas une probabilité.',tf1d:'Tendance 1J',tf4h:'Tendance 4H',tfStruct:'Structure 4H'},
+  es:{workspace:'ESPACIO PRIVADO',hello:'Hola',marketLive:'MEXC EN VIVO',deposit:'Depósito',riskTrade:'Riesgo / operación',leverage:'Apalancamiento',access:'Acceso',cross:'Cruzado',isolated:'Aislado',scanner:'ESCÁNER DE MERCADO',latestSignals:'Últimas señales',viewAll:'Ver todas',signalHistory:'Historial de señales',all:'Todas',riskProfile:'PERFIL DE RIESGO',settings:'Ajustes',depositUsdt:'Depósito, USDT',riskPercent:'Riesgo por operación, %',leverageX:'Apalancamiento',marginMode:'Modo de margen',saveSettings:'Guardar',subscription:'SUSCRIPCIÓN',monthlyAccess:'Acceso mensual',subscriptionCopy:'Señales automáticas, escáner y planes completos.',paymentInstructions:'Instrucciones de pago',overview:'Resumen',signals:'Señales',trial:'Prueba',signalsLeft:'señales restantes',active:'Activo',inactive:'Inactivo',entry:'Entrada',stop:'Stop',confidence:'Confianza',saved:'Ajustes guardados',paymentHelp:'Abriendo las instrucciones de pago en el bot...',paymentUnavailable:'No se pudo abrir el bot. Cierra la aplicación y envía /subscribe.',noSignals:'Aún no hay señales',currentPrice:'Precio actual',tp1:'TP1',tp2:'TP2',positionSize:'Tamaño de posición',marginRequired:'Margen necesario',stopRisk:'Riesgo al stop',backToSignals:'Volver a señales',tradeSetup:'CONFIGURACIÓN',livePrice:'PRECIO EN VIVO',signalLevels:'NIVELES DE SEÑAL',executionPlan:'Plan de ejecución',personalSizing:'TAMAÑO PERSONAL',positionPlan:'Plan de posición',trialComplete:'Prueba finalizada',trialCompleteCopy:'Has usado 5 señales gratis. Suscríbete para seguir recibiendo nuevos setups.',unlockSignals:'Desbloquear señales',marketOffline:'MEXC SIN CONEXIÓN',bullish:'ALCISTA',bearish:'BAJISTA',marketView:'VISTA DEL MERCADO',legendEntry:'Entrada',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDENCIA',setupLabel:'SETUP',timeframeLabel:'MARCO TEMPORAL',requestPlan:'Pedir un plan',payExact:'Importe exacto',copyAddress:'Copiar',txHash:'Hash de la transacción',submitHash:'Enviar hash',paymentFailed:'El pago no se confirmó. Revisa el hash e inténtalo de nuevo.',retryPayment:'Reintentar',accessOpen:'Acceso abierto',accessOpenCopy:'El acceso está abierto en esta pantalla.',listing:'Listing',copied:'Dirección copiada',filterEmpty:'No hay señales {side} en este filtro.',saveFailed:'No se pudieron guardar los ajustes.',settingsAccessCopy:'El acceso está abierto. No hace falta pagar otra vez.',levCapped:'El apalancamiento se redujo al máximo de MEXC para este mercado.',minContract:'El contrato mínimo de MEXC es demasiado grande para este riesgo. No abras la operación.',sizeDisclaimer:'El bot calcula el tamaño. La orden la pones tú.',regimeLabel:'Régimen',network:'Red',flat:'Plano',regimeTrend:'Tendencia',regimeRange:'Rango',needAccess:'Hace falta acceso',openMexc:'Abrir en MEXC',copiedSetup:'Setup copiado',confidenceNote:'Estimación de reglas, no una probabilidad.',tf1d:'Tendencia 1D',tf4h:'Tendencia 4H',tfStruct:'Estructura 4H'}
 };
 
 const taglines={
   en:'Setups, risk and execution — one screen.',
-  ru:'Сетапы, риск и исполнение — на одном экране.',
+  ru:'Сетапы и риск — на одном экране.',
   de:'Setups, Risiko und Ausführung — auf einem Bildschirm.',
   fr:'Setups, risque et exécution — sur un seul écran.',
   es:'Setups, riesgo y ejecución — en una sola pantalla.'
 };
 
 let profile=null,signals=[],language='en',activeFilter='ALL',selectedSignal=null;
-let overviewSymbol='BTC_USDT',overviewTimeframe='1h',detailTimeframe='1h';
+let overviewSymbol='BTC_USDT',overviewTimeframe='4h',detailTimeframe='4h';
 let overviewChart=null,detailChart=null;
 const initData=tg?.initData||'';
 const headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
@@ -54,41 +54,43 @@ function applyLanguage(){
   $('#language').value=language;
   renderProfile();
   renderSignals();
-  if(selectedSignal)renderSignalDetail(selectedSignal);
-  paintChartWords();
-  if(detailChart&&selectedSignal)addSignalLines(detailChart,selectedSignal);
+  renderHome();
+  const current=homeSignal();
+  if(overviewChart&&current)addSignalLines(overviewChart,current);
   lucide.createIcons();
 }
 
-function paintChartWords(){
-  const trend=$('#chart-trend');
-  if(trend?.dataset.bias==='bull')trend.textContent=tr('bullish');
-  if(trend?.dataset.bias==='bear')trend.textContent=tr('bearish');
-  const setup=$('#chart-setup');
-  if(setup?.dataset.mode==='market')setup.textContent=tr('marketView');
-  if(setup?.dataset.mode==='signal'&&setup.dataset.side)setup.textContent=`${setup.dataset.side} · ${setup.dataset.confidence}`;
+function paywalled(){
+  if(!profile)return false;
+  const paid=Boolean(profile.has_paid_access)||(profile.paid_until&&new Date(profile.paid_until)>new Date());
+  return !paid&&Number(profile.trial_left)<=0;
 }
 
 function renderProfile(){
   if(!profile)return;
-  $('#first-name').textContent=profile.first_name||'Trader';
-  $('#deposit-metric').textContent=fmt(profile.deposit);
-  $('#risk-metric').textContent=fmt(profile.risk_pct);
-  $('#leverage-metric').textContent=`x${fmt(profile.leverage)}`;
-  $('#deposit-input').value=profile.deposit??'';
-  $('#risk-input').value=profile.risk_pct;
-  $('#leverage-input').value=profile.leverage;
+  const set=(selector,value)=>{const node=$(selector);if(node)node.textContent=value;};
+  set('#first-name',profile.first_name||'Trader');
+  set('#deposit-metric',fmt(profile.deposit));
+  set('#risk-metric',fmt(profile.risk_pct));
+  set('#leverage-metric',`x${fmt(profile.leverage)}`);
+  if($('#deposit-input'))$('#deposit-input').value=profile.deposit??'';
+  if($('#risk-input'))$('#risk-input').value=profile.risk_pct;
+  if($('#leverage-input'))$('#leverage-input').value=profile.leverage;
   const margin=profile.margin==='isolated'?'isolated':'cross';
-  document.querySelector(`input[name=margin][value="${margin}"]`).checked=true;
+  const marginInput=document.querySelector(`input[name=margin][value="${margin}"]`);
+  if(marginInput)marginInput.checked=true;
   const paid=Boolean(profile.has_paid_access)||(profile.paid_until&&new Date(profile.paid_until)>new Date());
-  const paywalled=!paid&&Number(profile.trial_left)<=0;
-  $('#access-metric').textContent=paid?tr('active'):paywalled?tr('inactive'):tr('trial');
-  $('#access-detail').textContent=paid?new Date(profile.paid_until).toLocaleDateString(language):`${profile.trial_left} ${tr('signalsLeft')}`;
-  document.querySelectorAll('.trial-paywall').forEach(element=>element.hidden=!paywalled);
+  const locked=paywalled();
+  set('#access-metric',paid?tr('active'):locked?tr('inactive'):tr('trial'));
+  set('#access-detail',paid?new Date(profile.paid_until).toLocaleDateString(language):`${profile.trial_left} ${tr('signalsLeft')}`);
+  document.querySelectorAll('.trial-paywall').forEach(element=>element.hidden=!locked);
   const market=$('#market-state');
-  const live=Boolean(profile.scanner_live);
-  market.classList.toggle('live',live);
-  $('#market-live-label').textContent=live?tr('marketLive'):tr('marketOffline');
+  if(market){
+    const live=Boolean(profile.scanner_live);
+    market.classList.toggle('live',live);
+    const label=$('#market-live-label');
+    if(label)label.textContent=live?tr('marketLive'):tr('marketOffline');
+  }
   const price=profile.payment_amount_usdt||profile.subscription_price_usdt||'—';
   const days=profile.subscription_days??'—';
   document.querySelectorAll('.subscription-price').forEach(node=>{node.textContent=price;});
@@ -107,20 +109,8 @@ function renderProfile(){
 
 function signalMetrics(signal){
   const server=signal?.sizing;
-  if(server&&Number.isFinite(Number(server.position_usdt))&&Number.isFinite(Number(server.margin_usdt))){
-    const entry=Number(signal.entry);
-    const stop=Number(signal.stop);
-    return{riskUsdt:Number(server.risk_usdt),position:Number(server.position_usdt),margin:Number(server.margin_usdt),stopPct:entry?Math.abs(entry-stop)/entry*100:0,leverage:Number(server.effective_leverage),contractVol:server.contract_vol,tradable:server.tradable!==false};
-  }
-  const deposit=Number(profile?.deposit||0);
-  const riskPct=Number(profile?.risk_pct||0);
-  const leverage=Math.max(Number(profile?.leverage||1),1);
-  const entry=Number(signal.entry);
-  const stop=Number(signal.stop);
-  const distance=Math.abs(entry-stop);
-  const riskUsdt=deposit*riskPct/100;
-  const position=distance?riskUsdt/distance*entry:0;
-  return{riskUsdt,position,margin:position/leverage,stopPct:entry?distance/entry*100:0,leverage};
+  if(!server||!Number.isFinite(Number(server.position_usdt)))return null;
+  return{riskUsdt:Number(server.risk_usdt),position:Number(server.position_usdt),margin:Number(server.margin_usdt),leverage:Number(server.effective_leverage)};
 }
 
 function confidenceLabel(signal){
@@ -177,10 +167,11 @@ function syncSymbolPicker(){
 }
 
 function renderSignals(){
-  const filtered=signals.filter(signal=>activeFilter==='ALL'||signal.side===activeFilter);
-  const filterOnly=activeFilter!=='ALL'&&signals.length>0;
-  $('#signal-preview').innerHTML=signals.length?signals.slice(0,3).map(signalCard).join(''):emptySignals(false);
-  $('#signal-history').innerHTML=filtered.length?filtered.map(signalCard).join(''):emptySignals(filterOnly);
+  const setups=signals.filter(isSetup);
+  const filtered=setups.filter(signal=>activeFilter==='ALL'||signal.side===activeFilter);
+  const filterOnly=activeFilter!=='ALL'&&setups.length>0;
+  const history=$('#signal-history');
+  if(history)history.innerHTML=filtered.length?filtered.map(signalCard).join(''):emptySignals(filterOnly);
   syncSymbolPicker();
   hydrateCoinIcons();
   lucide.createIcons();
@@ -188,7 +179,7 @@ function renderSignals(){
 
 function chartBundle(container,height){
   const resolvedHeight=container.clientHeight||height;
-  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height:resolvedHeight,layout:{background:{type:'solid',color:'#0d1118'},textColor:'#c5ceda',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:12},grid:{vertLines:{color:'#171d27'},horzLines:{color:'#171d27'}},rightPriceScale:{borderColor:'#252d3b',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#252d3b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'},horzLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
+  const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height:resolvedHeight,layout:{background:{type:'solid',color:'#0d1118'},textColor:'#c5ceda',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:13},grid:{vertLines:{color:'#171d27'},horzLines:{color:'#171d27'}},rightPriceScale:{borderColor:'#252d3b',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#252d3b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'},horzLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
   const candles=chart.addCandlestickSeries({upColor:'#17c89b',downColor:'#f05d6f',borderVisible:false,wickUpColor:'#17c89b',wickDownColor:'#f05d6f',priceLineVisible:true,lastValueVisible:true});
   const volume=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'volume',lastValueVisible:false,priceLineVisible:false});
   const ema20=chart.addLineSeries({color:'#2f8cff',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
@@ -241,159 +232,196 @@ async function api(path,options={}){
   return response.json();
 }
 
-async function loadOverviewChart(){
-  $('#chart-symbol').textContent=displaySymbol(overviewSymbol);
-  $('#coin-icon').src=coinIconUrl(overviewSymbol);
-  $('#coin-icon').alt=coinBase(overviewSymbol);
-  const data=await api(`/api/market/${overviewSymbol}?timeframe=${overviewTimeframe}`);
-  if(!overviewChart)overviewChart=chartBundle($('#chart'),310);
-  setChartData(overviewChart,data);
-  const last=data.at(-1),first=data.at(0);
-  const change=first?.open?((last.close-first.open)/first.open)*100:0;
-  $('#chart-price').textContent=`${fmt(last?.close)} USDT  ${change>=0?'+':''}${change.toFixed(2)}%`;
-  $('#chart-price').classList.toggle('negative',change<0);
-  const trend=$('#chart-trend');
-  trend.dataset.bias=change>=0?'bull':'bear';
-  trend.textContent=change>=0?tr('bullish'):tr('bearish');
-  trend.className=change>=0?'positive':'negative';
-  $('#chart-timeframe').textContent=overviewTimeframe.toUpperCase();
-  const setup=signals.find(signal=>String(signal.symbol).toUpperCase()===overviewSymbol);
-  const chartSetup=$('#chart-setup');
-  if(setup){
-    addSignalLines(overviewChart,setup);
-    chartSetup.dataset.mode='signal';
-    chartSetup.dataset.side=String(setup.side).toUpperCase();
-    chartSetup.dataset.confidence=confidenceLabel(setup);
-    chartSetup.textContent=`${chartSetup.dataset.side} · ${chartSetup.dataset.confidence}`;
-    chartSetup.className=chartSetup.dataset.side==='SHORT'?'negative':'positive';
-  }else{
-    clearPriceLines(overviewChart);
-    chartSetup.dataset.mode='market';
-    chartSetup.textContent=tr('marketView');
-    chartSetup.className='';
+const ALERT_SOURCES=new Set(['spike','smc','listing']);
+function isSetup(signal){
+  return !ALERT_SOURCES.has(String(signal?.source||'').toLowerCase());
+}
+function homeSignal(){
+  if(selectedSignal&&isSetup(selectedSignal))return selectedSignal;
+  return signals.find(isSetup)||null;
+}
+function biasWord(value){
+  const key=String(value||'').toLowerCase();
+  if(key==='up')return tr('bullish');
+  if(key==='down')return tr('bearish');
+  if(key==='flat')return tr('flat');
+  if(key==='trend')return tr('regimeTrend');
+  if(key==='range')return tr('regimeRange');
+  return '';
+}
+function regimeParts(raw){
+  const found={};
+  String(raw||'').split(';').forEach(piece=>{
+    const index=piece.indexOf('=');
+    if(index>0)found[piece.slice(0,index)]=piece.slice(index+1);
+  });
+  return found;
+}
+function regimeLine(signal){
+  const parts=regimeParts(signal?.regime);
+  const day=biasWord(parts['1d']);
+  const hour=biasWord(parts['4h']);
+  if(!day&&!hour)return '—';
+  return `1D ${day} · 4H ${hour}`.trim();
+}
+function reasonLine(signal){
+  const lines=[];
+  String(signal?.reason||'').split(' · ').forEach(piece=>{
+    const item=piece.trim();
+    if(!item||/entry|midrange|deposit/i.test(item))return;
+    const value=item.split('=').slice(1).join('=');
+    let word='';
+    if(item.startsWith('trend_1d='))word=biasWord(value),lines.push(word?`${tr('tf1d')}: ${word}`:'');
+    else if(item.startsWith('trend_4h='))word=biasWord(value),lines.push(word?`${tr('tf4h')}: ${word}`:'');
+    else if(item.startsWith('struct_4h='))word=biasWord(value),lines.push(word?`${tr('tfStruct')}: ${word}`:'');
+    else if(item.startsWith('regime='))word=biasWord(value),lines.push(word?`${tr('regimeLabel')}: ${word}`:'');
+    else if(item.startsWith('bos='))lines.push(`BOS/CHOCH: ${value}`);
+  });
+  return lines.filter(Boolean).join(' · ');
+}
+function selectTimeframe(value){
+  const next=String(value||'4h').toLowerCase();
+  if(['15m','1h','4h','1d'].includes(next))overviewTimeframe=next;
+  document.querySelectorAll('#overview-timeframe button').forEach(button=>button.classList.toggle('selected',button.dataset.timeframe===overviewTimeframe));
+}
+function renderHome(){
+  const signal=homeSignal();
+  const empty=$('#plan-empty');
+  const body=$('#plan-body');
+  if(empty)empty.hidden=Boolean(signal);
+  if(body)body.hidden=!signal;
+  syncMainButton();
+  if(!signal)return;
+  overviewSymbol=String(signal.symbol||overviewSymbol).toUpperCase();
+  const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
+  const sideNode=$('#plan-side');
+  if(sideNode){sideNode.textContent=side;sideNode.className=`side ${side.toLowerCase()}`;}
+  const symbolNode=$('#plan-symbol');
+  if(symbolNode)symbolNode.textContent=displaySymbol(signal.symbol);
+  const priceNode=$('#plan-price');
+  if(priceNode)priceNode.textContent=signal.price==null?'—':`${fmt(signal.price)} USDT`;
+  const confidence=$('#plan-confidence');
+  if(confidence)confidence.textContent=`${tr('confidence')} ${confidenceLabel(signal)} · ${tr('confidenceNote')}`;
+  const regime=$('#chart-regime');
+  if(regime)regime.textContent=regimeLine(signal);
+  const frameLabel=$('#chart-timeframe');
+  if(frameLabel)frameLabel.textContent=String(signal.timeframe||overviewTimeframe||'4h').toUpperCase();
+  const coin=$('#plan-coin');
+  if(coin){coin.innerHTML=coinIconMarkup(signal.symbol);hydrateCoinIcons(coin);}
+  const chartSymbol=$('#chart-symbol');
+  if(chartSymbol)chartSymbol.textContent=displaySymbol(signal.symbol);
+  const sizing=signal.sizing||{};
+  const notes=[];
+  const requested=Number(sizing.requested_leverage);
+  const effective=Number(sizing.effective_leverage);
+  if(Number.isFinite(requested)&&Number.isFinite(effective)&&effective<requested)notes.push(tr('levCapped'));
+  if(Array.isArray(sizing.errors)&&sizing.errors.includes('position_below_min_contract'))notes.push(tr('minContract'));
+  const caveat=$('#plan-caveat');
+  if(caveat){caveat.hidden=!notes.length;caveat.textContent=notes.join(' ');}
+  const metrics=signalMetrics(signal);
+  const numbers=$('#plan-numbers');
+  if(numbers){
+    numbers.innerHTML=[
+      detailMetric(tr('positionSize'),metrics?`${fmt(metrics.position)} USDT`:'—'),
+      detailMetric(tr('marginRequired'),metrics?`${fmt(metrics.margin)} USDT`:'—'),
+      detailMetric(tr('stopRisk'),metrics?`${fmt(metrics.riskUsdt)} USDT`:'—','risk'),
+    ].join('');
+  }
+  const reason=$('#plan-reason');
+  if(reason)reason.textContent=reasonLine(signal);
+}
+async function loadHomeChart(){
+  const frame=$('#chart-frame');
+  const signal=homeSignal();
+  if(!signal?.symbol){frame?.classList.remove('loading');return;}
+  frame?.classList.add('loading');
+  overviewSymbol=String(signal.symbol).toUpperCase();
+  try{
+    const data=await api(`/api/market/${overviewSymbol}?timeframe=${overviewTimeframe}`);
+    if(!overviewChart)overviewChart=chartBundle($('#chart'),310);
+    setChartData(overviewChart,data);
+    if(signal)addSignalLines(overviewChart,signal);
+    else clearPriceLines(overviewChart);
+    const last=data.at(-1);
+    const price=$('#chart-price');
+    if(price){price.textContent=`${fmt(last?.close)} USDT`;price.classList.remove('negative');}
+    const live=$('#plan-price');
+    if(live&&last?.close!=null)live.textContent=`${fmt(last.close)} USDT`;
+  }finally{
+    frame?.classList.remove('loading');
   }
 }
-
 function detailMetric(label,value,accent=''){
   return `<div class="detail-metric ${escapeHtml(accent)}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
-
-function renderSignalDetail(signal){
-  const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
-  const metrics=signalMetrics(signal);
-  $('#detail-coin').innerHTML=coinIconMarkup(signal.symbol);
-  hydrateCoinIcons($('#detail-coin'));
-  $('#detail-symbol').textContent=displaySymbol(signal.symbol);
-  $('#detail-date').textContent=new Date(signal.created_at).toLocaleString(language,{dateStyle:'medium',timeStyle:'short'});
-  $('#detail-side').textContent=side;
-  $('#detail-side').className=`side ${side.toLowerCase()}`;
-  $('#detail-confidence').textContent=`${Math.round(signal.confidence*100)}%`;
-  $('#detail-levels').innerHTML=[detailMetric(tr('entry'),fmt(signal.entry),'entry'),detailMetric(tr('stop'),fmt(signal.stop),'stop'),detailMetric(tr('tp1'),fmt(signal.tp1),'tp'),detailMetric(tr('tp2'),fmt(signal.tp2),'tp')].join('');
-  $('#detail-position').innerHTML=[detailMetric(tr('deposit'),`${fmt(profile.deposit)} USDT`),detailMetric(tr('positionSize'),`${fmt(metrics.position)} USDT`),detailMetric(`${tr('marginRequired')} x${fmt(metrics.leverage)}`,`${fmt(metrics.margin)} USDT`),detailMetric(`${tr('stopRisk')} (${fmt(profile.risk_pct)}%)`,`${fmt(metrics.riskUsdt)} USDT`,'risk')].join('');
-  const sizing=signal.sizing||{};
-  const requested=Number(sizing.requested_leverage);
-  const effective=Number(sizing.effective_leverage);
-  const notes=[];
-  if(Number.isFinite(requested)&&Number.isFinite(effective)&&effective<requested)notes.push(tr('levCapped'));
-  if(Array.isArray(sizing.errors)&&sizing.errors.includes('position_below_min_contract'))notes.push(tr('minContract'));
-  const note=$('#detail-sizing-note');
-  if(note){
-    note.hidden=!notes.length;
-    note.textContent=notes.join(' ');
-  }
-}
-
-async function loadDetailChart(){
-  if(!selectedSignal)return;
-  const data=await api(`/api/market/${selectedSignal.symbol}?timeframe=${detailTimeframe}`);
-  if(!detailChart)detailChart=chartBundle($('#detail-chart'),390);
-  setChartData(detailChart,data);
-  addSignalLines(detailChart,selectedSignal);
-  const last=data.at(-1),first=data.at(0);
-  const change=first?.open?((last.close-first.open)/first.open)*100:0;
-  $('#detail-live-price').textContent=`${fmt(last?.close)} USDT`;
-  $('#detail-price-change').textContent=`${change>=0?'+':''}${change.toFixed(2)}% / ${detailTimeframe}`;
-  $('#detail-price-change').className=change<0?'negative':'positive';
-}
-
 async function openSignalDetail(signalId){
-  selectedSignal=signals.find(signal=>String(signal.id)===String(signalId));
+  selectedSignal=signals.find(signal=>String(signal.id)===String(signalId)&&isSetup(signal));
   if(!selectedSignal)return;
-  renderSignalDetail(selectedSignal);
-  showView('signal-detail','signals');
-  tg?.BackButton?.show();
-  try{await loadDetailChart()}catch(error){showToast(error.message||'Market data unavailable')}
+  selectTimeframe(selectedSignal.timeframe||'4h');
+  renderHome();
+  showView('overview');
+  try{await loadHomeChart()}catch(error){showToast(error.message||'Market data unavailable')}
 }
-
-function closeSignalDetail(){
-  selectedSignal=null;
-  tg?.BackButton?.hide();
-  showView('signals');
-}
-
 function showView(name,navTarget=name){
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view.dataset.view===name));
   document.querySelectorAll('.bottom-nav button').forEach(button=>button.classList.toggle('active',button.dataset.target===navTarget));
   window.scrollTo({top:0,behavior:'smooth'});
 }
-
 function showToast(text){
   const toast=$('#toast');
   toast.textContent=text;
   toast.classList.add('show');
   setTimeout(()=>toast.classList.remove('show'),2600);
 }
-
-function symbolFromLocation(){
-  const raw=new URLSearchParams(window.location.search).get('symbol')||'';
-  const normalized=raw.toUpperCase().replace(/[/-]/g,'_').split(':')[0];
-  return isUsdtPair(normalized)?normalized:'';
+function signalIdFromLocation(){
+  const id=Number(new URLSearchParams(window.location.search).get('signal_id')||'');
+  return Number.isSafeInteger(id)&&id>0?id:0;
 }
-
 async function load(){
   try{
     [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
-    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
     language=profile.language||'en';
-    const requested=symbolFromLocation();
-    if(requested){
-      overviewSymbol=requested;
-      document.querySelectorAll('#symbol-picker button').forEach(button=>button.classList.toggle('selected',button.dataset.symbol===requested));
-    }
+    const requested=signalIdFromLocation();
+    selectedSignal=requested?signals.find(signal=>Number(signal.id)===requested)||null:null;
+    if(!selectedSignal)selectedSignal=signals.find(isSetup)||null;
+    selectTimeframe(selectedSignal?.timeframe||'4h');
     applyLanguage();
-    await loadOverviewChart();
+    await loadHomeChart();
   }catch(error){showToast(error.message||'Connection error')}
 }
-
 async function refreshLiveData(){
   if(document.hidden)return;
   try{
     [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
-    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
+    if(selectedSignal)selectedSignal=signals.find(signal=>String(signal.id)===String(selectedSignal.id))||null;
+    if(!selectedSignal)selectedSignal=signals.find(isSetup)||null;
     renderProfile();
     renderSignals();
-    if(selectedSignal){
-      selectedSignal=signals.find(signal=>String(signal.id)===String(selectedSignal.id))||selectedSignal;
-      renderSignalDetail(selectedSignal);
-    }
+    renderHome();
   }catch(error){}
 }
-
-document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',()=>{selectedSignal=null;tg?.BackButton?.hide();showView(button.dataset.target)}));
+document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',()=>{showView(button.dataset.target)}));
 document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.go)));
 document.querySelectorAll('.filter').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;document.querySelectorAll('.filter').forEach(item=>item.classList.toggle('selected',item===button));renderSignals()}));
-$('#symbol-picker').addEventListener('click',async event=>{const button=event.target.closest('button[data-symbol]');if(!button)return;overviewSymbol=button.dataset.symbol;document.querySelectorAll('#symbol-picker button').forEach(item=>item.classList.toggle('selected',item===button));await loadOverviewChart()});
-document.querySelectorAll('#overview-timeframe button').forEach(button=>button.addEventListener('click',async()=>{overviewTimeframe=button.dataset.timeframe;document.querySelectorAll('#overview-timeframe button').forEach(item=>item.classList.toggle('selected',item===button));await loadOverviewChart()}));
-document.querySelectorAll('#detail-timeframe button').forEach(button=>button.addEventListener('click',async()=>{detailTimeframe=button.dataset.timeframe;document.querySelectorAll('#detail-timeframe button').forEach(item=>item.classList.toggle('selected',item===button));await loadDetailChart()}));
-['#signal-preview','#signal-history'].forEach(selector=>$(selector).addEventListener('click',event=>{
-  if(event.target.closest('[data-empty-action]')){requestPlan();return}
-  const card=event.target.closest('[data-signal-id]');
-  if(card)openSignalDetail(card.dataset.signalId);
-}));
-$('#signal-back').addEventListener('click',closeSignalDetail);
-tg?.BackButton?.onClick(closeSignalDetail);
+const symbolPicker=$('#symbol-picker');
+if(symbolPicker)symbolPicker.addEventListener('click',async event=>{const button=event.target.closest('button[data-symbol]');if(!button)return;overviewSymbol=button.dataset.symbol;document.querySelectorAll('#symbol-picker button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()});
+document.querySelectorAll('#overview-timeframe button').forEach(button=>button.addEventListener('click',async()=>{overviewTimeframe=button.dataset.timeframe;document.querySelectorAll('#overview-timeframe button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()}));
+document.querySelectorAll('#detail-timeframe button').forEach(button=>button.addEventListener('click',async()=>{detailTimeframe=button.dataset.timeframe;document.querySelectorAll('#detail-timeframe button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()}));
+['#signal-preview','#signal-history','#overview-view'].forEach(selector=>{
+  const node=$(selector);
+  if(!node)return;
+  node.addEventListener('click',event=>{
+    if(event.target.closest('[data-empty-action]')){requestPlan();return}
+    const card=event.target.closest('[data-signal-id]');
+    if(card)openSignalDetail(card.dataset.signalId);
+  });
+});
+const signalBack=$('#signal-back');
+if(signalBack)signalBack.addEventListener('click',()=>showView('signals'));
 $('#language').addEventListener('change',async event=>{const previous=language;const next=event.target.value;language=next;applyLanguage();try{await api('/api/settings',{method:'PATCH',body:JSON.stringify({language:next})})}catch(error){language=previous;applyLanguage();showToast(tr('saveFailed'))}});
-$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol));selectedSignal=selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||null:null;renderProfile();renderSignals();if(selectedSignal)renderSignalDetail(selectedSignal);status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
+$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));selectedSignal=selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||signals.find(isSetup)||null:signals.find(isSetup)||null;renderProfile();renderSignals();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
 function showPaymentForm(){
   $('#payment-form').hidden=false;
   $('#payment-error').hidden=true;
@@ -423,11 +451,10 @@ function requestPlan(){
   }
   showToast(tr('requestPlan'));
 }
-async function openPayment(event){
-  const view=event.currentTarget.closest('.view')||$('#overview-view');
-  const panel=$('#payment-panel');
-  view.append(panel);
-  panel.hidden=false;
+async function openPayment(){
+  const sheet=$('#payment-sheet');
+  if(!sheet)return;
+  sheet.hidden=false;
   showPaymentForm();
   try{
     profile=await api('/api/me');
@@ -437,7 +464,6 @@ async function openPayment(event){
   $('#payment-address').textContent=profile?.payment_wallet||'—';
   $('#payment-network').textContent=profile?.payment_network||'';
   if(!profile?.payment_wallet)showPaymentError(tr('paymentFailed'));
-  panel.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function copyPaymentAddress(){
   const text=$('#payment-address').textContent||'';
@@ -453,6 +479,45 @@ async function copyPaymentAddress(){
   }
   showToast(tr('copied'));
 }
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text);return}
+  catch(error){
+    const input=document.createElement('textarea');
+    input.value=text;
+    document.body.append(input);
+    input.select();
+    document.execCommand('copy');
+    input.remove();
+  }
+}
+function setupClipboard(signal){
+  const metrics=signalMetrics(signal);
+  const lines=[
+    displaySymbol(signal.symbol),
+    String(signal.side||'').toUpperCase(),
+    `${tr('entry')} ${fmt(signal.entry)}`,
+    `${tr('stop')} ${fmt(signal.stop)}`,
+    `TP1 ${fmt(signal.tp1)}`,
+    `TP2 ${fmt(signal.tp2)}`,
+  ];
+  if(metrics)lines.push(`${tr('positionSize')} ${fmt(metrics.position)} USDT`);
+  return lines.join('\n');
+}
+function syncMainButton(){
+  const button=tg?.MainButton;
+  if(!button)return;
+  if(paywalled()){button.setText(tr('needAccess'));button.show();return;}
+  if(!homeSignal()){button.hide();return;}
+  button.setText(tr('openMexc'));
+  button.show();
+}
+async function onMainButton(){
+  if(paywalled()){await openPayment();return;}
+  const signal=homeSignal();
+  if(!signal)return;
+  await copyText(setupClipboard(signal));
+  showToast(tr('copiedSetup'));
+}
 async function submitPayment(event){
   event.preventDefault();
   const tx_hash=$('#payment-hash').value.trim();
@@ -466,6 +531,7 @@ async function submitPayment(event){
     showPaymentSuccess();
     profile={...profile,has_paid_access:true,paid_until:body.paid_until?new Date(body.paid_until*1000).toISOString():profile.paid_until};
     renderProfile();
+    syncMainButton();
   }catch(error){
     showPaymentError(tr('paymentFailed'));
   }
@@ -475,8 +541,12 @@ document.querySelectorAll('.paywall-button').forEach(button=>button.addEventList
 $('#payment-copy').addEventListener('click',copyPaymentAddress);
 $('#payment-form').addEventListener('submit',submitPayment);
 $('#payment-retry').addEventListener('click',()=>{showPaymentForm();$('#payment-hash').focus()});
-$('#refresh').addEventListener('click',async()=>{await load();if(selectedSignal)await loadDetailChart()});
-window.addEventListener('resize',()=>{[overviewChart,detailChart].filter(Boolean).forEach(bundle=>bundle.chart.applyOptions({width:bundle.container.clientWidth,height:bundle.container.clientHeight}))});
+$('#payment-sheet').addEventListener('click',event=>{if(event.target.id==='payment-sheet')event.currentTarget.hidden=true});
+$('#refresh').addEventListener('click',async()=>{await load()});
+window.addEventListener('resize',()=>{if(overviewChart)overviewChart.chart.applyOptions({width:overviewChart.container.clientWidth,height:overviewChart.container.clientHeight})});
+tg?.setHeaderColor?.('#090b10');
+tg?.setBackgroundColor?.('#090b10');
+tg?.MainButton?.onClick(onMainButton);
 lucide.createIcons();
 load();
 setInterval(refreshLiveData,60000);

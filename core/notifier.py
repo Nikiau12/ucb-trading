@@ -102,13 +102,18 @@ class Notifier:
                 delivered = True
         return delivered
 
-    async def _deliver(self, chat_id, text: str) -> bool:
+    async def _deliver(self, chat_id, text: str, reply_markup=None) -> bool:
         delay = 0.0
         for attempt in range(4):
             if delay:
                 await asyncio.sleep(delay)
             try:
-                await self.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+                await self.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode="HTML",
+                    reply_markup=reply_markup,
+                )
                 return True
             except TelegramRetryAfter as exc:
                 delay = float(getattr(exc, "retry_after", 1) or 1) + 0.1
@@ -128,7 +133,7 @@ class Notifier:
         logger.warning("telegram send gave up after flood control chat_id=%s", chat_id)
         return False
 
-    async def send_message_to_user(self, chat_id, text: str, gated: bool = True) -> bool:
+    async def send_message_to_user(self, chat_id, text: str, gated: bool = True, reply_markup=None) -> bool:
         """Send one alert. Trial credit is spent only after Telegram accepts it."""
         if not self.bot:
             logger.info("notifier has no bot; message was not sent chat_id=%s", chat_id)
@@ -151,7 +156,7 @@ class Notifier:
             if mode == "trial" and self.trial_formatter:
                 remaining = max(0, int(self.access_manager.status(str(chat_id))["trial_left"]) - 1)
                 text += "\n\n" + self.trial_formatter(chat_id, remaining)
-        delivered = await self._deliver(chat_id, text)
+        delivered = await self._deliver(chat_id, text, reply_markup=reply_markup)
         if not delivered:
             return False
         if mode == "trial":

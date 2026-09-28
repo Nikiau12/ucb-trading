@@ -361,38 +361,45 @@ def subscription_fields(user_id: int | None = None, *, exact: bool = False) -> d
     }
 
 
-PAID_SIGNALS_SQL = """
+_SETUP_ONLY = "source NOT IN ('spike', 'smc', 'listing')"
+
+PAID_SIGNALS_SQL = f"""
 SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
        price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
-       created_at, source
+       created_at, source, reason, regime, timeframe
 FROM (
     SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
            price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
-           created_at, source
+           created_at, source, reason, regime, timeframe
     FROM signals
     WHERE source = 'scanner'
+      AND {_SETUP_ONLY}
       AND UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'
     UNION
     SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
            s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
-           s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source
+           s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source,
+           s.reason, s.regime, s.timeframe
     FROM signals s
     JOIN user_signal_access a ON a.signal_id = s.id
     WHERE a.telegram_user_id = %s
       AND s.source <> 'scanner'
+      AND s.{_SETUP_ONLY}
       AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 ) history
 ORDER BY created_at DESC
 LIMIT 30
 """
 
-TRIAL_SIGNALS_SQL = """
+TRIAL_SIGNALS_SQL = f"""
 SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
        s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
-       s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source
+       s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source,
+       s.reason, s.regime, s.timeframe
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
+  AND s.{_SETUP_ONLY}
   AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 ORDER BY s.created_at DESC
 LIMIT %s
@@ -679,9 +686,9 @@ def signals(x_telegram_init_data: str = Header(default="")):
     if not DATABASE_URL:
         profile = demo_profile(user)
         return [attach_personal_sizing(signal, profile) for signal in [
-            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z", "source": "scanner"},
-            {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z", "source": "scanner"},
-            {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z", "source": "scanner"},
+            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z", "source": "scanner", "reason": "trend_1d=up · trend_4h=up · regime=trend", "regime": "1d=up;4h=up;regime=trend", "timeframe": "4h"},
+            {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z", "source": "scanner", "reason": "trend_1d=down · trend_4h=down · regime=trend", "regime": "1d=down;4h=down;regime=trend", "timeframe": "4h"},
+            {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z", "source": "scanner", "reason": "trend_1d=up · trend_4h=flat · regime=range", "regime": "1d=up;4h=flat;regime=range", "timeframe": "4h"},
         ]]
     user_id = int(user["id"])
     with db() as connection, connection.cursor() as cursor:
@@ -721,7 +728,10 @@ def signals(x_telegram_init_data: str = Header(default="")):
          "max_vol": float(row[13]) if row[13] is not None else None,
          "max_leverage": float(row[14]) if row[14] is not None else None,
          "created_at": row[15].isoformat(),
-         "source": row[16] or "scanner"},
+         "source": row[16] or "scanner",
+         "reason": row[17],
+         "regime": row[18],
+         "timeframe": row[19] or "4h"},
         profile,
     )
         for row in rows

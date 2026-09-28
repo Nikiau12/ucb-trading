@@ -102,6 +102,7 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     monkeypatch.setattr(bot.snap, "build_snapshot_with_fallback", lambda _symbol: {"symbol": "BTC_USDT"})
     monkeypatch.setattr(bot.core_plan, "make_plan", lambda *_args, **_kwargs: _actionable_plan())
     monkeypatch.setattr(bot, "render_telegram_plan", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
+    monkeypatch.setattr(bot, "render_auto_alert", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
     monkeypatch.setattr(bot, "is_admin", lambda _chat_id: False)
     async def _menu_button(*_args, **_kwargs):
         return True
