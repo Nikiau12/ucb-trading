@@ -302,6 +302,36 @@ def test_russian_setup_uses_panel_words_without_english_tokens():
     assert 'callback_data="alert_later"' in source
 
 
+def test_skip_plan_does_not_show_raw_filters():
+    plan = {
+        "symbol": "BTC_USDT",
+        "side": "skip",
+        "confidence": 0,
+        "margin": "cross",
+        "reasons": [
+            "filters_killed_setup",
+            "filter=invalid_plan(long_tp2_not_above_tp1)",
+            "filter=invalid_plan(rr2_below_min(0.52<1.80))",
+            "filter=invalid_plan(rr2_not_greater_than_rr1)",
+            "filter=invalid_plan(short_tp2_not_below_tp1)",
+        ],
+    }
+    text = render_telegram_plan(plan, deposit=1000, risk_pct=1, lang="ru")
+    assert "filter=" not in text
+    assert "filters_killed_setup" not in text
+    assert "SKIP" not in text
+    assert "CROSS" not in text
+    assert "📌" not in text
+    assert "Сетапа сейчас нет." in text
+    assert "Уровни не складываются в план." in text
+    assert "<b>BTC_USDT</b>" in text
+    eth = render_telegram_plan(dict(plan, symbol="ETH_USDT"), deposit=1000, risk_pct=1, lang="ru")
+    assert eth.replace("ETH_USDT", "BTC_USDT") == text
+    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    plan_fn = source.split("async def cmd_plan", 1)[1].split("async def cmd_set", 1)[0]
+    assert "_no_setup_keyboard" in plan_fn
+
+
 def test_plan_message_is_a_trade_ticket():
     plan = {
         "symbol": "BTC_USDT",

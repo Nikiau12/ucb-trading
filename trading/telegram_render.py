@@ -100,6 +100,18 @@ def _margin_label(margin) -> str:
     return esc(label).upper()
 
 
+def _skip_sentence(lang: str, reasons: list) -> str:
+    """One plain sentence. Raw filter codes stay out of the chat."""
+    blob = " ".join(str(item) for item in reasons).lower()
+    if "invalid_plan" in blob or "filters_killed_setup" in blob:
+        return _t(lang, "no_setup_levels")
+    if "stale_market_data" in blob:
+        return _t(lang, "no_setup_stale")
+    if "not_enough_data" in blob or "no_ema20" in blob:
+        return _t(lang, "no_setup_data")
+    return _t(lang, "no_setup_other")
+
+
 def render_telegram_plan(
     plan: Dict[str, Any],
     *,
@@ -109,21 +121,10 @@ def render_telegram_plan(
 ) -> str:
     L = lang
 
-    # ── SKIP ──
     if plan.get("side") == "skip":
-        sym   = esc(plan.get("symbol", "?"))
-        conf  = float(plan.get("confidence", 0.0) or 0.0)
-        rs    = plan.get("reasons") or []
-        why   = " · ".join(esc(item) for item in rs[:10]) if rs else "no_setup"
-        cache = f"  {_t(L, 'r_cache_warn')}" if plan.get("used_cache") else ""
-        return (
-            f"{_t(L, 'r_context')}\n"
-            f"📌 <b><code>{sym}</code> — SKIP</b>{cache}\n"
-            f"{_t(L, 'r_skip_conf')}: <b>{confidence_percent(conf)}</b>\n"
-            f"{_t(L, 'r_skip_reason')}: {why}\n\n"
-            f"{_t(L, 'r_risk_rule')}\n"
-            f"{_t(L, 'r_risk_text', margin=_margin_label(plan.get('margin')))}"
-        )
+        sym = esc(plan.get("symbol") or "?")
+        sentence = _skip_sentence(L, plan.get("reasons") or [])
+        return f"<b>{sym}</b>\n{_t(L, 'no_setup_now')}\n{sentence}"
 
     sym       = esc(plan.get("symbol", "?"))
     price     = plan.get("price")
