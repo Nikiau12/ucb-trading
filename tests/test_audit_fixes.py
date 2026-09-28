@@ -22,7 +22,7 @@ from miniapp import app as miniapp
 from miniapp.invoice_amount import unique_invoice_amount
 from trading import state
 from trading.auto_alert import render_auto_alert
-from trading.setup_text import render_setup
+from trading.setup_text import render_scan_card, render_setup
 from trading.i18n import t
 from trading.telegram_render import render_telegram_plan
 from trading.user_input import parse_setting
@@ -298,9 +298,43 @@ def test_russian_setup_uses_panel_words_without_english_tokens():
     assert "исполнен" not in plan_text.lower()
     assert "78%" in plan_text
     source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
-    assert source.count("_alert_keyboard(") >= 3
     assert "render_setup(" in source
     assert 'callback_data="alert_later"' in source
+
+
+def test_scan_card_is_six_lines_and_opens_one_signal():
+    plan = {
+        "symbol": "BTC_USDT",
+        "price": 100,
+        "primary": {
+            "side": "long",
+            "entry": 100,
+            "stop": 90,
+            "tps": [{"price": 120}],
+            "reasons": ["midrange=1", "deposit=1000"],
+        },
+    }
+    text = render_scan_card(plan, "BTC_USDT", "LONG", 1000, 1, 10, lang="ru")
+    lines = text.splitlines()
+    assert len(lines) <= 6
+    assert lines[0] == "<b>BTC_USDT</b> LONG"
+    assert "Вход" in text
+    assert "Стоп" in text
+    assert "TP1" in text
+    assert "2.0R" in text
+    assert "entry" not in text.lower()
+    assert "━━━━" not in text
+    assert "🟩" not in text
+    assert "Бот считает размер" not in text
+    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    assert "render_scan_card(" in source
+    scan = source.split("async def cmd_scan", 1)[1].split("async def cmd_digest", 1)[0]
+    digest = source.split("async def _run_digest", 1)[1].split("async def _fetch_mtf", 1)[0]
+    assert "render_scan_card(" in scan or "_send_plan_and_record" in scan
+    assert "render_scan_card(" in digest
+    assert "_open_setup_keyboard" in digest
+    assert "🟩" not in digest
+    assert "render_setup(" not in digest
 
 
 def test_paid_feed_is_scanner_only_and_trial_feed_is_granted_only():

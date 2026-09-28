@@ -71,7 +71,7 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
-from setup_text import render_setup, signal_query
+from setup_text import render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
     bare_plan_symbol,
@@ -540,11 +540,10 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
     side = str((plan.get("primary") or {}).get("side", "skip")).upper()
     if not symbol or side == "SKIP":
         return False
-    text = render_auto_alert(
+    text = render_scan_card(
         plan,
         symbol,
         side,
-        _conf(plan),
         deposit,
         risk_pct,
         float(plan.get("lev") or plan.get("requested_lev") or 10),
@@ -556,7 +555,7 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
     await message.reply(
         text,
         parse_mode="HTML",
-        reply_markup=_alert_keyboard(signal_id, lang),
+        reply_markup=_open_setup_keyboard(signal_id, lang),
     )
     return True
 
@@ -1138,32 +1137,11 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
             ),
         )
         ranked = _rank_actionable_plans(results)
-        high    = [r for r in ranked if _conf(r) >= 0.65]
-        medium  = [r for r in ranked if 0.50 <= _conf(r) < 0.65]
-        skipped = len(results) - len(high) - len(medium)
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-
-        lines = [_t(lang, "digest_title", time=now_str, total=len(results)), ""]
-        if high:
-            lines.append(_t(lang, "digest_high", count=len(high)))
-            for r in high[:15]:
-                sym  = html.escape(str(r.get("symbol", "?")))
-                side = html.escape(str((r.get("primary") or {}).get("side", "?")).upper())
-                em   = "🟩" if side == "LONG" else "🟥"
-                lines.append(f"  {em} <code>{sym}</code> {side} {confidence_percent(_conf(r))}")
-            lines.append("")
-        if medium:
-            lines.append(_t(lang, "digest_medium", count=len(medium)))
-            for r in medium[:10]:
-                sym  = html.escape(str(r.get("symbol", "?")))
-                side = html.escape(str((r.get("primary") or {}).get("side", "?")).upper())
-                lines.append(f"  • <code>{sym}</code> {side} {confidence_percent(_conf(r))}")
-            lines.append("")
-        lines.append(_t(lang, "digest_skipped", count=skipped))
-        summary = "\n".join(lines)
+        summary = _t(lang, "digest_title", time=now_str, total=len(results))
         empty_markup = (
             _one_action_keyboard(lang, "request_plan", "request_plan")
-            if not high and not medium else None
+            if not ranked else None
         )
 
         try:
@@ -1180,17 +1158,16 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
             logger.warning("digest summary send failed")
             return False
 
-        for plan in high[:detail_limit]:
+        for plan in ranked[:detail_limit]:
             try:
                 user_id = int(chat_id)
             except (TypeError, ValueError):
                 user_id = 0
             side = str((plan.get("primary") or {}).get("side", "skip")).upper()
-            full = render_auto_alert(
+            card = render_scan_card(
                 plan,
                 plan.get("symbol", ""),
                 side,
-                _conf(plan),
                 settings["deposit"],
                 settings["risk_pct"],
                 float(plan.get("lev") or settings.get("lev") or 10),
@@ -1201,9 +1178,9 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
                 st.grant_signal_access(user_id, signal_id)
             await bot_instance.send_message(
                 chat_id=chat_id,
-                text=full,
+                text=card,
                 parse_mode="HTML",
-                reply_markup=_alert_keyboard(signal_id, lang),
+                reply_markup=_open_setup_keyboard(signal_id, lang),
             )
             await asyncio.sleep(0.4)
         return True
