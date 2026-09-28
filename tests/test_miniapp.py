@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from miniapp import app as miniapp
 
@@ -171,6 +172,8 @@ def test_health_and_prometheus_metrics_are_available(demo_client, monkeypatch):
 
     assert health.status_code == 200
     assert health.json() == {"ok": True}
+    assert "scanner" not in health.json()
+    assert demo_client.get("/api/me").json()["scanner_live"] is False
     assert metrics.status_code == 401
     metrics = demo_client.get(
         "/metrics",
@@ -223,3 +226,84 @@ def test_signed_session_without_database_returns_503(monkeypatch):
 )
 def test_usdt_symbol_normalization(value, expected):
     assert miniapp.normalize_usdt_symbol(value) == expected
+
+
+def test_payment_screen_stays_open_until_a_verified_hash():
+    root = ROOT_DIR / "miniapp" / "static"
+    html = (root / "index.html").read_text()
+    script = (root / "app.js").read_text()
+
+    assert 'id="payment-panel"' in html
+    assert 'id="payment-copy"' in html
+    assert 'id="payment-hash"' in html
+    assert 'id="payment-retry"' in html
+    assert 'data-i18n="accessOpen"' in html
+    assert "Доступ открыт" in script or "accessOpen:'Доступ открыт'" in script
+    assert "tg?.close()" not in script
+    assert "access_open!==true" in script
+    assert "showPaymentError" in script
+    assert "showPaymentSuccess" in script
+
+
+def test_unverified_payment_hash_does_not_open_access(monkeypatch):
+    token = "123456:test-token"
+    user = {"id": 42, "first_name": "Nikita", "language_code": "en"}
+    settled = []
+    monkeypatch.setattr(miniapp, "BOT_TOKEN", token)
+    monkeypatch.setattr(miniapp, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(miniapp, "DEMO_MODE", False)
+    monkeypatch.setattr(miniapp, "PAYMENT_WALLET", "TWallet")
+    monkeypatch.setattr(miniapp, "_open_invoice_amount", lambda _user_id: "29.990001")
+    monkeypatch.setattr(
+        miniapp,
+        "_verify_tx",
+        lambda *_args, **_kwargs: {"ok": False, "reason": "not_found"},
+    )
+    monkeypatch.setattr(miniapp, "_settle_tx", lambda **kwargs: settled.append(kwargs))
+    init_data = _signed_init_data(token, user)
+    denied = miniapp.claim_payment(
+        miniapp.PaymentClaim(tx_hash="ab" * 32),
+        x_telegram_init_data=init_data,
+    )
+
+    assert denied.status_code == 422
+    assert json.loads(denied.body)["ok"] is False
+    assert json.loads(denied.body)["access_open"] is False
+    assert settled == []
+    with pytest.raises(ValidationError):
+        miniapp.PaymentClaim(tx_hash="not-a-hash")
+    assert settled == []
+
+
+def test_verified_payment_opens_access_on_the_same_contract(monkeypatch):
+    token = "123456:test-token"
+    user = {"id": 42, "first_name": "Nikita", "language_code": "en"}
+    monkeypatch.setattr(miniapp, "BOT_TOKEN", token)
+    monkeypatch.setattr(miniapp, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(miniapp, "DEMO_MODE", False)
+    monkeypatch.setattr(miniapp, "PAYMENT_WALLET", "TWallet")
+    monkeypatch.setattr(miniapp, "_open_invoice_amount", lambda _user_id: "29.990001")
+    monkeypatch.setattr(
+        miniapp,
+        "_verify_tx",
+        lambda *_args, **_kwargs: {"ok": True, "paid_amount": "29.990001"},
+    )
+    monkeypatch.setattr(
+        miniapp,
+        "_settle_tx",
+        lambda **_kwargs: {"ok": True, "paid_until": 1_800_000_000},
+    )
+    init_data = _signed_init_data(token, user)
+    opened = miniapp.claim_payment(
+        miniapp.PaymentClaim(tx_hash="cd" * 32),
+        x_telegram_init_data=init_data,
+    )
+
+    assert opened["access_open"] is True
+
+
+def test_demo_payment_cannot_grant_access(demo_client):
+    response = demo_client.post("/api/payment", json={"tx_hash": "ab" * 32})
+
+    assert response.status_code == 503
+    assert response.json().get("access_open") is not True

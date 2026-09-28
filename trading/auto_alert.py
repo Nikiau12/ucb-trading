@@ -7,9 +7,11 @@ from decimal import Decimal
 
 try:
     from .i18n import t as _t
+    from .telegram_render import confidence_percent
     from .trade_plan import position_size_for_contract
 except ImportError:
     from i18n import t as _t
+    from telegram_render import confidence_percent
     from trade_plan import position_size_for_contract
 
 
@@ -115,7 +117,7 @@ def render_auto_alert(
             f"🧭 {_t(lang, 'alert_regime')}: <b>{_esc(regime)}</b>  |  "
             f"{_t(lang, 'alert_trend')}: <b>{_esc(trend)}</b>"
         ),
-        f"⭐️ {_t(lang, 'alert_confidence')}: <b>{float(conf):.2f}</b> / 1.0",
+        f"⭐️ {_t(lang, 'alert_confidence')}: <b>{confidence_percent(conf)}</b>",
         "",
         "─────────────────",
         f"{'↗️' if str(side).upper() == 'LONG' else '↘️'} {_t(lang, 'alert_entry')}: <code>{_esc(_fmt_price(entry, price_unit))}</code>",

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
   <title>UCB Trading</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260803-2">
+  <link rel="stylesheet" href="/static/styles.css?v=20260928-1">
   <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
@@ -31,7 +31,7 @@
       <section class="view active" id="overview-view" data-view="overview">
         <div class="page-heading">
           <div><p class="eyebrow" data-i18n="workspace">PRIVATE WORKSPACE</p><h1><span data-i18n="hello">Hello</span>, <span id="first-name">Trader</span></h1><p class="page-subtitle" data-i18n="tagline">Setups, risk and execution — one screen.</p></div>
-          <div class="market-state"><span></span><b data-i18n="marketLive">MEXC LIVE</b></div>
+          <div class="market-state" id="market-state"><span></span><b id="market-live-label" data-i18n="marketOffline">MEXC OFFLINE</b></div>
         </div>
 
         <div class="metrics-grid">
@@ -60,9 +60,9 @@
           </div>
           <div id="chart" aria-label="Price chart"></div>
           <div class="chart-readout" aria-label="Chart context">
-            <div><span>TREND</span><strong id="chart-trend">—</strong></div>
-            <div><span>SETUP</span><strong id="chart-setup">MARKET VIEW</strong></div>
-            <div><span>TIMEFRAME</span><strong id="chart-timeframe">1H</strong></div>
+            <div><span data-i18n="trendLabel">TREND</span><strong id="chart-trend">—</strong></div>
+            <div><span data-i18n="setupLabel">SETUP</span><strong id="chart-setup">MARKET VIEW</strong></div>
+            <div><span data-i18n="timeframeLabel">TIMEFRAME</span><strong id="chart-timeframe">1H</strong></div>
           </div>
         </section>
 
@@ -98,7 +98,7 @@
           </div>
           <div id="detail-chart" aria-label="Signal price chart"></div>
           <div class="level-legend">
-            <span class="entry"><i></i>Entry</span><span class="stop"><i></i>Stop</span><span class="tp"><i></i>TP1 / TP2</span>
+            <span class="entry"><i></i><span data-i18n="legendEntry">Entry</span></span><span class="stop"><i></i><span data-i18n="legendStop">Stop</span></span><span class="tp"><i></i><span data-i18n="legendTargets">TP1 / TP2</span></span>
           </div>
         </section>
 
@@ -126,6 +126,24 @@
       </section>
     </main>
 
+    <section class="payment-panel" id="payment-panel" hidden>
+      <p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p>
+      <h2 data-i18n="unlockSignals">Unlock signals</h2>
+      <p class="payment-amount"><span data-i18n="payExact">Exact amount</span> <strong id="payment-amount">—</strong> USDT</p>
+      <p class="payment-network" id="payment-network"></p>
+      <div class="payment-address"><code id="payment-address">—</code><button type="button" id="payment-copy" data-i18n="copyAddress">Copy</button></div>
+      <form id="payment-form">
+        <label><span data-i18n="txHash">Transaction hash</span><input id="payment-hash" name="tx_hash" autocomplete="off" spellcheck="false" inputmode="text" required></label>
+        <button class="primary-button" type="submit" data-i18n="submitHash">Submit hash</button>
+      </form>
+      <p class="payment-error" id="payment-error" hidden></p>
+      <button type="button" class="secondary-button" id="payment-retry" hidden data-i18n="retryPayment">Try again</button>
+      <div class="payment-success" id="payment-success" hidden>
+        <h2 data-i18n="accessOpen">Access open</h2>
+        <p data-i18n="accessOpenCopy">Access is open on this screen.</p>
+      </div>
+    </section>
+
     <nav class="bottom-nav" aria-label="Primary">
       <button class="active" data-target="overview"><i data-lucide="layout-dashboard"></i><span data-i18n="overview">Overview</span></button>
       <button data-target="signals"><i data-lucide="chart-candlestick"></i><span data-i18n="signals">Signals</span></button>
@@ -133,6 +151,6 @@
     </nav>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/static/app.js?v=20260803-2"></script>
+  <script src="/static/app.js?v=20260928-1"></script>
 </body>
 </html>

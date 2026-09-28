@@ -86,6 +86,15 @@ def _tp(scn: Dict[str, Any], i: int) -> Optional[float]:
     return None
 
 
+def confidence_percent(value) -> str:
+    """Format a 0–1 confidence as a whole percent, for example 0.78 → 78%."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = 0.0
+    return f"{number * 100:.0f}%"
+
+
 def render_telegram_plan(
     plan: Dict[str, Any],
     *,
@@ -105,7 +114,7 @@ def render_telegram_plan(
         return (
             f"{_t(L, 'r_context')}\n"
             f"📌 <b><code>{sym}</code> — SKIP</b>{cache}\n"
-            f"{_t(L, 'r_skip_conf')}: <b>{conf:.2f}</b>\n"
+            f"{_t(L, 'r_skip_conf')}: <b>{confidence_percent(conf)}</b>\n"
             f"{_t(L, 'r_skip_reason')}: {why}\n\n"
             f"{_t(L, 'r_risk_rule')}\n"
             f"{_t(L, 'r_risk_text')}"
@@ -143,8 +152,7 @@ def render_telegram_plan(
     cache_tag = f"  {_t(L, 'r_cache_warn')}" if used_cache else ""
     side_tag  = "🟥" if side == "SHORT" else "🟩" if side == "LONG" else "🧊"
     mid_s = _fmt(mid) if isinstance(mid, (int, float)) and math.isfinite(float(mid)) else "n/a"
-    # Confidence as percentage (consistent with Mini App display)
-    conf_pct = f"{conf * 100:.0f}%"
+    conf_pct = confidence_percent(conf)
 
     return (
         f"{_t(L, 'r_context')}\n"

@@ -341,6 +341,54 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
         return None
 
 
+def save_alert_signal(
+    symbol: str,
+    side: str,
+    confidence: float,
+    *,
+    source: str,
+    price=None,
+    entry=None,
+    stop=None,
+    tp1=None,
+    tp2=None,
+):
+    """Store a spike, SMC, or listing alert for one user's history.
+
+    The source is never ``scanner``, so the row stays out of the shared feed.
+    Callers grant access only to users who actually received the alert.
+    """
+    if source not in {"spike", "smc", "listing"}:
+        return None
+    symbol = normalize_usdt_symbol(symbol)
+    if not symbol or not _db_ready():
+        return None
+    direction = str(side or "").upper()
+    if direction not in {"LONG", "SHORT"}:
+        direction = "LONG"
+    try:
+        stored_confidence = max(0.0, min(float(confidence), 1.0))
+    except (TypeError, ValueError):
+        stored_confidence = 0.0
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            row = connection.execute(
+                """
+                INSERT INTO signals (
+                    symbol, side, confidence, price, entry, stop, tp1, tp2, source
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (symbol, direction, stored_confidence, price, entry, stop, tp1, tp2, source),
+            ).fetchone()
+            connection.commit()
+            return row[0] if row else None
+    except Exception as exc:
+        logger.warning("alert history write failed: %s", type(exc).__name__)
+        return None
+
+
 def grant_signal_access(user_id: int, signal_id: int) -> None:
     if not _db_ready() or not signal_id:
         return

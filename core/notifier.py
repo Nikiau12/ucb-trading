@@ -23,6 +23,14 @@ def _tr(lang: str, key: str, **kwargs) -> str:
 def _esc(value) -> str:
     return html.escape("" if value is None else str(value), quote=False)
 
+
+def _score_percent(value) -> str:
+    """Show an SMC-style 0–100 score as a percent."""
+    try:
+        return f"{float(value):.0f}%"
+    except (TypeError, ValueError):
+        return "0%"
+
 class Notifier:
     TRANSLATIONS = {
         "bullish": "🟢 Бычий (Восходящий)",
@@ -278,7 +286,7 @@ class Notifier:
         
         if context_score:
             msg += (
-                f"🧠 <b>{_tr(lang, 'smc_analysis')}: {context_score.confidence}/100</b>\n"
+                f"🧠 <b>{_tr(lang, 'smc_analysis')}: {_score_percent(context_score.confidence)}</b>\n"
                 f"📊 {_tr(lang, 'smc_regime')}: {_esc(context_score.regime.value.upper())} | "
                 f"{_tr(lang, 'smc_phase')}: {_esc(context_score.phase.value.upper())}\n"
             )
@@ -288,7 +296,7 @@ class Notifier:
 
         if verdict:
             msg += (
-                f"🌐 <b>MTF: {verdict.confidence}/100</b>\n"
+                f"🌐 <b>MTF: {_score_percent(verdict.confidence)}</b>\n"
                 f"🧭 {_tr(lang, 'smc_setup_type')}: {self._t(verdict.setup_type.name, lang)}\n"
             )
             if verdict.risk_flags:
@@ -315,7 +323,7 @@ class Notifier:
         msg_parts.append(f"🧭 <b>{_tr(lang, 'analysis_setup')}</b>: {self._t(verdict.setup_type.name, lang)}")
         msg_parts.append(f"⚖️ <b>{_tr(lang, 'analysis_confirm')}</b>: {self._t(verdict.confirmation_state.name, lang)}")
         msg_parts.append(f"⚡️ <b>{_tr(lang, 'analysis_trigger')}</b>: {self._t(verdict.trigger_state.name, lang)}")
-        msg_parts.append(f"🧠 <b>{_tr(lang, 'analysis_confidence')}</b>: {verdict.confidence}/100\n")
+        msg_parts.append(f"🧠 <b>{_tr(lang, 'analysis_confidence')}</b>: {_score_percent(verdict.confidence)}\n")
 
         if verdict.risk_flags:
             msg_parts.append(f"⚠️ <b>{_tr(lang, 'smc_risks')}:</b>")

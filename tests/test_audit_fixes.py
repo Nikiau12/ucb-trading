@@ -153,6 +153,64 @@ def test_html_renderers_escape_interpolated_values():
     assert "<script>" not in alert
     assert "&lt;script&gt;" in alert
     assert "<img>" not in alert
+    assert "80%" in rendered
+    assert "80%" in alert
+    assert "/ 1.0" not in alert
+
+
+def test_confidence_percent_is_one_scale():
+    plan = {
+        "symbol": "BTC_USDT",
+        "price": 100,
+        "trend": {},
+        "levels": {},
+        "primary": {
+            "side": "long",
+            "confidence": 0.78,
+            "entry": 100,
+            "stop": 90,
+            "tps": [{"price": 120}, {"price": 140}],
+            "reasons": [],
+        },
+    }
+    rendered = render_telegram_plan(plan, deposit=1000, risk_pct=1, lang="en")
+    alert = render_auto_alert(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="en")
+    assert "78%" in rendered
+    assert "78%" in alert
+    assert "0.78" not in alert
+    assert "/ 1.0" not in alert
+    assert "≥65%" in t("en", "digest_high", count=1)
+    assert "0.65" not in t("en", "digest_high", count=1)
+    assert "50–65%" in t("ru", "digest_medium", count=2)
+
+
+def test_smc_confidence_renders_as_percent():
+    from types import SimpleNamespace
+
+    from core.notifier import Notifier
+
+    score = SimpleNamespace(
+        confidence=78,
+        regime=SimpleNamespace(value="range"),
+        phase=SimpleNamespace(value="unknown"),
+        reasons=["structure"],
+    )
+    verdict = SimpleNamespace(
+        confidence=64,
+        setup_type=SimpleNamespace(name="no_trade"),
+        risk_flags=[],
+    )
+    text = Notifier().format_smc_setup(
+        "BTC_USDT",
+        "4h",
+        {"type": "LONG", "reason": "bos", "entry": 1, "stop_loss": 0.9, "take_profit": 1.2, "rr": 2},
+        score,
+        verdict,
+        lang="en",
+    )
+    assert "78%" in text
+    assert "64%" in text
+    assert "/100" not in text
 
 
 def test_set_limits_match_the_mini_app():
@@ -177,6 +235,8 @@ def test_commands_stay_in_private_chats_and_start_keeps_language():
 
 def test_paid_feed_is_scanner_only_and_trial_feed_is_granted_only():
     assert "source = 'scanner'" in miniapp.PAID_SIGNALS_SQL
+    assert "s.source <> 'scanner'" in miniapp.PAID_SIGNALS_SQL
+    assert "user_signal_access" in miniapp.PAID_SIGNALS_SQL
     assert "user_signal_access" in miniapp.TRIAL_SIGNALS_SQL
     assert "source = 'scanner'" not in miniapp.TRIAL_SIGNALS_SQL
     assert "INSERT INTO user_signal_access" not in inspect.getsource(miniapp.signals)

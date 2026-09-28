@@ -102,7 +102,11 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     monkeypatch.setattr(bot.core_plan, "make_plan", lambda *_args, **_kwargs: _actionable_plan())
     monkeypatch.setattr(bot, "render_telegram_plan", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
     monkeypatch.setattr(bot, "is_admin", lambda _chat_id: False)
+    async def _menu_button(*_args, **_kwargs):
+        return True
+
     monkeypatch.setattr(bot, "ADMIN_CHAT_IDS", set())
+    monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu_button)
     monkeypatch.setattr(
         bot.payment_verifier,
         "verify",
@@ -141,6 +145,51 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
         assert status.replies
 
     asyncio.run(journey())
+
+
+def test_language_change_keeps_the_start_keyboard(monkeypatch):
+    monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
+
+    async def _menu_button(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(bot.bot_instance, "set_chat_menu_button", _menu_button)
+    monkeypatch.setattr(bot.st, "set_user_lang", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"deposit": None})
+
+    class CallbackMessage:
+        def __init__(self):
+            self.kwargs = {}
+
+        async def edit_text(self, text, **kwargs):
+            self.text = text
+            self.kwargs = kwargs
+
+    class Callback:
+        def __init__(self):
+            self.data = "lang_ru"
+            self.from_user = SimpleNamespace(id=7)
+            self.message = CallbackMessage()
+
+        async def answer(self):
+            return None
+
+    async def run():
+        callback = Callback()
+        await bot.handle_lang_callback(callback, FakeState())
+        markup = callback.message.kwargs["reply_markup"]
+        buttons = [button for row in markup.inline_keyboard for button in row]
+        callbacks = [button.callback_data for button in buttons]
+        assert "lang_en" in callbacks
+        assert "lang_ru" in callbacks
+        assert "set_deposit" in callbacks
+        assert any(
+            getattr(button, "web_app", None) and str(button.web_app.url).startswith("https://panel.example/app")
+            for button in buttons
+        )
+        assert "депозит" in callback.message.text.lower() or "deposit" in callback.message.text.lower()
+
+    asyncio.run(run())
 
     monkeypatch.setattr(miniapp, "DATABASE_URL", "")
     monkeypatch.setattr(miniapp, "BOT_TOKEN", "")

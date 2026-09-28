@@ -137,7 +137,10 @@ class HttpMetrics:
     def normalize_path(path: str) -> str:
         if path.startswith("/api/market/"):
             return "/api/market/:symbol"
-        known = {"/", "/health", "/metrics", "/api/me", "/api/settings", "/api/signals", "/api/payment-instructions"}
+        known = {
+            "/", "/health", "/metrics", "/api/me", "/api/settings", "/api/signals",
+            "/api/payment-instructions", "/api/payment",
+        }
         return path if path in known else "/other"
 
     def record(self, path: str, status_code: int, duration_seconds: float) -> None:
@@ -198,6 +201,10 @@ class SettingsUpdate(BaseModel):
     risk_pct: Optional[float] = Field(default=None, ge=0.1, le=5)
     leverage: Optional[float] = Field(default=None, ge=1, le=100)
     margin: Optional[str] = None
+
+
+class PaymentClaim(BaseModel):
+    tx_hash: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
 
 
 @contextmanager
@@ -278,6 +285,71 @@ def _open_invoice_amount(user_id: int) -> str:
     return str(invoice["expected_amount"])
 
 
+def scanner_is_live() -> bool:
+    """True when a signed-in user can see a recent scanner heartbeat.
+
+    The boolean is the only scanner fact exposed. Public /health stays a
+    process and database check.
+    """
+    if not DATABASE_URL:
+        return False
+    try:
+        with db() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT EXTRACT(EPOCH FROM MAX(last_success_at))
+                FROM runtime_health
+                WHERE component IN ('market_scanner', 'plan_scanner')
+                """
+            )
+            row = cursor.fetchone()
+        if not row or row[0] is None:
+            return False
+        return time.time() - float(row[0]) <= SCANNER_HEALTH_MAX_AGE_SECONDS
+    except Exception:
+        logger.warning("scanner heartbeat read failed")
+        return False
+
+
+def _verify_tx(tx_hash: str, expected_amount: str) -> dict:
+    import sys
+
+    root = str(BASE_DIR.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from core.tron_payment import TronPaymentVerifier
+
+    verifier = TronPaymentVerifier(
+        PAYMENT_WALLET,
+        PAYMENT_AMOUNT,
+        api_key=os.getenv("TRONGRID_API_KEY", ""),
+    )
+    return verifier.verify(tx_hash, expected_amount=expected_amount)
+
+
+def _settle_tx(user_id: int, tx_hash: str, verification: dict, expected_amount: str) -> dict:
+    try:
+        from .billing import PaymentRejected, settle_payment_transaction
+    except ImportError:
+        from billing import PaymentRejected, settle_payment_transaction
+
+    details = {key: value for key, value in verification.items() if key not in {"ok", "tx_hash"}}
+    duration = PAYMENT_DAYS * 24 * 60 * 60
+    with db() as connection:
+        result = settle_payment_transaction(
+            connection,
+            user_id=user_id,
+            tx_hash=tx_hash,
+            paid_amount=verification.get("paid_amount"),
+            expected_amount=expected_amount,
+            duration_seconds=duration,
+            details=details,
+        )
+        if not result.get("ok"):
+            raise PaymentRejected(result)
+        return result
+
+
 def subscription_fields(user_id: int | None = None, *, exact: bool = False) -> dict:
     amount = str(PAYMENT_AMOUNT)
     if exact and DATABASE_URL and user_id is not None:
@@ -291,10 +363,25 @@ def subscription_fields(user_id: int | None = None, *, exact: bool = False) -> d
 
 PAID_SIGNALS_SQL = """
 SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
-       price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, created_at
-FROM signals
-WHERE source = 'scanner'
-  AND UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'
+       price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
+       created_at, source
+FROM (
+    SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
+           price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
+           created_at, source
+    FROM signals
+    WHERE source = 'scanner'
+      AND UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'
+    UNION
+    SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
+           s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
+           s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source
+    FROM signals s
+    JOIN user_signal_access a ON a.signal_id = s.id
+    WHERE a.telegram_user_id = %s
+      AND s.source <> 'scanner'
+      AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
+) history
 ORDER BY created_at DESC
 LIMIT 30
 """
@@ -302,7 +389,7 @@ LIMIT 30
 TRIAL_SIGNALS_SQL = """
 SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
        s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
-       s.min_vol, s.max_vol, s.max_leverage, s.created_at
+       s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
@@ -326,6 +413,9 @@ def demo_profile(user: dict) -> dict:
         "has_paid_access": False,
         "paid_until": None,
         "payment_status": None,
+        "payment_wallet": PAYMENT_WALLET,
+        "payment_network": PAYMENT_NETWORK,
+        "scanner_live": False,
         "bot_username": bot_username(),
         **subscription_fields(),
     }
@@ -456,6 +546,9 @@ def me(x_telegram_init_data: str = Header(default="")):
         "has_paid_access": bool(row[6] and row[6] > datetime.now(timezone.utc)),
         "paid_until": row[6].isoformat() if row[6] else None,
         "payment_status": row[7],
+        "payment_wallet": PAYMENT_WALLET,
+        "payment_network": PAYMENT_NETWORK,
+        "scanner_live": scanner_is_live(),
         "bot_username": bot_username(),
         **subscription_fields(user_id, exact=True),
     }
@@ -533,6 +626,52 @@ def payment_instructions(x_telegram_init_data: str = Header(default="")):
     return {"ok": True}
 
 
+@app.post("/api/payment")
+def claim_payment(payload: PaymentClaim, x_telegram_init_data: str = Header(default="")):
+    """Verify a transaction hash. A request without a confirmed hash does not grant access."""
+    user = get_user(x_telegram_init_data)
+    require_database(x_telegram_init_data)
+    if not DATABASE_URL or not PAYMENT_WALLET:
+        raise HTTPException(503, "Payment is not configured")
+    rate_limiter.check("payment", str(user["id"]), limit=5, window_seconds=60)
+    amount = _open_invoice_amount(int(user["id"]))
+    try:
+        verification = _verify_tx(payload.tx_hash, amount)
+    except Exception:
+        logger.warning("payment verification failed")
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "access_open": False, "reason": "not_found"},
+        )
+    if not verification.get("ok"):
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "access_open": False, "reason": verification.get("reason")},
+        )
+    try:
+        settled = _settle_tx(
+            user_id=int(user["id"]),
+            tx_hash=payload.tx_hash,
+            verification=verification,
+            expected_amount=amount,
+        )
+    except Exception as exc:
+        result = getattr(exc, "result", None)
+        reason = result.get("reason") if isinstance(result, dict) else "save_failed"
+        if not isinstance(result, dict):
+            logger.warning("payment settle failed: %s", type(exc).__name__)
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "access_open": False, "reason": reason},
+        )
+    if not settled.get("ok"):
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "access_open": False, "reason": settled.get("reason")},
+        )
+    return {"ok": True, "access_open": True, "paid_until": settled.get("paid_until")}
+
+
 @app.get("/api/signals")
 def signals(x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
@@ -540,9 +679,9 @@ def signals(x_telegram_init_data: str = Header(default="")):
     if not DATABASE_URL:
         profile = demo_profile(user)
         return [attach_personal_sizing(signal, profile) for signal in [
-            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z"},
-            {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z"},
-            {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z"},
+            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z", "source": "scanner"},
+            {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z", "source": "scanner"},
+            {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z", "source": "scanner"},
         ]]
     user_id = int(user["id"])
     with db() as connection, connection.cursor() as cursor:
@@ -564,7 +703,7 @@ def signals(x_telegram_init_data: str = Header(default="")):
         paid_until = access[0] if access else None
         has_paid_access = bool(paid_until and paid_until > datetime.now(timezone.utc))
         if has_paid_access:
-            cursor.execute(PAID_SIGNALS_SQL)
+            cursor.execute(PAID_SIGNALS_SQL, (user_id,))
         else:
             cursor.execute(TRIAL_SIGNALS_SQL, (user_id, FREE_TRIAL_SIGNALS))
         rows = cursor.fetchall()
@@ -581,7 +720,8 @@ def signals(x_telegram_init_data: str = Header(default="")):
          "min_vol": float(row[12]) if row[12] is not None else None,
          "max_vol": float(row[13]) if row[13] is not None else None,
          "max_leverage": float(row[14]) if row[14] is not None else None,
-         "created_at": row[15].isoformat()},
+         "created_at": row[15].isoformat(),
+         "source": row[16] or "scanner"},
         profile,
     )
         for row in rows

@@ -8,9 +8,11 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # Keep aiohttp's pure-Python parser as defense in depth for untrusted exchange
 # responses, even though the pinned aiohttp release includes the parser fixes.
@@ -21,7 +23,14 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Message, CallbackQuery
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    MenuButtonWebApp,
+    WebAppInfo,
+    Message,
+    CallbackQuery,
+)
 
 # ── старые модули ──
 from mexc.exchange_client_mexc import ExchangeClient
@@ -59,7 +68,7 @@ import trade_plan as core_plan
 import scanner as sc
 import state as st
 from i18n import LANG_BUTTONS, t as _t
-from telegram_render import render_telegram_plan
+from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
 from user_input import is_deposit_input, parse_deposit_amount, parse_setting
 from miniapp.schema import apply_migrations
@@ -249,6 +258,78 @@ def _deposit_keyboard(lang: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=_t(lang, "deposit_button"), callback_data="set_deposit")
     ]])
 
+
+def _one_action_keyboard(lang: str, label_key: str, callback_data: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=_t(lang, label_key), callback_data=callback_data)
+    ]])
+
+
+def _chart_url(symbol: str) -> str:
+    parts = urlparse(MINI_APP_URL)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["symbol"] = symbol
+    return urlunparse(parts._replace(query=urlencode(query)))
+
+
+def _chart_keyboard(symbol: str, lang: str) -> InlineKeyboardMarkup | None:
+    if not MINI_APP_URL or not symbol:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=_t(lang, "open_chart"),
+            web_app=WebAppInfo(url=_chart_url(symbol)),
+        )
+    ]])
+
+
+def _deposit_prompt_reply(lang: str) -> tuple[str, InlineKeyboardMarkup]:
+    text = _t(lang, "deposit_invalid") + "\n\n" + _t(lang, "deposit_prompt")
+    return text, _lang_keyboard(lang)
+
+
+class _CommandView:
+    """Reply through an existing chat message while attributing the user correctly."""
+
+    def __init__(self, message, user, text: str):
+        self.text = text
+        self.from_user = user
+        self.chat = getattr(message, "chat", None)
+        self.message_id = getattr(message, "message_id", 0)
+        self._message = message
+
+    async def reply(self, text, **kwargs):
+        return await self._message.reply(text, **kwargs)
+
+
+def _callback_symbol(raw: str) -> str:
+    return re.sub(r"[^A-Z0-9_]", "", str(raw or "").upper())[:40]
+
+
+def _remember_personal_alert(user_id, **fields) -> None:
+    signal_id = st.save_alert_signal(**fields)
+    if signal_id:
+        try:
+            st.grant_signal_access(int(user_id), signal_id)
+        except (TypeError, ValueError):
+            logger.warning("alert access grant skipped")
+
+
+async def _set_panel_menu(chat_id=None, lang: str = "en") -> None:
+    if not MINI_APP_URL:
+        return
+    button = MenuButtonWebApp(
+        text=_t(lang, "menu_webapp"),
+        web_app=WebAppInfo(url=MINI_APP_URL),
+    )
+    try:
+        if chat_id is None:
+            await bot_instance.set_chat_menu_button(menu_button=button)
+        else:
+            await bot_instance.set_chat_menu_button(chat_id=chat_id, menu_button=button)
+    except Exception:
+        logger.warning("menu button failed")
+
 def _parse_kv(parts):
     kv = {}
     for p in parts:
@@ -436,6 +517,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.reply(_payment_paywall(user_id), parse_mode="HTML")
         return
 
+    await _set_panel_menu(message.from_user.id, lang)
+    if payload == "plan":
+        await state.clear()
+        await cmd_plan(_CommandView(message, message.from_user, "/plan BTC_USDT"))
+        return
     if not _has_saved_deposit(message.from_user.id):
         notifier.active_users.discard(user_id)
         await state.set_state(DepositSetup.waiting_for_amount)
@@ -456,13 +542,13 @@ async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext)
     st.set_user_lang(callback.from_user.id, lang)
     settings = st.get_user_settings(callback.from_user.id)
     text = _t(lang, "lang_set")
-    reply_markup = None
     if not settings.get("deposit"):
         text += "\n\n" + _t(lang, "deposit_start_hint") + "\n\n" + _t(lang, "deposit_prompt")
         await state.set_state(DepositSetup.waiting_for_amount)
     else:
         notifier.active_users.add(str(callback.from_user.id))
-    await _finish_callback(callback, text, parse_mode="HTML", reply_markup=reply_markup)
+    await _set_panel_menu(callback.from_user.id, lang)
+    await _finish_callback(callback, text, parse_mode="HTML", reply_markup=_lang_keyboard(lang))
 
 
 @router.callback_query(F.data == "set_deposit")
@@ -476,6 +562,33 @@ async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMConte
     await _finish_callback(callback)
 
 
+@router.callback_query(F.data == "request_plan")
+async def handle_request_plan(callback: types.CallbackQuery):
+    await _finish_callback(callback)
+    if callback.message is None:
+        return
+    await cmd_plan(_CommandView(callback.message, callback.from_user, "/plan BTC_USDT"))
+
+
+@router.callback_query(F.data.startswith("retry_setup:"))
+async def handle_retry_setup(callback: types.CallbackQuery):
+    await _finish_callback(callback)
+    if callback.message is None:
+        return
+    coin = _callback_symbol(callback.data.split(":", 1)[1])
+    if not coin:
+        return
+    await _handle_setup(_CommandView(callback.message, callback.from_user, f"/setup {coin}"), coin)
+
+
+@router.callback_query(F.data == "retry_spikes")
+async def handle_retry_spikes(callback: types.CallbackQuery):
+    await _finish_callback(callback)
+    if callback.message is None:
+        return
+    await _handle_spikes(_CommandView(callback.message, callback.from_user, "/spikes"))
+
+
 @router.message(
     DepositSetup.waiting_for_amount,
     lambda message: is_deposit_input(message.text),
@@ -485,7 +598,8 @@ async def handle_deposit_amount(message: types.Message, state: FSMContext):
     try:
         deposit = parse_deposit_amount(message.text)
     except (TypeError, ValueError):
-        await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+        text, markup = _deposit_prompt_reply(lang)
+        await message.reply(text, parse_mode="HTML", reply_markup=markup)
         return
 
     st.set_user_setting(message.from_user.id, "deposit", deposit)
@@ -689,7 +803,8 @@ async def cmd_plan(message: types.Message):
         plan     = core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
         side = str((plan.get("primary") or {}).get("side", "skip")).upper()
         text     = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
-        await status_msg.edit_text(text, parse_mode="HTML")
+        chart = _chart_keyboard(symbol, lang) if side != "SKIP" else None
+        await status_msg.edit_text(text, parse_mode="HTML", reply_markup=chart)
         if side != "SKIP":
             signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
             if signal_id:
@@ -723,7 +838,8 @@ async def cmd_set(message: types.Message):
             if reason == "unknown":
                 await message.reply(_t(lang, "set_unknown", key=html.escape(key)), parse_mode="HTML")
             elif reason == "deposit":
-                await message.reply(_t(lang, "deposit_invalid"), parse_mode="HTML")
+                text, markup = _deposit_prompt_reply(lang)
+                await message.reply(text, parse_mode="HTML", reply_markup=markup)
             else:
                 await message.reply(_t(lang, "set_invalid", key=html.escape(key)), parse_mode="HTML")
             return
@@ -788,7 +904,11 @@ async def cmd_scan(message: types.Message):
         )
         actionable = _rank_actionable_plans(results)
         if not actionable:
-            await status_msg.edit_text(_t(lang, "scan_none"), parse_mode="HTML")
+            await status_msg.edit_text(
+                _t(lang, "scan_none"),
+                parse_mode="HTML",
+                reply_markup=_one_action_keyboard(lang, "request_plan", "request_plan"),
+            )
             return
 
         limit = 1 if access_mode == "trial" else 5
@@ -860,23 +980,32 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
                 sym  = html.escape(str(r.get("symbol", "?")))
                 side = html.escape(str((r.get("primary") or {}).get("side", "?")).upper())
                 em   = "🟩" if side == "LONG" else "🟥"
-                lines.append(f"  {em} <code>{sym}</code> {side} conf={_conf(r):.2f}")
+                lines.append(f"  {em} <code>{sym}</code> {side} {confidence_percent(_conf(r))}")
             lines.append("")
         if medium:
             lines.append(_t(lang, "digest_medium", count=len(medium)))
             for r in medium[:10]:
                 sym  = html.escape(str(r.get("symbol", "?")))
                 side = html.escape(str((r.get("primary") or {}).get("side", "?")).upper())
-                lines.append(f"  • <code>{sym}</code> {side} conf={_conf(r):.2f}")
+                lines.append(f"  • <code>{sym}</code> {side} {confidence_percent(_conf(r))}")
             lines.append("")
         lines.append(_t(lang, "digest_skipped", count=skipped))
         summary = "\n".join(lines)
+        empty_markup = (
+            _one_action_keyboard(lang, "request_plan", "request_plan")
+            if not high and not medium else None
+        )
 
         try:
             if status_msg:
-                await status_msg.edit_text(summary, parse_mode="HTML")
+                await status_msg.edit_text(summary, parse_mode="HTML", reply_markup=empty_markup)
             else:
-                await bot_instance.send_message(chat_id=chat_id, text=summary, parse_mode="HTML")
+                await bot_instance.send_message(
+                    chat_id=chat_id,
+                    text=summary,
+                    parse_mode="HTML",
+                    reply_markup=empty_markup,
+                )
         except Exception:
             logger.warning("digest summary send failed")
             return False
@@ -947,10 +1076,26 @@ async def _handle_setup(message: types.Message, coin: str):
                     if verdict.setup_type.name != "NO_TRADE":
                         msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict, lang=lang)
                         await message.reply(msg, parse_mode="HTML")
+                        _remember_personal_alert(
+                            message.from_user.id,
+                            symbol=symbol,
+                            side="LONG" if setup.get("type") == "LONG" else "SHORT",
+                            confidence=float(getattr(score, "confidence", 0) or 0) / 100.0,
+                            source="smc",
+                            price=setup.get("entry"),
+                            entry=setup.get("entry"),
+                            stop=setup.get("stop_loss"),
+                            tp1=setup.get("take_profit"),
+                        )
                         found = True
                         delivered = True
         if not found:
-            await message.reply(_t(lang, "setup_none", symbol=html.escape(symbol)), parse_mode="HTML")
+            safe_symbol = _callback_symbol(symbol)
+            await message.reply(
+                _t(lang, "setup_none", symbol=html.escape(symbol)),
+                parse_mode="HTML",
+                reply_markup=_one_action_keyboard(lang, "retry_setup", f"retry_setup:{safe_symbol}"),
+            )
     except Exception as exc:
         await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
         return
@@ -978,12 +1123,25 @@ async def _handle_spikes(message: types.Message):
                 found.append((symbol, spike))
             await asyncio.sleep(0.05)
         if not found:
-            await message.reply(_t(lang, "spikes_none"), parse_mode="HTML")
+            await message.reply(
+                _t(lang, "spikes_none"),
+                parse_mode="HTML",
+                reply_markup=_one_action_keyboard(lang, "retry_spikes", "retry_spikes"),
+            )
             return
         for sym, spk in found[:15]:
             coin_info = await coin_info_svc.get_coin_info(sym)
             msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info, lang=lang)
             await message.reply(msg, parse_mode="HTML")
+            _remember_personal_alert(
+                message.from_user.id,
+                symbol=sym,
+                side="LONG" if spk.get("direction") == "up" else "SHORT",
+                confidence=float(spk.get("score") or 0) / 100.0,
+                source="spike",
+                price=spk.get("current_price"),
+                entry=spk.get("current_price"),
+            )
             delivered = True
             await asyncio.sleep(0.1)
     except Exception as exc:
@@ -1053,11 +1211,13 @@ def _is_usdt_pair(symbol: str) -> bool:
     normalized = market.replace("/", "_").replace("-", "_")
     return normalized.endswith("_USDT")
 
-async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render) -> int:
-    """Send one localized alert. Persist the cooldown only after a delivery."""
+async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render, alert=None) -> int:
+    """Send one localized alert. Persist history only for users who received it."""
     if not st.cooldown_ready(kind, key, cooldown_seconds):
         return 0
     delivered = 0
+    signal_id = None
+    saved = False
     for chat_id in list(notifier.active_users):
         try:
             user_id = int(chat_id)
@@ -1065,10 +1225,44 @@ async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render)
             continue
         if await notifier.send_message_to_user(chat_id, render(get_lang(user_id))):
             delivered += 1
+            if alert and not saved:
+                saved = True
+                payload = alert() if callable(alert) else dict(alert)
+                signal_id = st.save_alert_signal(**payload)
+            if signal_id:
+                st.grant_signal_access(user_id, signal_id)
         await asyncio.sleep(0.1)
     if st.should_persist_sent_marker(delivered):
         st.mark_cooldown(kind, key)
     return delivered
+
+
+async def _broadcast_personal(text: str, alert: dict) -> None:
+    """Deliver one shared listing text and keep it in each recipient's history."""
+    signal_id = None
+    saved = False
+    for chat_id in list(notifier.active_users):
+        try:
+            user_id = int(chat_id)
+        except (TypeError, ValueError):
+            continue
+        if await notifier.send_message_to_user(chat_id, text):
+            if not saved:
+                saved = True
+                signal_id = st.save_alert_signal(**alert)
+            if signal_id:
+                st.grant_signal_access(user_id, signal_id)
+        await asyncio.sleep(0.1)
+
+
+def _listing_symbol(symbol: str) -> str | None:
+    normalized = st.normalize_usdt_symbol(symbol)
+    if normalized:
+        return normalized
+    base = re.sub(r"[^A-Z0-9]", "", str(symbol or "").upper())
+    if 2 <= len(base) <= 20 and base not in {"USDT", "MEXC", "UTC"}:
+        return st.normalize_usdt_symbol(f"{base}_USDT")
+    return None
 
 
 async def market_scanner_loop():
@@ -1105,6 +1299,14 @@ async def market_scanner_loop():
                                 lambda lang, _symbol=symbol, _tf=tf, _spike=spike, _info=coin_info: (
                                     notifier.format_spike_alert(_symbol, _tf, _spike, coin_info=_info, lang=lang)
                                 ),
+                                alert=lambda _symbol=symbol, _spike=spike: {
+                                    "symbol": _symbol,
+                                    "side": "LONG" if _spike.get("direction") == "up" else "SHORT",
+                                    "confidence": float(_spike.get("score") or 0) / 100.0,
+                                    "source": "spike",
+                                    "price": _spike.get("current_price"),
+                                    "entry": _spike.get("current_price"),
+                                },
                             )
 
                     if tf in ["4h", "1d"] and is_smc:
@@ -1128,6 +1330,16 @@ async def market_scanner_loop():
                                         _symbol, _tf, _setup, _score, _verdict, lang=lang
                                     )
                                 ),
+                                alert=lambda _symbol=symbol, _setup=setup, _score=score: {
+                                    "symbol": _symbol,
+                                    "side": "LONG" if _setup.get("type") == "LONG" else "SHORT",
+                                    "confidence": float(getattr(_score, "confidence", 0) or 0) / 100.0,
+                                    "source": "smc",
+                                    "price": _setup.get("entry"),
+                                    "entry": _setup.get("entry"),
+                                    "stop": _setup.get("stop_loss"),
+                                    "tp1": _setup.get("take_profit"),
+                                },
                             )
 
                 await asyncio.sleep(0.5)
@@ -1261,11 +1473,33 @@ async def listing_watcher_loop():
             for item in (await listing_watcher.check_new_announcements())[:10]:
                 symbol = item["symbols"][0] if item.get("symbols") else ""
                 coin_info = await coin_info_svc.get_coin_info(symbol) if symbol else {}
-                await notifier.send_message(notifier.format_listing_news_alert(item, coin_info=coin_info))
+                listing_symbol = _listing_symbol(symbol)
+                text = notifier.format_listing_news_alert(item, coin_info=coin_info)
+                if listing_symbol:
+                    await _broadcast_personal(text, {
+                        "symbol": listing_symbol,
+                        "side": "LONG",
+                        "confidence": 0,
+                        "source": "listing",
+                        "price": None,
+                    })
+                else:
+                    await notifier.send_message(text)
                 await asyncio.sleep(0.2)
             for symbol in (await listing_watcher.check_new_markets(exchange))[:20]:
                 coin_info = await coin_info_svc.get_coin_info(symbol)
-                await notifier.send_message(notifier.format_listing_alert(symbol, coin_info=coin_info))
+                listing_symbol = _listing_symbol(symbol)
+                text = notifier.format_listing_alert(symbol, coin_info=coin_info)
+                if listing_symbol:
+                    await _broadcast_personal(text, {
+                        "symbol": listing_symbol,
+                        "side": "LONG",
+                        "confidence": 0,
+                        "source": "listing",
+                        "price": None,
+                    })
+                else:
+                    await notifier.send_message(text)
                 await asyncio.sleep(0.2)
             await asyncio.sleep(MEXC_LISTING_CHECK_INTERVAL)
         except asyncio.CancelledError:
@@ -1296,6 +1530,7 @@ async def main():
         await bot_instance.set_my_commands(menu_commands())
     except Exception:
         logger.warning("set_my_commands failed")
+    await _set_panel_menu(lang="en")
     logger.info("UCB_TRADING_BOT starting")
     t1 = asyncio.create_task(market_scanner_loop())
     t2 = asyncio.create_task(plan_scanner_loop())

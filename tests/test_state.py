@@ -18,6 +18,9 @@ class _RuntimeConnection:
     def commit(self):
         return None
 
+    def fetchone(self):
+        return (9,)
+
 
 def _duplicate_target_plan():
     return {
@@ -59,6 +62,35 @@ def test_signal_contract_rules_are_extracted_for_history():
         "max_vol": 1000,
         "max_leverage": 50,
     }
+
+
+def test_personal_alerts_are_not_published_to_the_scanner_feed(monkeypatch):
+    connection = _RuntimeConnection()
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    assert state.save_alert_signal("BTC_USDT", "LONG", 0.78, source="scanner") is None
+    assert state.save_alert_signal("BTC_USDT", "LONG", 0.78, source="manual") is None
+    assert connection.calls == []
+
+    saved = state.save_alert_signal(
+        "BTC/USDT",
+        "SHORT",
+        1.4,
+        source="spike",
+        price=10,
+        entry=10,
+    )
+    assert saved == 9
+    params = connection.calls[0][1]
+    assert params[0] == "BTC_USDT"
+    assert params[1] == "SHORT"
+    assert params[2] == 1.0
+    assert params[-1] == "spike"
+
+    monkeypatch.setattr(state, "plan_payload_errors", lambda _plan: [])
+    state.save_signal({"primary": {}}, "ETH_USDT", "LONG", 0.78, source="manual")
+    assert connection.calls[1][1][-1] == "manual"
 
 
 def test_runtime_health_records_scanner_metrics(monkeypatch):
