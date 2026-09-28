@@ -236,3 +236,54 @@ def render_alert_block(
     elif leverage_limited:
         lines.append(_t(lang, "alert_lev_capped"))
     return "\n".join(lines[:8])
+
+
+def _reward_risk(entry, stop, tp1) -> str | None:
+    try:
+        risk = abs(float(entry) - float(stop))
+        reward = abs(float(tp1) - float(entry))
+    except (TypeError, ValueError):
+        return None
+    if risk == 0:
+        return None
+    return f"{reward / risk:.1f}R"
+
+
+def render_scan_card(
+    plan: dict,
+    symbol: str,
+    side: str,
+    deposit: float,
+    risk_pct: float,
+    leverage: float,
+    *,
+    lang: str = "en",
+) -> str:
+    """One futures card for /scan and /digest: at most six lines."""
+    primary = plan.get("primary") or {}
+    targets = primary.get("tps") or []
+    entry = primary.get("entry")
+    stop = primary.get("stop")
+    tp1 = targets[0]["price"] if targets else None
+    price_unit = primary.get("price_unit")
+    direction = str(side or "").upper()
+    position_usdt = None
+    try:
+        sizing = position_size_for_contract(
+            primary, float(entry), float(stop), float(deposit), float(risk_pct), float(leverage)
+        )
+        position_usdt = sizing["position_usdt"]
+    except (TypeError, ValueError, ZeroDivisionError, KeyError):
+        pass
+    lines = [
+        f"<b>{_esc(symbol)}</b> {_esc(direction)}",
+        f"{_t(lang, 'alert_entry')}: <code>{_esc(_fmt_price(entry, price_unit))}</code>",
+        f"{_t(lang, 'alert_stop')}: <code>{_esc(_fmt_price(stop, price_unit))}</code>",
+        f"TP1: <code>{_esc(_fmt_price(tp1, price_unit))}</code>",
+    ]
+    ratio = _reward_risk(entry, stop, tp1)
+    if ratio:
+        lines.append(ratio)
+    if position_usdt is not None:
+        lines.append(f"{_t(lang, 'alert_position')}: <b>{_fmt_usdt(position_usdt)} USDT</b>")
+    return "\n".join(lines[:6])
