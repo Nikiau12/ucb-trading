@@ -71,19 +71,20 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>ЧТО ЗНАЧИТ ПЛАН</b>\n"
-            "<b>Вход</b> — цена входа (лимитный ордер)\n"
-            "<b>Стоп</b> — стоп-лосс\n"
-            "<b>Тейк 1 / тейк 2</b> — тейк-профиты (по 50% позиции)\n"
-            "<b>Уверенность</b> — оценка алгоритма в процентах, например 78%\n\n"
+            "<code>entry</code>   — цена входа (лимитный ордер)\n"
+            "<code>stop</code>    — стоп-лосс\n"
+            "<code>tp1/tp2</code> — тейк-профиты (по 50% позиции)\n"
+            "<code>conf</code>    — уверенность алгоритма (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>РАСПИСАНИЕ (UTC)</b>\n"
-            "Сканер планов: каждый час, с 5-й минуты.\n"
-            "Дайджест: только по команде /digest, без отдельного расписания.\n\n"
+            "Автосканирование: 00:05 / 04:05 / 08:05\n"
+            "                  12:05 / 16:05 / 20:05\n"
+            "Дайджест: {digest_hour}:00 ежедневно\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>ВАЖНО</b>\n"
             "Бот предоставляет аналитику, а не торговые сигналы.\n"
             "Решение о входе в сделку всегда остаётся за тобой.\n\n"
-            "🌐 Язык меняется в панели."
+            "🌐 Сменить язык → /start"
         ),
         "no_deposit": (
             "⚠️ Депозит не установлен.\n\n"
@@ -91,16 +92,22 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "Бот запомнит — больше вводить не нужно."
         ),
-        "set_usage": "Настройки — в панели.",
-        "set_saved":       "✅ Сохранено.",
+        "set_usage": (
+            "Использование:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Сохранено: {params}",
         "set_unknown":     "❌ Неизвестный параметр: {key}. Доступны: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Твои параметры</b>\n\n",
-        "settings_deposit":"💰 Депозит: {val}\n",
-        "settings_deposit_missing": "💰 Депозит: <b>⚠️ не установлен</b> → <code>/set deposit=XXXX</code>\n",
+        "settings_deposit":"💰 deposit: {val}\n",
+        "settings_deposit_missing": "💰 deposit: <b>⚠️ не установлен</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Изменить их можно в панели.",
+        "settings_change": "Изменить: <code>/set deposit=X risk=X lev=X</code>",
         "deposit_not_set": "⚠️ не установлен → /set deposit=XXXX",
         "plan_loading":    "⏳ Загружаю {symbol}...",
         "plan_error":      "❌ Ошибка: {error}",
@@ -112,15 +119,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Депозит берётся из сохранённых настроек. Изменить: <code>/set deposit=5000</code>"
         ),
         "scan_starting":   "🔍 Сканирую топ-{top_n} монет (~2–4 мин)...",
-        "scan_done":       "✅ Найдено {count} сетап(ов). Топ-{limit}:",
-        "scan_done_one":   "✅ Найден {count} сетап.",
+        "scan_done":       "✅ Найдено {count} сетап(ов). Топ-5:",
         "scan_none":       "🧊 Нет сетапов выше порога уверенности",
         "scan_more":       "...и ещё {count}. Используй /digest для полного обзора.",
         "scan_error":      "❌ Ошибка сканирования: {error}",
         "digest_preparing":"📊 Готовлю дайджест...",
         "digest_title":    "📊 <b>Дайджест {time} UTC</b>\nПроверено: <b>{total}</b> монет",
-        "digest_high":     "🟢 <b>Высокая уверенность ≥65% — {count} шт.</b>",
-        "digest_medium":   "🟡 <b>Средняя уверенность 50–65% — {count} шт.</b>",
+        "digest_high":     "🟢 <b>Высокая уверенность ≥0.65 — {count} шт.</b>",
+        "digest_medium":   "🟡 <b>Средняя уверенность 0.50–0.65 — {count} шт.</b>",
         "digest_skipped":  "🧊 Нет сетапа: <b>{count}</b> монет",
         "digest_error":    "❌ Ошибка дайджеста: {error}",
         "autoscan_error":  "⚠️ Ошибка автосканирования: {error}",
@@ -138,11 +144,11 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_struct":        "структура 4H",
         "r_bos":           "BOS/CHOCH",
         "r_regime_label":  "режим",
-        "r_mid":           "середина диапазона",
+        "r_mid":           "midrange",
         "r_scenario":      "Сценарий",
         "r_confidence":    "уверенность",
-        "r_entry":         "🎯 Вход",
-        "r_stop":          "🛑 Стоп",
+        "r_entry":         "🎯 entry",
+        "r_stop":          "🛑 stop",
         "r_tp1":           "🥅 tp1",
         "r_tp2":           "🥅 tp2",
         "r_size":          "📦 Размер",
@@ -154,7 +160,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 сопротивление",
         "r_why":           "🔍 Почему",
         "r_risk_rule":     "🚨 Риск-правило",
-        "r_risk_text":     "<b>{margin} + плечо — без стопа нельзя.</b> Стоп обязателен.",
+        "r_risk_text":     "<b>CROSS + плечо — без стопа нельзя.</b> Стоп обязателен.",
         "r_skip_conf":     "🧊 Уверенность",
         "r_skip_reason":   "🔍 Причины",
         "r_cache_warn":    "⚠️<i>кэш</i>",
@@ -220,19 +226,20 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>WHAT THE PLAN MEANS</b>\n"
-            "<b>Entry</b> — entry price (limit order)\n"
-            "<b>Stop</b> — stop-loss\n"
-            "<b>TP1 / TP2</b> — take-profits (50% of position each)\n"
-            "<b>Confidence</b> — algorithm confidence as a percent, for example 78%\n\n"
+            "<code>entry</code>   — entry price (limit order)\n"
+            "<code>stop</code>    — stop-loss\n"
+            "<code>tp1/tp2</code> — take-profits (50% of position each)\n"
+            "<code>conf</code>    — algorithm confidence (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>SCHEDULE (UTC)</b>\n"
-            "Plan scanner: every hour, starting at minute 05.\n"
-            "Digest: only when you send /digest. There is no daily schedule.\n\n"
+            "Auto-scan: 00:05 / 04:05 / 08:05\n"
+            "           12:05 / 16:05 / 20:05\n"
+            "Digest: {digest_hour}:00 daily\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>DISCLAIMER</b>\n"
             "The bot provides analytics, not trading signals.\n"
             "The decision to enter a trade is always yours.\n\n"
-            "🌐 Change the language in the panel."
+            "🌐 Change language → /start"
         ),
         "no_deposit": (
             "⚠️ <b>Deposit required</b>\n\n"
@@ -240,8 +247,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Example: <code>5000</code>\n\n"
             "The bot saves it and uses it for every position calculation."
         ),
-        "set_usage": "Settings are in the panel.",
-        "set_saved":       "✅ Saved.",
+        "set_usage": (
+            "Usage:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Saved: {params}",
         "set_unknown":     "❌ Unknown parameter: {key}. Allowed: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Your settings</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
@@ -249,7 +262,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Change them in the panel.",
+        "settings_change": "Change: <code>/set deposit=X risk=X lev=X</code>",
         "deposit_not_set": "⚠️ not set → /set deposit=XXXX",
         "plan_loading":    "⏳ Loading {symbol}...",
         "plan_error":      "❌ Error: {error}",
@@ -261,15 +274,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Your saved deposit is always used. Change it with <code>/set deposit=5000</code>."
         ),
         "scan_starting":   "🔍 Scanning top-{top_n} coins (~2–4 min)...",
-        "scan_done":       "✅ Found {count} setup(s). Top {limit}:",
-        "scan_done_one":   "✅ Found {count} setup.",
+        "scan_done":       "✅ Found {count} setup(s). Top 5:",
         "scan_none":       "🧊 No setups above confidence threshold",
         "scan_more":       "...and {count} more. Use /digest for a full overview.",
         "scan_error":      "❌ Scan error: {error}",
         "digest_preparing":"📊 Preparing digest...",
         "digest_title":    "📊 <b>Digest {time} UTC</b>\nChecked: <b>{total}</b> coins",
-        "digest_high":     "🟢 <b>High confidence ≥65% — {count} setup(s)</b>",
-        "digest_medium":   "🟡 <b>Medium confidence 50–65% — {count} setup(s)</b>",
+        "digest_high":     "🟢 <b>High confidence ≥0.65 — {count} setup(s)</b>",
+        "digest_medium":   "🟡 <b>Medium confidence 0.50–0.65 — {count} setup(s)</b>",
         "digest_skipped":  "🧊 No setup: <b>{count}</b> coins",
         "digest_error":    "❌ Digest error: {error}",
         "autoscan_error":  "⚠️ Auto-scan error: {error}",
@@ -286,11 +298,11 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_struct":        "structure 4H",
         "r_bos":           "BOS/CHOCH",
         "r_regime_label":  "regime",
-        "r_mid":           "range midpoint",
+        "r_mid":           "midrange",
         "r_scenario":      "Scenario",
         "r_confidence":    "confidence",
-        "r_entry":         "🎯 Entry",
-        "r_stop":          "🛑 Stop",
+        "r_entry":         "🎯 entry",
+        "r_stop":          "🛑 stop",
         "r_tp1":           "🥅 tp1",
         "r_tp2":           "🥅 tp2",
         "r_size":          "📦 Size",
@@ -302,7 +314,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 resistance",
         "r_why":           "🔍 Why",
         "r_risk_rule":     "🚨 Risk rule",
-        "r_risk_text":     "<b>{margin} + leverage — stop-loss is mandatory.</b>",
+        "r_risk_text":     "<b>CROSS + leverage — stop-loss is mandatory.</b>",
         "r_skip_conf":     "🧊 Confidence",
         "r_skip_reason":   "🔍 Reasons",
         "r_cache_warn":    "⚠️<i>cache</i>",
@@ -368,19 +380,20 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>WAS DER PLAN BEDEUTET</b>\n"
-            "<b>Einstieg</b> — Einstiegskurs (Limit-Order)\n"
-            "<b>Stop</b> — Stop-Loss\n"
-            "<b>TP1 / TP2</b> — Take-Profits (je 50 % der Position)\n"
-            "<b>Konfidenz</b> — Konfidenz des Algorithmus in Prozent, zum Beispiel 78%\n\n"
+            "<code>entry</code>   — Einstiegskurs (Limit-Order)\n"
+            "<code>stop</code>    — Stop-Loss\n"
+            "<code>tp1/tp2</code> — Take-Profits (je 50 % der Position)\n"
+            "<code>conf</code>    — Algorithmus-Konfidenz (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>ZEITPLAN (UTC)</b>\n"
-            "Plan-Scanner: jede Stunde, ab Minute 05.\n"
-            "Digest: nur auf /digest. Es gibt keinen täglichen Zeitplan.\n\n"
+            "Auto-Scan: 00:05 / 04:05 / 08:05\n"
+            "           12:05 / 16:05 / 20:05\n"
+            "Digest: {digest_hour}:00 täglich\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>HINWEIS</b>\n"
             "Der Bot liefert Analysen, keine Handelssignale.\n"
             "Die Entscheidung zum Handeln liegt immer bei dir.\n\n"
-            "🌐 Die Sprache änderst du im Panel."
+            "🌐 Sprache ändern → /start"
         ),
         "no_deposit": (
             "⚠️ Kapital nicht festgelegt.\n\n"
@@ -388,8 +401,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "Der Bot merkt es sich — du musst es nicht erneut eingeben."
         ),
-        "set_usage": "Die Einstellungen sind im Panel.",
-        "set_saved":       "✅ Gespeichert.",
+        "set_usage": (
+            "Verwendung:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Gespeichert: {params}",
         "set_unknown":     "❌ Unbekannter Parameter: {key}. Erlaubt: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Deine Parameter</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
@@ -397,7 +416,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Ändern kannst du sie im Panel.",
+        "settings_change": "Ändern: <code>/set deposit=X risk=X lev=X</code>",
         "deposit_not_set": "⚠️ nicht festgelegt → /set deposit=XXXX",
         "plan_loading":    "⏳ Lade {symbol}...",
         "plan_error":      "❌ Fehler: {error}",
@@ -409,15 +428,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Das gespeicherte Kapital wird immer verwendet. Ändern: <code>/set deposit=5000</code>"
         ),
         "scan_starting":   "🔍 Scanne Top-{top_n} Coins (~2–4 Min)...",
-        "scan_done":       "✅ {count} Setup(s) gefunden. Top {limit}:",
-        "scan_done_one":   "✅ {count} Setup gefunden.",
+        "scan_done":       "✅ {count} Setup(s) gefunden. Top 5:",
         "scan_none":       "🧊 Keine Setups über dem Schwellenwert",
         "scan_more":       "...und {count} weitere. Nutze /digest für eine vollständige Übersicht.",
         "scan_error":      "❌ Scan-Fehler: {error}",
         "digest_preparing":"📊 Digest wird vorbereitet...",
         "digest_title":    "📊 <b>Digest {time} UTC</b>\nGeprüft: <b>{total}</b> Coins",
-        "digest_high":     "🟢 <b>Hohe Konfidenz ≥65% — {count} Setup(s)</b>",
-        "digest_medium":   "🟡 <b>Mittlere Konfidenz 50–65% — {count} Setup(s)</b>",
+        "digest_high":     "🟢 <b>Hohe Konfidenz ≥0.65 — {count} Setup(s)</b>",
+        "digest_medium":   "🟡 <b>Mittlere Konfidenz 0.50–0.65 — {count} Setup(s)</b>",
         "digest_skipped":  "🧊 Kein Setup: <b>{count}</b> Coins",
         "digest_error":    "❌ Digest-Fehler: {error}",
         "autoscan_error":  "⚠️ Auto-Scan-Fehler: {error}",
@@ -434,7 +452,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_struct":        "Struktur 4H",
         "r_bos":           "BOS/CHOCH",
         "r_regime_label":  "Regime",
-        "r_mid":           "Bereichsmitte",
+        "r_mid":           "Midrange",
         "r_scenario":      "Szenario",
         "r_confidence":    "Konfidenz",
         "r_entry":         "🎯 Einstieg",
@@ -450,7 +468,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 Widerstand",
         "r_why":           "🔍 Begründung",
         "r_risk_rule":     "🚨 Risikoregel",
-        "r_risk_text":     "<b>{margin} + Hebel — Stop-Loss ist Pflicht.</b>",
+        "r_risk_text":     "<b>CROSS + Hebel — Stop-Loss ist Pflicht.</b>",
         "r_skip_conf":     "🧊 Konfidenz",
         "r_skip_reason":   "🔍 Gründe",
         "r_cache_warn":    "⚠️<i>Cache</i>",
@@ -516,19 +534,20 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>CE QUE SIGNIFIE LE PLAN</b>\n"
-            "<b>Entrée</b> — prix d'entrée (ordre limite)\n"
-            "<b>Stop</b> — stop-loss\n"
-            "<b>TP1 / TP2</b> — take-profits (50 % de la position chacun)\n"
-            "<b>Confiance</b> — confiance de l'algorithme en pourcentage, par exemple 78%\n\n"
+            "<code>entry</code>   — prix d'entrée (ordre limite)\n"
+            "<code>stop</code>    — stop-loss\n"
+            "<code>tp1/tp2</code> — take-profits (50 % de la position chacun)\n"
+            "<code>conf</code>    — confiance de l'algorithme (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>PLANNING (UTC)</b>\n"
-            "Scanner de plans : chaque heure, à partir de la minute 05.\n"
-            "Digest : uniquement via /digest. Pas de planning quotidien.\n\n"
+            "Scan auto : 00:05 / 04:05 / 08:05\n"
+            "            12:05 / 16:05 / 20:05\n"
+            "Digest : {digest_hour}:00 quotidiennement\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>AVERTISSEMENT</b>\n"
             "Le bot fournit des analyses, pas des signaux de trading.\n"
             "La décision d'entrer en position reste toujours la tienne.\n\n"
-            "🌐 La langue se change dans le panneau."
+            "🌐 Changer de langue → /start"
         ),
         "no_deposit": (
             "⚠️ Dépôt non défini.\n\n"
@@ -536,16 +555,22 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "Le bot s'en souviendra — pas besoin de le ressaisir."
         ),
-        "set_usage": "Les réglages sont dans le panneau.",
-        "set_saved":       "✅ Sauvegardé.",
+        "set_usage": (
+            "Utilisation :\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Sauvegardé : {params}",
         "set_unknown":     "❌ Paramètre inconnu : {key}. Autorisés : deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Tes paramètres</b>\n\n",
-        "settings_deposit":"💰 Dépôt : {val}\n",
+        "settings_deposit":"💰 deposit : {val}\n",
         "settings_deposit_missing": "💰 deposit : <b>⚠️ non défini</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk : <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev : <b>{val}x</b>\n",
         "settings_margin": "📐 margin : <b>{val}</b>\n\n",
-        "settings_change": "Tu peux les modifier dans le panneau.",
+        "settings_change": "Modifier : <code>/set deposit=X risk=X lev=X</code>",
         "deposit_not_set": "⚠️ non défini → /set deposit=XXXX",
         "plan_loading":    "⏳ Chargement de {symbol}...",
         "plan_error":      "❌ Erreur : {error}",
@@ -557,15 +582,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Le dépôt enregistré est toujours utilisé. Modifier : <code>/set deposit=5000</code>"
         ),
         "scan_starting":   "🔍 Scan du top {top_n} en cours (~2–4 min)...",
-        "scan_done":       "✅ {count} setup(s) trouvé(s). Top {limit} :",
-        "scan_done_one":   "✅ {count} setup trouvé.",
+        "scan_done":       "✅ {count} setup(s) trouvé(s). Top 5 :",
         "scan_none":       "🧊 Aucun setup au-dessus du seuil de confiance",
         "scan_more":       "...et {count} de plus. Utilise /digest pour une vue complète.",
         "scan_error":      "❌ Erreur de scan : {error}",
         "digest_preparing":"📊 Préparation du digest...",
         "digest_title":    "📊 <b>Digest {time} UTC</b>\nVérifié : <b>{total}</b> coins",
-        "digest_high":     "🟢 <b>Haute confiance ≥65% — {count} setup(s)</b>",
-        "digest_medium":   "🟡 <b>Confiance moyenne 50–65% — {count} setup(s)</b>",
+        "digest_high":     "🟢 <b>Haute confiance ≥0.65 — {count} setup(s)</b>",
+        "digest_medium":   "🟡 <b>Confiance moyenne 0.50–0.65 — {count} setup(s)</b>",
         "digest_skipped":  "🧊 Pas de setup : <b>{count}</b> coins",
         "digest_error":    "❌ Erreur digest : {error}",
         "autoscan_error":  "⚠️ Erreur scan auto : {error}",
@@ -582,7 +606,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_struct":        "structure 4H",
         "r_bos":           "BOS/CHOCH",
         "r_regime_label":  "régime",
-        "r_mid":           "milieu du range",
+        "r_mid":           "midrange",
         "r_scenario":      "Scénario",
         "r_confidence":    "confiance",
         "r_entry":         "🎯 entrée",
@@ -598,7 +622,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 résistance",
         "r_why":           "🔍 Pourquoi",
         "r_risk_rule":     "🚨 Règle de risque",
-        "r_risk_text":     "<b>{margin} + levier — le stop-loss est obligatoire.</b>",
+        "r_risk_text":     "<b>CROSS + levier — le stop-loss est obligatoire.</b>",
         "r_skip_conf":     "🧊 Confiance",
         "r_skip_reason":   "🔍 Raisons",
         "r_cache_warn":    "⚠️<i>cache</i>",
@@ -664,19 +688,20 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000 risk=1.5 lev=15</code>\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "📖 <b>QUÉ SIGNIFICA EL PLAN</b>\n"
-            "<b>Entrada</b> — precio de entrada (orden límite)\n"
-            "<b>Stop</b> — stop-loss\n"
-            "<b>TP1 / TP2</b> — take-profits (50% de la posición c/u)\n"
-            "<b>Confianza</b> — confianza del algoritmo en porcentaje, por ejemplo 78%\n\n"
+            "<code>entry</code>   — precio de entrada (orden límite)\n"
+            "<code>stop</code>    — stop-loss\n"
+            "<code>tp1/tp2</code> — take-profits (50% de la posición c/u)\n"
+            "<code>conf</code>    — confianza del algoritmo (0.0–1.0)\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "🕐 <b>HORARIO (UTC)</b>\n"
-            "Escáner de planes: cada hora, desde el minuto 05.\n"
-            "Digest: solo con /digest. No hay un horario diario.\n\n"
+            "Escaneo auto: 00:05 / 04:05 / 08:05\n"
+            "              12:05 / 16:05 / 20:05\n"
+            "Digest: {digest_hour}:00 diariamente\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚠️ <b>AVISO</b>\n"
             "El bot proporciona análisis, no señales de trading.\n"
             "La decisión de entrar en una operación es siempre tuya.\n\n"
-            "🌐 El idioma se cambia en el panel."
+            "🌐 Cambiar idioma → /start"
         ),
         "no_deposit": (
             "⚠️ Depósito no establecido.\n\n"
@@ -684,8 +709,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "El bot lo recordará — no necesitas ingresarlo de nuevo."
         ),
-        "set_usage": "Los ajustes están en el panel.",
-        "set_saved":       "✅ Guardado.",
+        "set_usage": (
+            "Uso:\n"
+            "<code>/set deposit=5000</code>\n"
+            "<code>/set risk=1.5</code>\n"
+            "<code>/set lev=20</code>\n"
+            "<code>/set deposit=5000 risk=1 lev=20</code>"
+        ),
+        "set_saved":       "✅ Guardado: {params}",
         "set_unknown":     "❌ Parámetro desconocido: {key}. Permitidos: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Tus parámetros</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
@@ -693,7 +724,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Puedes cambiarlos en el panel.",
+        "settings_change": "Cambiar: <code>/set deposit=X risk=X lev=X</code>",
         "deposit_not_set": "⚠️ no establecido → /set deposit=XXXX",
         "plan_loading":    "⏳ Cargando {symbol}...",
         "plan_error":      "❌ Error: {error}",
@@ -705,15 +736,14 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Siempre se usa el depósito guardado. Cámbialo con <code>/set deposit=5000</code>."
         ),
         "scan_starting":   "🔍 Escaneando top {top_n} monedas (~2–4 min)...",
-        "scan_done":       "✅ {count} setup(s) encontrado(s). Top {limit}:",
-        "scan_done_one":   "✅ {count} setup encontrado.",
+        "scan_done":       "✅ {count} setup(s) encontrado(s). Top 5:",
         "scan_none":       "🧊 Sin setups sobre el umbral de confianza",
         "scan_more":       "...y {count} más. Usa /digest para una vista completa.",
         "scan_error":      "❌ Error de escaneo: {error}",
         "digest_preparing":"📊 Preparando digest...",
         "digest_title":    "📊 <b>Digest {time} UTC</b>\nVerificado: <b>{total}</b> monedas",
-        "digest_high":     "🟢 <b>Alta confianza ≥65% — {count} setup(s)</b>",
-        "digest_medium":   "🟡 <b>Confianza media 50–65% — {count} setup(s)</b>",
+        "digest_high":     "🟢 <b>Alta confianza ≥0.65 — {count} setup(s)</b>",
+        "digest_medium":   "🟡 <b>Confianza media 0.50–0.65 — {count} setup(s)</b>",
         "digest_skipped":  "🧊 Sin setup: <b>{count}</b> monedas",
         "digest_error":    "❌ Error en digest: {error}",
         "autoscan_error":  "⚠️ Error en escaneo automático: {error}",
@@ -730,7 +760,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_struct":        "estructura 4H",
         "r_bos":           "BOS/CHOCH",
         "r_regime_label":  "régimen",
-        "r_mid":           "punto medio",
+        "r_mid":           "midrange",
         "r_scenario":      "Escenario",
         "r_confidence":    "confianza",
         "r_entry":         "🎯 entrada",
@@ -746,7 +776,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "r_resistance":    "🟥 resistencia",
         "r_why":           "🔍 Por qué",
         "r_risk_rule":     "🚨 Regla de riesgo",
-        "r_risk_text":     "<b>{margin} + apalancamiento — el stop-loss es obligatorio.</b>",
+        "r_risk_text":     "<b>CROSS + apalancamiento — el stop-loss es obligatorio.</b>",
         "r_skip_conf":     "🧊 Confianza",
         "r_skip_reason":   "🔍 Razones",
         "r_cache_warn":    "⚠️<i>caché</i>",
@@ -762,8 +792,7 @@ STRINGS["ru"].update({
         "1️⃣ Открой любую биржу или кошелёк (Binance, OKX, Trust Wallet…)\n"
         "2️⃣ Отправь <b>{amount} USDT</b> сетью <b>{network}</b> на адрес:\n"
         "<code>{wallet}</code>\n"
-        "⚠️ Только сеть TRC20 (TRON) — не ERC20 и не BEP20!\n"
-        "Сумма уникальна для твоего счёта — отправь её точно.\n\n"
+        "⚠️ Только сеть TRC20 (TRON) — не ERC20 и не BEP20!\n\n"
         "3️⃣ Скопируй хеш транзакции (TX Hash / TXID) и отправь:\n"
         "<code>/paid ВАШ_TX_HASH</code>\n\n"
         "Бот проверит перевод и активирует доступ автоматически (~1–2 мин).\n\n"
@@ -777,7 +806,7 @@ STRINGS["ru"].update({
     "payment_tx_used": "❌ Этот TX-хеш уже использован для другой подписки.",
     "payment_invalid_hash": "❌ Неверный TX-хеш. Он должен содержать 64 символа.",
     "payment_not_found": "⏳ Подтверждённый перевод пока не найден. Проверь сеть, адрес и TX-хеш, затем повтори /paid через несколько минут.",
-    "payment_amount_low": "❌ Получено {paid} USDT, для этого счёта нужно ровно {required} USDT.",
+    "payment_amount_low": "❌ Получено {paid} USDT, требуется минимум {required} USDT.",
     "payment_verify_error": "⚠️ Сервис проверки временно недоступен. Попробуй /paid ещё раз через несколько минут.",
     "payment_approved": "✅ Оплата подтверждена. Доступ активирован на <b>{days} дней</b>, до <b>{until}</b>.",
     "status_active": "✅ Оплачено до: <b>{until}</b>",
@@ -794,8 +823,7 @@ STRINGS["en"].update({
         "1️⃣ Open any exchange or wallet (Binance, OKX, Trust Wallet…)\n"
         "2️⃣ Send <b>{amount} USDT</b> via <b>{network}</b> to:\n"
         "<code>{wallet}</code>\n"
-        "⚠️ TRC20 (TRON) network only — not ERC20 or BEP20!\n"
-        "This amount is unique to your invoice — send it exactly.\n\n"
+        "⚠️ TRC20 (TRON) network only — not ERC20 or BEP20!\n\n"
         "3️⃣ Copy the transaction hash (TX Hash / TXID) and send:\n"
         "<code>/paid YOUR_TX_HASH</code>\n\n"
         "The bot verifies the transfer and activates access automatically (~1–2 min).\n\n"
@@ -809,7 +837,7 @@ STRINGS["en"].update({
     "payment_tx_used": "❌ This transaction hash has already been used for another subscription.",
     "payment_invalid_hash": "❌ Invalid transaction hash. It must contain 64 characters.",
     "payment_not_found": "⏳ Confirmed payment not found yet. Check the network, wallet and hash, then retry /paid in a few minutes.",
-    "payment_amount_low": "❌ Received {paid} USDT; this invoice requires exactly {required} USDT.",
+    "payment_amount_low": "❌ Received {paid} USDT; at least {required} USDT is required.",
     "payment_verify_error": "⚠️ The verification service is temporarily unavailable. Retry /paid in a few minutes.",
     "payment_approved": "✅ Payment confirmed. Access is active for <b>{days} days</b>, until <b>{until}</b>.",
     "status_active": "✅ Paid until: <b>{until}</b>",
@@ -823,7 +851,6 @@ STRINGS["de"].update({
         "🔒 <b>Deine kostenlosen Signale sind aufgebraucht</b>\n\n"
         "Zugang für <b>{days} Tage</b>: <b>{amount} USDT</b>.\n"
         "Netzwerk: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
-        "Dieser Betrag ist nur für deine Rechnung. Sende ihn exakt.\n"
         "Nach der Zahlung sende:\n<code>/paid TX_HASH</code>\n\n"
         "Der Bot prüft die Transaktion und aktiviert den Zugang automatisch."
     ),
@@ -835,7 +862,7 @@ STRINGS["de"].update({
     "payment_tx_used": "❌ Dieser Transaktions-Hash wurde bereits verwendet.",
     "payment_invalid_hash": "❌ Ungültiger Transaktions-Hash. Er muss 64 Zeichen enthalten.",
     "payment_not_found": "⏳ Bestätigte Zahlung noch nicht gefunden. Prüfe Netzwerk, Wallet und Hash und versuche /paid später erneut.",
-    "payment_amount_low": "❌ Erhalten: {paid} USDT; diese Rechnung verlangt genau {required} USDT.",
+    "payment_amount_low": "❌ Erhalten: {paid} USDT; erforderlich: mindestens {required} USDT.",
     "payment_verify_error": "⚠️ Der Prüfdienst ist vorübergehend nicht verfügbar. Versuche /paid später erneut.",
     "payment_approved": "✅ Zahlung bestätigt. Zugang für <b>{days} Tage</b> bis <b>{until}</b> aktiviert.",
     "status_active": "✅ Bezahlt bis: <b>{until}</b>",
@@ -849,7 +876,6 @@ STRINGS["fr"].update({
         "🔒 <b>Tes signaux gratuits sont épuisés</b>\n\n"
         "Accès pendant <b>{days} jours</b> : <b>{amount} USDT</b>.\n"
         "Réseau : <b>{network}</b>\nPortefeuille :\n<code>{wallet}</code>\n\n"
-        "Ce montant est unique pour ta facture : envoie-le exactement.\n"
         "Après le paiement, envoie :\n<code>/paid TX_HASH</code>\n\n"
         "Le bot vérifiera la transaction et activera automatiquement l'accès."
     ),
@@ -861,7 +887,7 @@ STRINGS["fr"].update({
     "payment_tx_used": "❌ Ce hash de transaction a déjà été utilisé.",
     "payment_invalid_hash": "❌ Hash incorrect. Il doit contenir 64 caractères.",
     "payment_not_found": "⏳ Paiement confirmé introuvable. Vérifie le réseau, le portefeuille et le hash, puis réessaie /paid.",
-    "payment_amount_low": "❌ Reçu : {paid} USDT ; cette facture exige exactement {required} USDT.",
+    "payment_amount_low": "❌ Reçu : {paid} USDT ; minimum requis : {required} USDT.",
     "payment_verify_error": "⚠️ Le service de vérification est indisponible. Réessaie /paid dans quelques minutes.",
     "payment_approved": "✅ Paiement confirmé. Accès activé pendant <b>{days} jours</b>, jusqu'au <b>{until}</b>.",
     "status_active": "✅ Payé jusqu'au : <b>{until}</b>",
@@ -875,7 +901,6 @@ STRINGS["es"].update({
         "🔒 <b>Tus señales gratuitas se han agotado</b>\n\n"
         "Acceso durante <b>{days} días</b>: <b>{amount} USDT</b>.\n"
         "Red: <b>{network}</b>\nBilletera:\n<code>{wallet}</code>\n\n"
-        "Este importe es único para tu factura: envíalo exacto.\n"
         "Después del pago, envía:\n<code>/paid TX_HASH</code>\n\n"
         "El bot verificará la transacción y activará el acceso automáticamente."
     ),
@@ -887,7 +912,7 @@ STRINGS["es"].update({
     "payment_tx_used": "❌ Este hash de transacción ya fue utilizado.",
     "payment_invalid_hash": "❌ Hash incorrecto. Debe contener 64 caracteres.",
     "payment_not_found": "⏳ Aún no se encontró el pago confirmado. Revisa la red, la billetera y el hash, y repite /paid.",
-    "payment_amount_low": "❌ Recibido: {paid} USDT; esta factura exige exactamente {required} USDT.",
+    "payment_amount_low": "❌ Recibido: {paid} USDT; se requieren al menos {required} USDT.",
     "payment_verify_error": "⚠️ El servicio de verificación no está disponible. Repite /paid en unos minutos.",
     "payment_approved": "✅ Pago confirmado. Acceso activado durante <b>{days} días</b>, hasta <b>{until}</b>.",
     "status_active": "✅ Pagado hasta: <b>{until}</b>",
@@ -897,22 +922,7 @@ STRINGS["es"].update({
 })
 
 
-try:
-    from .alert_strings import ALERT_STRINGS
-except ImportError:
-    from alert_strings import ALERT_STRINGS
-
-for _lang, _extra in ALERT_STRINGS.items():
-    STRINGS.setdefault(_lang, {}).update(_extra)
-
-
 def t(lang: str, key: str, **kwargs: Any) -> str:
     lang_strings = STRINGS.get(lang, STRINGS["en"])
     text = lang_strings.get(key) or STRINGS["en"].get(key, key)
-    if not kwargs:
-        return text
-    safe = {
-        name: str(value).replace("{", "{{").replace("}", "}}")
-        for name, value in kwargs.items()
-    }
-    return text.format(**safe)
+    return text.format(**kwargs) if kwargs else text

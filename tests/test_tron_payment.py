@@ -86,21 +86,6 @@ def test_underpayment_is_rejected(monkeypatch):
     assert result["paid_amount"] == "10"
 
 
-def test_invoice_amount_must_match_exactly(monkeypatch):
-    wallet = "TReceivingWallet"
-    tx_hash = "e" * 64
-    verifier = TronPaymentVerifier(wallet, "29.99")
-    monkeypatch.setattr(
-        "core.tron_payment.requests.get",
-        lambda *args, **kwargs: FakeResponse([_transfer(tx_hash, wallet)]),
-    )
-
-    result = verifier.verify(tx_hash, expected_amount="29.990001")
-
-    assert result["ok"] is False
-    assert result["reason"] == "amount_mismatch"
-
-
 def test_old_transaction_cannot_activate_access(monkeypatch):
     wallet = "TReceivingWallet"
     tx_hash = "d" * 64

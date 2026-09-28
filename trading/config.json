@@ -1,4 +1,8 @@
 {
+  "telegram": {
+    "token": "YOUR_BOT_TOKEN_HERE",
+    "chat_id": "YOUR_CHAT_ID_HERE"
+  },
   "trading": {
     "default_risk_pct": 1.0,
     "default_lev": 10,

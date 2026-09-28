@@ -1,5 +1,5 @@
-import logging
-import threading
+import json
+import os
 import time
 from typing import Dict, Tuple
 
@@ -7,43 +7,6 @@ try:
     import psycopg
 except ImportError:
     psycopg = None
-
-
-logger = logging.getLogger("ucb.access")
-
-
-def trial_wait_seconds(user: Dict, *, now: int, free_signals: int, cooldown_seconds: int) -> int:
-    used = int(user.get("trial_used") or 0)
-    if used <= 0 or used >= free_signals:
-        return 0
-    last = int(user.get("last_trial_signal_at") or 0)
-    if last <= 0:
-        return 0
-    return max(0, last + cooldown_seconds - now)
-
-
-def decide_consume(user: Dict, *, now: int, free_signals: int, cooldown_seconds: int):
-    """Decide a trial debit without writing.
-
-    Returns (allowed, mode, updated_user_or_None). updated_user is the row to
-    persist when a trial credit is actually spent.
-    """
-    if int(user.get("paid_until") or 0) > now:
-        return True, "paid", None
-    wait = trial_wait_seconds(
-        user, now=now, free_signals=free_signals, cooldown_seconds=cooldown_seconds
-    )
-    if wait > 0:
-        return False, "cooldown", None
-    used = int(user.get("trial_used") or 0)
-    if used < free_signals:
-        return True, "trial", {
-            "trial_used": used + 1,
-            "last_trial_signal_at": now,
-            "paywall_sent": False,
-            "previous_trial_used": used,
-        }
-    return False, "paywall", None
 
 
 class AccessManager:
@@ -62,416 +25,279 @@ class AccessManager:
         self.payment_address = payment_address
         self.payment_amount = payment_amount
         self.payment_network = payment_network
-        import os
-
         self.database_url = os.getenv("DATABASE_URL", "")
         self.trial_cooldown_seconds = int(os.getenv("FREE_TRIAL_COOLDOWN_MINUTES", "30")) * 60
-        self._file_lock = threading.Lock()
 
     def ensure_user(self, chat_id: str):
-        user_id = self._user_id(chat_id)
-        if user_id is None:
-            return
-        if self._use_db():
-            try:
-                with psycopg.connect(self.database_url) as connection:
-                    self._lock_subscription(connection, user_id)
-            except Exception as exc:
-                logger.warning("ensure user failed: %s", type(exc).__name__)
-            return
-        with self._file_lock:
-            state = self._load_file()
-            user = self._user(state, chat_id)
-            user.setdefault("trial_used", 0)
-            user.setdefault("paid_until", 0)
-            user.setdefault("paywall_sent", False)
-            user.setdefault("last_trial_signal_at", 0)
-            self._save_file(state)
+        state = self._load()
+        user = self._user(state, chat_id)
+        user.setdefault("trial_used", 0)
+        user.setdefault("paid_until", 0)
+        user.setdefault("paywall_sent", False)
+        user.setdefault("last_trial_signal_at", 0)
+        self._save(state)
 
     def can_receive(self, chat_id: str) -> bool:
-        allowed, _mode = self.check_access(chat_id)
+        allowed, _ = self.check_access(chat_id)
         return allowed
 
     def check_access(self, chat_id: str) -> Tuple[bool, str]:
-        user = self._read_user(chat_id)
-        allowed, mode, _updated = decide_consume(
-            user,
-            now=int(time.time()),
-            free_signals=self.free_trial_signals,
-            cooldown_seconds=self.trial_cooldown_seconds,
-        )
-        if mode == "trial":
-            return True, "trial"
-        return allowed, mode
+        user = self._user(self._load(), chat_id)
+        if self._has_paid_access(user):
+            return True, "paid"
+        if user.get("trial_used", 0) >= self.free_trial_signals:
+            return False, "paywall"
+        wait = self._trial_wait_seconds(user)
+        if wait > 0:
+            return False, "cooldown"
+        return True, "trial"
 
     def consume_signal(self, chat_id: str) -> Tuple[bool, str]:
-        """Spend one trial credit under a row lock. Call this after delivery."""
-        now = int(time.time())
-        user_id = self._user_id(chat_id)
-        if self._use_db() and user_id is not None:
-            try:
-                with psycopg.connect(self.database_url) as connection:
-                    user = self._lock_subscription(connection, user_id)
-                    allowed, mode, updated = decide_consume(
-                        user,
-                        now=now,
-                        free_signals=self.free_trial_signals,
-                        cooldown_seconds=self.trial_cooldown_seconds,
-                    )
-                    if updated:
-                        cursor = connection.execute(
-                            """
-                            UPDATE subscriptions
-                            SET trial_used = %s,
-                                last_trial_signal_at = TO_TIMESTAMP(%s),
-                                paywall_sent = FALSE,
-                                updated_at = NOW()
-                            WHERE telegram_user_id = %s
-                              AND trial_used = %s
-                            """,
-                            (
-                                updated["trial_used"],
-                                updated["last_trial_signal_at"],
-                                user_id,
-                                updated["previous_trial_used"],
-                            ),
-                        )
-                        if cursor.rowcount != 1:
-                            raise RuntimeError("trial update lost the row lock race")
-                    return allowed, mode
-            except Exception as exc:
-                logger.warning("consume signal failed: %s", type(exc).__name__)
-                return False, "conflict"
-        with self._file_lock:
-            state = self._load_file()
-            user = self._user(state, str(chat_id))
-            allowed, mode, updated = decide_consume(
-                user,
-                now=now,
-                free_signals=self.free_trial_signals,
-                cooldown_seconds=self.trial_cooldown_seconds,
-            )
-            if updated:
-                user["trial_used"] = updated["trial_used"]
-                user["last_trial_signal_at"] = updated["last_trial_signal_at"]
-                user["paywall_sent"] = False
-                if not self._save_file(state):
-                    return False, "conflict"
-                return allowed, mode
-            return allowed, mode
+        state = self._load()
+        user = self._user(state, chat_id)
+
+        if self._has_paid_access(user):
+            self._save(state)
+            return True, "paid"
+
+        trial_used = user.get("trial_used", 0)
+        wait = self._trial_wait_seconds(user)
+        if wait > 0:
+            self._save(state)
+            return False, "cooldown"
+
+        if trial_used < self.free_trial_signals:
+            user["trial_used"] = trial_used + 1
+            user["last_trial_signal_at"] = int(time.time())
+            user["paywall_sent"] = False
+            self._save(state)
+            return True, "trial"
+
+        self._save(state)
+        return False, "paywall"
 
     def should_send_paywall(self, chat_id: str) -> bool:
-        user_id = self._user_id(chat_id)
-        if self._use_db() and user_id is not None:
-            try:
-                with psycopg.connect(self.database_url) as connection:
-                    user = self._lock_subscription(connection, user_id)
-                    if user.get("paywall_sent"):
-                        return False
-                    connection.execute(
-                        """
-                        UPDATE subscriptions
-                        SET paywall_sent = TRUE, updated_at = NOW()
-                        WHERE telegram_user_id = %s AND paywall_sent = FALSE
-                        """,
-                        (user_id,),
-                    )
-                    return True
-            except Exception as exc:
-                logger.warning("paywall flag failed: %s", type(exc).__name__)
-                return False
-        with self._file_lock:
-            state = self._load_file()
-            user = self._user(state, str(chat_id))
-            if user.get("paywall_sent"):
-                self._save_file(state)
-                return False
-            user["paywall_sent"] = True
-            self._save_file(state)
-            return True
+        state = self._load()
+        user = self._user(state, chat_id)
+        if user.get("paywall_sent"):
+            self._save(state)
+            return False
+        user["paywall_sent"] = True
+        self._save(state)
+        return True
 
     def find_payment_by_tx_hash(self, tx_hash: str, exclude_chat_id: str = None):
-        normalized = str(tx_hash).strip().lower()
-        if self._use_db():
+        normalized = str(tx_hash).lower()
+        if self.database_url and psycopg:
             try:
                 with psycopg.connect(self.database_url) as connection:
+                    self._ensure_payment_claims_table(connection)
                     row = connection.execute(
                         "SELECT telegram_user_id, status FROM payment_claims WHERE tx_hash = %s",
                         (normalized,),
                     ).fetchone()
-                if row and str(row[0]) != str(exclude_chat_id):
-                    return {"chat_id": str(row[0]), "tx_hash": normalized, "status": row[1]}
-                if row:
-                    return {"chat_id": str(row[0]), "tx_hash": normalized, "status": row[1]}
-            except Exception as exc:
-                logger.warning("payment claim lookup failed: %s", type(exc).__name__)
-                return {"chat_id": "", "tx_hash": normalized, "status": "unknown"}
+                    connection.commit()
+                    if row and str(row[0]) != str(exclude_chat_id):
+                        return {"chat_id": str(row[0]), "tx_hash": normalized, "status": row[1]}
+            except Exception as e:
+                print(f"[AccessManager] payment claim lookup failed: {e}")
+        for chat_id, user in self._load().get("users", {}).items():
+            claims = list(user.get("payment_claims") or [])
+            legacy_claim = user.get("last_payment_claim") or {}
+            if legacy_claim and not claims:
+                claims.append(legacy_claim)
+            for claim in claims:
+                if str(claim.get("tx_hash", "")).lower() == normalized and str(chat_id) != str(exclude_chat_id):
+                    return {"chat_id": str(chat_id), **claim}
         return None
 
-    def ensure_open_invoice(self, chat_id: str) -> dict | None:
-        user_id = self._user_id(chat_id)
-        if not self._use_db() or user_id is None:
-            return None
-        try:
-            from miniapp.billing import ensure_open_invoice
-
-            with psycopg.connect(self.database_url) as connection:
-                return ensure_open_invoice(connection, user_id, self.payment_amount)
-        except Exception as exc:
-            logger.warning("open invoice failed: %s", type(exc).__name__)
-            return None
-
-    def settle_payment(
-        self,
-        chat_id: str,
-        tx_hash: str,
-        *,
-        paid_amount,
-        expected_amount,
-        hours: int = None,
-        details: dict | None = None,
-    ) -> dict:
-        """Reserve the hash and extend access in one transaction.
-
-        On any failure the transaction is rolled back, so the hash is not burned
-        and the caller must not tell the user the payment succeeded.
-        """
-        user_id = self._user_id(chat_id)
-        if not self._use_db() or user_id is None:
-            return {"ok": False, "reason": "save_failed"}
-        try:
-            from miniapp.billing import PaymentRejected, settle_payment_transaction
-
-            duration = (hours * 60 * 60) if hours else self.paid_access_seconds
-            with psycopg.connect(self.database_url) as connection:
-                result = settle_payment_transaction(
-                    connection,
-                    user_id=user_id,
-                    tx_hash=tx_hash,
-                    paid_amount=paid_amount,
-                    expected_amount=expected_amount,
-                    duration_seconds=duration,
-                    details=details,
-                )
-                if not result.get("ok"):
-                    raise PaymentRejected(result)
-                return result
-        except Exception as exc:
-            result = getattr(exc, "result", None)
-            if isinstance(result, dict):
-                return result
-            logger.warning("payment settle failed: %s", type(exc).__name__)
-            return {"ok": False, "reason": "save_failed"}
-
-    def grant_access(self, chat_id: str, hours: int = None):
-        """Return the new paid_until unix time, or None if the row did not commit."""
-        duration = (hours * 60 * 60) if hours else self.paid_access_seconds
-        user_id = self._user_id(chat_id)
-        if self._use_db() and user_id is not None:
+    def record_payment_claim(self, chat_id: str, tx_hash: str, **details) -> dict | None:
+        normalized = str(tx_hash).lower()
+        if self.database_url and psycopg:
             try:
                 with psycopg.connect(self.database_url) as connection:
+                    self._ensure_payment_claims_table(connection)
                     row = connection.execute(
                         """
-                        INSERT INTO subscriptions (telegram_user_id, paid_until, paywall_sent)
-                        VALUES (%s, NOW() + (%s * INTERVAL '1 second'), FALSE)
-                        ON CONFLICT (telegram_user_id) DO UPDATE SET
-                            paid_until = GREATEST(COALESCE(subscriptions.paid_until, NOW()), NOW())
-                                + (%s * INTERVAL '1 second'),
-                            paywall_sent = FALSE,
-                            updated_at = NOW()
-                        RETURNING EXTRACT(EPOCH FROM paid_until)
+                        INSERT INTO payment_claims (tx_hash, telegram_user_id, status, details)
+                        VALUES (%s, %s, 'pending', %s)
+                        ON CONFLICT (tx_hash) DO NOTHING
+                        RETURNING tx_hash
                         """,
-                        (user_id, int(duration), int(duration)),
+                        (normalized, int(chat_id), json.dumps(details)),
                     ).fetchone()
-                    if not row or row[0] is None:
-                        raise RuntimeError("grant did not return paid_until")
-                    return int(float(row[0]))
-            except Exception as exc:
-                logger.warning("grant access failed: %s", type(exc).__name__)
+                    connection.commit()
+                    if row is None:
+                        return None
+            except Exception as e:
+                print(f"[AccessManager] payment claim reservation failed: {e}")
                 return None
-        with self._file_lock:
-            state = self._load_file()
-            user = self._user(state, str(chat_id))
-            paid_until = int(max(time.time(), user.get("paid_until", 0)) + duration)
-            user["paid_until"] = paid_until
-            user["paywall_sent"] = False
-            if not self._save_file(state):
-                return None
-            return paid_until
+        state = self._load()
+        user = self._user(state, chat_id)
+        claim = {
+            "tx_hash": normalized,
+            "status": "pending",
+            "created_at": int(time.time()),
+            **details,
+        }
+        user["last_payment_claim"] = claim
+        user.setdefault("payment_claims", []).append(claim)
+        user["paywall_sent"] = False
+        self._save(state)
+        return claim
 
-    def revoke_access(self, chat_id: str) -> bool:
-        user_id = self._user_id(chat_id)
-        if self._use_db() and user_id is not None:
-            try:
-                with psycopg.connect(self.database_url) as connection:
-                    connection.execute(
-                        """
-                        INSERT INTO subscriptions (telegram_user_id, paid_until)
-                        VALUES (%s, NULL)
-                        ON CONFLICT (telegram_user_id) DO UPDATE SET
-                            paid_until = NULL,
-                            updated_at = NOW()
-                        """,
-                        (user_id,),
-                    )
-                return True
-            except Exception as exc:
-                logger.warning("revoke access failed: %s", type(exc).__name__)
-                return False
-        with self._file_lock:
-            state = self._load_file()
-            user = self._user(state, str(chat_id))
-            user["paid_until"] = 0
-            return self._save_file(state)
+    @staticmethod
+    def _ensure_payment_claims_table(connection):
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_claims (
+                tx_hash TEXT PRIMARY KEY,
+                telegram_user_id BIGINT NOT NULL,
+                status TEXT NOT NULL,
+                details JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
+    def grant_access(self, chat_id: str, hours: int = None) -> int:
+        state = self._load()
+        user = self._user(state, chat_id)
+        duration = (hours * 60 * 60) if hours else self.paid_access_seconds
+        paid_until = int(max(time.time(), user.get("paid_until", 0)) + duration)
+        user["paid_until"] = paid_until
+        user["paywall_sent"] = False
+        if user.get("last_payment_claim"):
+            user["last_payment_claim"]["status"] = "approved"
+            user["last_payment_claim"]["approved_at"] = int(time.time())
+            approved_hash = user["last_payment_claim"].get("tx_hash")
+            for claim in user.get("payment_claims", []):
+                if claim.get("tx_hash") == approved_hash:
+                    claim["status"] = "approved"
+                    claim["approved_at"] = user["last_payment_claim"]["approved_at"]
+        self._save(state)
+        return paid_until
+
+    def revoke_access(self, chat_id: str):
+        state = self._load()
+        user = self._user(state, chat_id)
+        user["paid_until"] = 0
+        self._save(state)
 
     def status(self, chat_id: str) -> dict:
-        user = self._read_user(chat_id)
-        paid_until = int(user.get("paid_until") or 0)
-        claim = None
-        user_id = self._user_id(chat_id)
-        if self._use_db() and user_id is not None:
-            try:
-                with psycopg.connect(self.database_url) as connection:
-                    row = connection.execute(
-                        """
-                        SELECT tx_hash, status
-                        FROM payment_claims
-                        WHERE telegram_user_id = %s
-                        ORDER BY created_at DESC
-                        LIMIT 1
-                        """,
-                        (user_id,),
-                    ).fetchone()
-                if row:
-                    claim = {"tx_hash": row[0], "status": row[1]}
-            except Exception as exc:
-                logger.warning("status claim read failed: %s", type(exc).__name__)
-        else:
-            claim = user.get("last_payment_claim")
+        user = self._user(self._load(), chat_id)
+        paid_until = user.get("paid_until", 0)
         return {
-            "trial_used": int(user.get("trial_used") or 0),
-            "trial_left": max(0, self.free_trial_signals - int(user.get("trial_used") or 0)),
+            "trial_used": user.get("trial_used", 0),
+            "trial_left": max(0, self.free_trial_signals - user.get("trial_used", 0)),
             "paid_until": paid_until,
             "has_paid_access": paid_until > time.time(),
-            "payment_claim": claim,
-            "trial_available_at": int(user.get("last_trial_signal_at") or 0) + self.trial_cooldown_seconds,
-            "trial_cooldown_left": trial_wait_seconds(
-                user,
-                now=int(time.time()),
-                free_signals=self.free_trial_signals,
-                cooldown_seconds=self.trial_cooldown_seconds,
-            ),
+            "payment_claim": user.get("last_payment_claim"),
+            "trial_available_at": user.get("last_trial_signal_at", 0) + self.trial_cooldown_seconds,
+            "trial_cooldown_left": self._trial_wait_seconds(user),
         }
 
     def format_paywall(self) -> str:
-        wallet = self.payment_address or "wallet is not configured"
+        wallet = self.payment_address or "кошелек пока не настроен админом"
         return (
-            "🔒 <b>Free signals are used up</b>\n\n"
-            f"You had {self.free_trial_signals} free signals. "
-            f"Access for {self.paid_access_seconds // 86400} days costs "
-            f"<b>{self.payment_amount} USDT</b>.\n\n"
-            f"Network: <b>{self.payment_network}</b>\n"
-            f"Wallet:\n<code>{wallet}</code>\n\n"
-            "After payment send:\n"
-            "<code>/paid TX_HASH</code>"
+            "🔒 <b>Бесплатные сигналы закончились</b>\n\n"
+            f"У тебя было {self.free_trial_signals} бесплатных сигналов. "
+            f"Чтобы получить доступ на {self.paid_access_seconds // 86400} дней, "
+            f"переведи <b>{self.payment_amount} USDT</b>.\n\n"
+            f"Сеть: <b>{self.payment_network}</b>\n"
+            f"Кошелек:\n<code>{wallet}</code>\n\n"
+            "После оплаты отправь:\n"
+            "<code>/paid TX_HASH</code>\n\n"
+            "Админ проверит транзакцию и включит доступ."
         )
 
-    def _use_db(self) -> bool:
-        return bool(self.database_url and psycopg)
-
-    @staticmethod
-    def _user_id(chat_id) -> int | None:
-        text = str(chat_id).strip()
-        if not text.lstrip("-").isdigit():
-            return None
-        return int(text)
-
-    def _lock_subscription(self, connection, user_id: int) -> dict:
-        connection.execute(
-            "INSERT INTO subscriptions (telegram_user_id) VALUES (%s) ON CONFLICT DO NOTHING",
-            (user_id,),
-        )
-        row = connection.execute(
-            """
-            SELECT trial_used,
-                   EXTRACT(EPOCH FROM paid_until),
-                   EXTRACT(EPOCH FROM last_trial_signal_at),
-                   paywall_sent
-            FROM subscriptions
-            WHERE telegram_user_id = %s
-            FOR UPDATE
-            """,
-            (user_id,),
-        ).fetchone()
-        if row is None:
-            raise RuntimeError("subscription row missing after insert")
-        return {
-            "trial_used": int(row[0] or 0),
-            "paid_until": int(float(row[1])) if row[1] else 0,
-            "last_trial_signal_at": int(float(row[2])) if row[2] else 0,
-            "paywall_sent": bool(row[3]),
-        }
-
-    def _read_user(self, chat_id: str) -> dict:
-        user_id = self._user_id(chat_id)
-        if self._use_db() and user_id is not None:
+    def _load(self) -> Dict:
+        if self.database_url and psycopg:
             try:
                 with psycopg.connect(self.database_url) as connection:
                     connection.execute(
-                        "INSERT INTO subscriptions (telegram_user_id) VALUES (%s) ON CONFLICT DO NOTHING",
-                        (user_id,),
+                        "CREATE TABLE IF NOT EXISTS access_state (id INTEGER PRIMARY KEY, data JSONB NOT NULL)"
                     )
-                    row = connection.execute(
-                        """
-                        SELECT trial_used,
-                               EXTRACT(EPOCH FROM paid_until),
-                               EXTRACT(EPOCH FROM last_trial_signal_at),
-                               paywall_sent
-                        FROM subscriptions
-                        WHERE telegram_user_id = %s
-                        """,
-                        (user_id,),
-                    ).fetchone()
-                if row:
-                    return {
-                        "trial_used": int(row[0] or 0),
-                        "paid_until": int(float(row[1])) if row[1] else 0,
-                        "last_trial_signal_at": int(float(row[2])) if row[2] else 0,
-                        "paywall_sent": bool(row[3]),
-                    }
-            except Exception as exc:
-                logger.warning("access read failed: %s", type(exc).__name__)
-                return {"trial_used": self.free_trial_signals, "paid_until": 0, "last_trial_signal_at": 0}
-        if self._use_db():
-            return {"trial_used": self.free_trial_signals, "paid_until": 0, "last_trial_signal_at": 0}
-        return self._user(self._load_file(), str(chat_id))
-
-    def _load_file(self) -> Dict:
-        import json
-        import os
-
+                    connection.execute(
+                        "INSERT INTO access_state (id, data) VALUES (1, %s) ON CONFLICT DO NOTHING",
+                        (json.dumps({"users": {}}),),
+                    )
+                    row = connection.execute("SELECT data FROM access_state WHERE id = 1").fetchone()
+                    connection.commit()
+                    return row[0] if isinstance(row[0], dict) else json.loads(row[0])
+            except Exception as e:
+                print(f"[AccessManager] database read failed: {e}")
         if not os.path.exists(self.state_file):
             return {"users": {}}
         try:
-            with open(self.state_file, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
+            with open(self.state_file, "r") as f:
+                data = json.load(f)
             data.setdefault("users", {})
             return data
-        except Exception as exc:
-            logger.warning("access file read failed: %s", type(exc).__name__)
+        except Exception as e:
+            print(f"[AccessManager] failed to read state: {e}")
             return {"users": {}}
 
-    def _save_file(self, state: Dict) -> bool:
-        import json
-
+    def _save(self, state: Dict):
+        if self.database_url and psycopg:
+            try:
+                with psycopg.connect(self.database_url) as connection:
+                    connection.execute(
+                        "CREATE TABLE IF NOT EXISTS access_state (id INTEGER PRIMARY KEY, data JSONB NOT NULL)"
+                    )
+                    connection.execute(
+                        "UPDATE access_state SET data = %s WHERE id = 1",
+                        (json.dumps(state),),
+                    )
+                    connection.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS subscriptions (
+                            telegram_user_id BIGINT PRIMARY KEY, trial_used INTEGER NOT NULL DEFAULT 0,
+                            paid_until TIMESTAMPTZ, payment_status TEXT,
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                        )
+                        """
+                    )
+                    for chat_id, user in state.get("users", {}).items():
+                        if not str(chat_id).lstrip("-").isdigit():
+                            continue
+                        claim = user.get("last_payment_claim") or {}
+                        connection.execute(
+                            """
+                            INSERT INTO subscriptions (telegram_user_id, trial_used, paid_until, payment_status)
+                            VALUES (%s, %s, TO_TIMESTAMP(%s), %s)
+                            ON CONFLICT (telegram_user_id) DO UPDATE SET
+                                trial_used = EXCLUDED.trial_used,
+                                paid_until = EXCLUDED.paid_until,
+                                payment_status = EXCLUDED.payment_status,
+                                updated_at = NOW()
+                            """,
+                            (int(chat_id), user.get("trial_used", 0), user.get("paid_until") or 0,
+                             claim.get("status")),
+                        )
+                    connection.commit()
+                    return
+            except Exception as e:
+                print(f"[AccessManager] database write failed: {e}")
         try:
-            with open(self.state_file, "w", encoding="utf-8") as handle:
-                json.dump(state, handle, indent=2)
-            return True
-        except Exception as exc:
-            logger.warning("access file write failed: %s", type(exc).__name__)
-            return False
+            with open(self.state_file, "w") as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            print(f"[AccessManager] failed to write state: {e}")
 
     def _user(self, state: Dict, chat_id: str) -> Dict:
         users = state.setdefault("users", {})
         return users.setdefault(str(chat_id), {})
+
+    def _has_paid_access(self, user: Dict) -> bool:
+        return user.get("paid_until", 0) > time.time()
+
+    def _trial_wait_seconds(self, user: Dict) -> int:
+        if user.get("trial_used", 0) <= 0:
+            return 0
+        if user.get("trial_used", 0) >= self.free_trial_signals:
+            return 0
+        last = int(user.get("last_trial_signal_at", 0) or 0)
+        if last <= 0:
+            return 0
+        return max(0, last + self.trial_cooldown_seconds - int(time.time()))

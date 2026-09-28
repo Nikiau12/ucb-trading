@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import html
 import math
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from i18n import t as _t
-
-
-def esc(value: Any) -> str:
-    return html.escape("" if value is None else str(value), quote=False)
 
 
 def _fmt(x: Any) -> str:
@@ -75,8 +70,8 @@ _REASON_LABELS: Dict[str, str] = {
 def _fmt_reasons(reasons: list, lang: str) -> str:
     if not reasons:
         return "—"
-    labels = [_REASON_LABELS.get(r, str(r).replace("_", " ")) for r in reasons]
-    return " · ".join(esc(label) for label in labels)
+    labels = [_REASON_LABELS.get(r, r.replace("_", " ")) for r in reasons]
+    return " · ".join(labels)
 
 
 def _tp(scn: Dict[str, Any], i: int) -> Optional[float]:
@@ -84,20 +79,6 @@ def _tp(scn: Dict[str, Any], i: int) -> Optional[float]:
     if len(tps) > i and isinstance(tps[i], dict):
         return tps[i].get("price")
     return None
-
-
-def confidence_percent(value) -> str:
-    """Format a 0–1 confidence as a whole percent, for example 0.78 → 78%."""
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        number = 0.0
-    return f"{number * 100:.0f}%"
-
-
-def _margin_label(margin) -> str:
-    label = str(margin or "cross").strip() or "cross"
-    return esc(label).upper()
 
 
 def render_telegram_plan(
@@ -111,21 +92,21 @@ def render_telegram_plan(
 
     # ── SKIP ──
     if plan.get("side") == "skip":
-        sym   = esc(plan.get("symbol", "?"))
+        sym   = plan.get("symbol", "?")
         conf  = float(plan.get("confidence", 0.0) or 0.0)
         rs    = plan.get("reasons") or []
-        why   = " · ".join(esc(item) for item in rs[:10]) if rs else "no_setup"
+        why   = " · ".join(rs[:10]) if rs else "no_setup"
         cache = f"  {_t(L, 'r_cache_warn')}" if plan.get("used_cache") else ""
         return (
             f"{_t(L, 'r_context')}\n"
             f"📌 <b><code>{sym}</code> — SKIP</b>{cache}\n"
-            f"{_t(L, 'r_skip_conf')}: <b>{confidence_percent(conf)}</b>\n"
+            f"{_t(L, 'r_skip_conf')}: <b>{conf:.2f}</b>\n"
             f"{_t(L, 'r_skip_reason')}: {why}\n\n"
             f"{_t(L, 'r_risk_rule')}\n"
-            f"{_t(L, 'r_risk_text', margin=_margin_label(plan.get('margin')))}"
+            f"{_t(L, 'r_risk_text')}"
         )
 
-    sym       = esc(plan.get("symbol", "?"))
+    sym       = plan.get("symbol", "?")
     price     = plan.get("price")
     used_cache = bool(plan.get("used_cache"))
     lev       = plan.get("lev")
@@ -157,7 +138,8 @@ def render_telegram_plan(
     cache_tag = f"  {_t(L, 'r_cache_warn')}" if used_cache else ""
     side_tag  = "🟥" if side == "SHORT" else "🟩" if side == "LONG" else "🧊"
     mid_s = _fmt(mid) if isinstance(mid, (int, float)) and math.isfinite(float(mid)) else "n/a"
-    conf_pct = confidence_percent(conf)
+    # Confidence as percentage (consistent with Mini App display)
+    conf_pct = f"{conf * 100:.0f}%"
 
     return (
         f"{_t(L, 'r_context')}\n"
@@ -167,14 +149,14 @@ def render_telegram_plan(
         f"{_t(L, 'r_profile')}\n"
         f"{_t(L, 'r_deposit')}: <b>{_fmt(deposit)}</b>\n"
         f"{_t(L, 'r_risk')}: <b>{_fmt(deposit * (risk_pct / 100.0))}</b> USDT (<b>{risk_pct}%</b>)\n"
-        f"{_t(L, 'r_lev')}: <b>{_fmt(lev)}x</b> ({esc(margin)})\n\n"
+        f"{_t(L, 'r_lev')}: <b>{_fmt(lev)}x</b> ({margin})\n\n"
 
         f"{_t(L, 'r_regime')}\n"
-        f"• {_t(L, 'r_trend_1d')}: <b>{esc(tr.get('1d', '—'))}</b> | "
-        f"{_t(L, 'r_trend_4h')}: <b>{esc(tr.get('4h', '—'))}</b>\n"
-        f"• {_t(L, 'r_struct')}: <b>{esc(tr.get('struct4h', '—'))}</b> | "
-        f"{_t(L, 'r_bos')}: <b>{esc(tr.get('bos', '—'))}</b>\n"
-        f"• {_t(L, 'r_regime_label')}: <b>{esc(tr.get('regime', '—'))}</b> | "
+        f"• {_t(L, 'r_trend_1d')}: <b>{tr.get('1d', '—')}</b> | "
+        f"{_t(L, 'r_trend_4h')}: <b>{tr.get('4h', '—')}</b>\n"
+        f"• {_t(L, 'r_struct')}: <b>{tr.get('struct4h', '—')}</b> | "
+        f"{_t(L, 'r_bos')}: <b>{tr.get('bos', '—')}</b>\n"
+        f"• {_t(L, 'r_regime_label')}: <b>{tr.get('regime', '—')}</b> | "
         f"{_t(L, 'r_mid')}: <b>{mid_s}</b>\n\n"
 
         f"{side_tag} <b>{_t(L, 'r_scenario')}</b>\n"
@@ -197,5 +179,5 @@ def render_telegram_plan(
         f"{why}\n\n"
 
         f"{_t(L, 'r_risk_rule')}\n"
-        f"{_t(L, 'r_risk_text', margin=_margin_label(margin))}"
+        f"{_t(L, 'r_risk_text')}"
     )

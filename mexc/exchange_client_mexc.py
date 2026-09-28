@@ -15,6 +15,7 @@ class ExchangeClient:
             }
         }
         self.exchange = ccxt.mexc(self._exchange_options)
+        self._trading_exchange = None
         self._public_request_lock = asyncio.Lock()
         self._last_public_request_at = 0.0
         self._public_request_interval = 0.75
@@ -70,6 +71,20 @@ class ExchangeClient:
 
     async def close(self):
         await self.exchange.close()
+        if self._trading_exchange is not None:
+            await self._trading_exchange.close()
+
+    async def _get_trading_exchange(self):
+        if not MEXC_API_KEY or not MEXC_API_SECRET:
+            raise RuntimeError("MEXC credentials are required to create orders")
+        if self._trading_exchange is None:
+            self._trading_exchange = ccxt.mexc({
+                **self._exchange_options,
+                'apiKey': MEXC_API_KEY,
+                'secret': MEXC_API_SECRET,
+            })
+            await self._trading_exchange.load_markets()
+        return self._trading_exchange
 
     async def get_top_pairs(self):
         """Fetches the top N USDT perpetual pairs by 24h quote volume."""
@@ -163,3 +178,20 @@ class ExchangeClient:
         except Exception as e:
             print(f"Error fetching historical data for {symbol}: {e}")
             return pd.DataFrame()
+
+    async def create_market_order(self, symbol: str, side: str, amount: float, params: dict = None):
+        """
+        Create a market order (LONG/SHORT) on MEXC futures.
+        `side` should be 'buy' or 'sell'.
+        `params` can contain {'stopLossPrice': ..., 'takeProfitPrice': ...}
+        """
+        try:
+            if params is None:
+                params = {}
+            trading_exchange = await self._get_trading_exchange()
+            order = await trading_exchange.create_market_order(symbol, side, amount, None, params)
+            print(f"Order executed: {order}")
+            return order
+        except Exception as e:
+            print(f"Error creating order for {symbol}: {e}")
+            return None
