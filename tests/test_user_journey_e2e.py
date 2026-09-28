@@ -326,6 +326,24 @@ def test_first_minute_ends_with_open_and_a_btc_plan(monkeypatch):
     asyncio.run(run())
 
 
+def test_skip_open_button_does_not_open_a_trade_plan(monkeypatch):
+    monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app?signal_id=9")
+    markup = bot._no_setup_keyboard("ru", "BTC_USDT")
+    buttons = [button for row in markup.inline_keyboard for button in row]
+    assert len(buttons) == 1
+    button = buttons[0]
+    assert button.text == "Открыть"
+    url = button.web_app.url
+    assert "no_setup=BTC_USDT" in url
+    assert "signal_id" not in url
+    monkeypatch.setattr(bot, "MINI_APP_URL", "")
+    fallback = bot._no_setup_keyboard("ru", "ETH_USDT")
+    only = [button for row in fallback.inline_keyboard for button in row]
+    assert len(only) == 1
+    assert only[0].callback_data == "another_symbol"
+    assert not getattr(only[0], "web_app", None)
+
+
 def test_set_replies_saved_and_opens_the_panel(monkeypatch):
     monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
     monkeypatch.setattr(bot.st, "set_user_setting", lambda *_args, **_kwargs: None)
