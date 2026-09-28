@@ -152,7 +152,7 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     asyncio.run(journey())
 
 
-def test_language_change_keeps_the_start_keyboard(monkeypatch):
+def test_language_choice_asks_for_the_deposit_when_none_is_saved(monkeypatch):
     monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
 
     async def _menu_button(*_args, **_kwargs):
@@ -164,28 +164,49 @@ def test_language_change_keeps_the_start_keyboard(monkeypatch):
     monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"deposit": None})
 
     class CallbackMessage:
-        def __init__(self):
+        def __init__(self, fail_edit=False):
             self.kwargs = {}
+            self.replies = []
+            self.fail_edit = fail_edit
 
         async def edit_text(self, text, **kwargs):
+            if self.fail_edit:
+                raise RuntimeError("edit failed")
             self.text = text
             self.kwargs = kwargs
 
+        async def reply(self, text, **kwargs):
+            self.text = text
+            self.kwargs = kwargs
+            self.replies.append(text)
+
     class Callback:
-        def __init__(self):
+        def __init__(self, message):
             self.data = "lang_ru"
             self.from_user = SimpleNamespace(id=7)
-            self.message = CallbackMessage()
+            self.message = message
+            self.answered = False
 
         async def answer(self):
-            return None
+            self.answered = True
 
     async def run():
-        callback = Callback()
-        await bot.handle_lang_callback(callback, FakeState())
-        assert callback.message.kwargs.get("reply_markup") is None
+        state = FakeState()
+        callback = Callback(CallbackMessage())
+        await bot.handle_lang_callback(callback, state)
+        assert state.value == bot.DepositSetup.waiting_for_amount
         assert "5000" in callback.message.text
-        assert "lang_en" not in callback.message.text
+        assert "Language set" not in callback.message.text
+        assert "Язык установлен" not in callback.message.text
+        assert _button_callbacks(callback.message.kwargs["reply_markup"]) == []
+        assert callback.answered
+
+        stalled = FakeState()
+        failed = Callback(CallbackMessage(fail_edit=True))
+        await bot.handle_lang_callback(failed, stalled)
+        assert stalled.value == bot.DepositSetup.waiting_for_amount
+        assert failed.message.replies
+        assert "5000" in failed.message.text
 
     asyncio.run(run())
 
@@ -289,9 +310,11 @@ def test_first_minute_ends_with_open_and_a_btc_plan(monkeypatch):
 
         callback.message.edit_text = edit_text
         callback.answer = answer
-        await bot.handle_lang_callback(callback, FakeState())
-        assert callback.message.kwargs.get("reply_markup") is None
+        state = FakeState()
+        await bot.handle_lang_callback(callback, state)
+        assert state.value == bot.DepositSetup.waiting_for_amount
         assert "5000" in callback.message.text
+        assert _button_callbacks(callback.message.kwargs["reply_markup"]) == []
 
         deposit = FakeMessage("5000")
         await bot.handle_deposit_amount(deposit, FakeState())
