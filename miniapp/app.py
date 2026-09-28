@@ -182,7 +182,7 @@ async def security_headers(request: Request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; "
         "script-src 'self' https://unpkg.com; "
-        "style-src 'self' 'unsafe-inline'; img-src 'self' data: https://assets.coincap.io; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
         "connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"
     )
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -285,14 +285,14 @@ def _open_invoice_amount(user_id: int) -> str:
     return str(invoice["expected_amount"])
 
 
-def scanner_is_live() -> bool:
-    """True when a signed-in user can see a recent scanner heartbeat.
+def scanner_status() -> dict:
+    """Live flag and last successful scan time for the signed-in panel.
 
-    The boolean is the only scanner fact exposed. Public /health stays a
-    process and database check.
+    Public /health stays a process and database check.
     """
+    quiet = {"scanner_live": False, "last_scan_at": None}
     if not DATABASE_URL:
-        return False
+        return quiet
     try:
         with db() as connection, connection.cursor() as cursor:
             cursor.execute(
@@ -304,11 +304,19 @@ def scanner_is_live() -> bool:
             )
             row = cursor.fetchone()
         if not row or row[0] is None:
-            return False
-        return time.time() - float(row[0]) <= SCANNER_HEALTH_MAX_AGE_SECONDS
+            return quiet
+        scanned_at = float(row[0])
+        return {
+            "scanner_live": time.time() - scanned_at <= SCANNER_HEALTH_MAX_AGE_SECONDS,
+            "last_scan_at": datetime.fromtimestamp(scanned_at, timezone.utc).isoformat(),
+        }
     except Exception:
         logger.warning("scanner heartbeat read failed")
-        return False
+        return quiet
+
+
+def scanner_is_live() -> bool:
+    return bool(scanner_status()["scanner_live"])
 
 
 def _verify_tx(tx_hash: str, expected_amount: str) -> dict:
@@ -423,6 +431,7 @@ def demo_profile(user: dict) -> dict:
         "payment_wallet": PAYMENT_WALLET,
         "payment_network": PAYMENT_NETWORK,
         "scanner_live": False,
+        "last_scan_at": None,
         "bot_username": bot_username(),
         **subscription_fields(),
     }
@@ -555,7 +564,7 @@ def me(x_telegram_init_data: str = Header(default="")):
         "payment_status": row[7],
         "payment_wallet": PAYMENT_WALLET,
         "payment_network": PAYMENT_NETWORK,
-        "scanner_live": scanner_is_live(),
+        **scanner_status(),
         "bot_username": bot_username(),
         **subscription_fields(user_id, exact=True),
     }

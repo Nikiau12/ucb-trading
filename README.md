@@ -5,14 +5,6 @@ structured trade plans with personalized risk and position sizing.
 
 [Launch the bot](https://t.me/ucbtrading_bot)
 
-<p align="center">
-  <img src="docs/assets/ucb-mini-app-overview.jpg"
-       alt="UCB Trading Telegram Mini App overview"
-       width="390">
-</p>
-
-<p align="center"><em>Mini App overview rendered with representative demo data.</em></p>
-
 [Product walkthrough](docs/PRODUCT_WALKTHROUGH.md) ·
 [Evaluation report](docs/EVALUATION_REPORT.md) ·
 [Build timeline](docs/BUILD_TIMELINE.md) ·

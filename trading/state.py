@@ -233,15 +233,31 @@ def get_user_lang(user_id: int) -> str:
     return _load().get("user_langs", {}).get(str(user_id), "en")
 
 
+def language_is_chosen(user_id: int) -> bool:
+    if _db_ready():
+        try:
+            with psycopg.connect(DATABASE_URL) as connection:
+                row = connection.execute(
+                    "SELECT language_chosen FROM user_profiles WHERE telegram_user_id = %s",
+                    (user_id,),
+                ).fetchone()
+                return bool(row and row[0])
+        except Exception as exc:
+            logger.warning("language choice read failed: %s", type(exc).__name__)
+        return False
+    return str(user_id) in (_load().get("user_langs") or {})
+
+
 def set_user_lang(user_id: int, lang: str) -> None:
     if _db_ready():
         try:
             with psycopg.connect(DATABASE_URL) as connection:
                 connection.execute(
                     """
-                    INSERT INTO user_profiles (telegram_user_id, language) VALUES (%s, %s)
+                    INSERT INTO user_profiles (telegram_user_id, language, language_chosen)
+                    VALUES (%s, %s, TRUE)
                     ON CONFLICT (telegram_user_id) DO UPDATE
-                    SET language = EXCLUDED.language, updated_at = NOW()
+                    SET language = EXCLUDED.language, language_chosen = TRUE, updated_at = NOW()
                     """,
                     (user_id, lang),
                 )

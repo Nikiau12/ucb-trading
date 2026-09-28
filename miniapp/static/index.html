@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
   <title>UCB Trading</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260928-3">
+  <link rel="stylesheet" href="/static/styles.css?v=20260928-4">
   <script src="/static/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -18,12 +17,7 @@
         <div><strong>UCB</strong><small>TRADING DESK</small></div>
       </div>
       <div class="top-actions">
-        <label class="sr-only" for="language">Language</label>
-        <select id="language" class="language-select" aria-label="Language">
-          <option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option>
-          <option value="fr">FR</option><option value="es">ES</option>
-        </select>
-        <button class="icon-button" id="refresh" aria-label="Refresh" title="Refresh"><i data-lucide="refresh-cw"></i></button>
+        <button class="icon-button" id="refresh" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg></button>
       </div>
     </header>
 
@@ -76,11 +70,12 @@
           <label><span data-i18n="depositUsdt">Deposit, USDT</span><input id="deposit-input" type="number" min="1" step="0.01" required></label>
           <label><span data-i18n="riskPercent">Risk per trade, %</span><input id="risk-input" type="number" min="0.1" max="5" step="0.1" required></label>
           <label><span data-i18n="leverageX">Leverage</span><input id="leverage-input" type="number" min="1" max="100" step="1" required></label>
+          <label><span data-i18n="languageLabel">Language</span><select id="language" class="language-select" aria-label="Language"><option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option><option value="fr">FR</option><option value="es">ES</option></select></label>
           <fieldset><legend data-i18n="marginMode">Margin mode</legend><div class="segmented wide"><label><input type="radio" name="margin" value="cross" checked><span data-i18n="cross">Cross</span></label><label><input type="radio" name="margin" value="isolated"><span data-i18n="isolated">Isolated</span></label></div></fieldset>
-          <button class="primary-button" type="submit"><i data-lucide="save"></i><span data-i18n="saveSettings">Save settings</span></button>
+          <button class="primary-button" type="submit"><span data-i18n="saveSettings">Save settings</span></button>
           <p class="form-status" id="form-status" role="status"></p>
         </form>
-        <section class="subscription-panel" id="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 id="subscription-title" data-i18n="monthlyAccess">Monthly access</h2><p id="subscription-copy" data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price" id="subscription-price-block"><strong class="subscription-price">—</strong><span>USDT / <span class="subscription-days">—</span>d</span></div><button class="secondary-button" id="payment-button"><i data-lucide="wallet"></i><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
+        <section class="subscription-panel" id="subscription-panel"><div><p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p><h2 id="subscription-title" data-i18n="monthlyAccess">Monthly access</h2><p id="subscription-copy" data-i18n="subscriptionCopy">Automatic signals, scanner and full position plans.</p></div><div class="price" id="subscription-price-block"><strong class="subscription-price">—</strong><span>USDT / <span class="subscription-days">—</span>d</span></div><button class="secondary-button" id="payment-button"><span data-i18n="paymentInstructions">Payment instructions</span></button></section>
       </section>
     </main>
 
@@ -88,6 +83,7 @@
     <section class="payment-panel" id="payment-panel">
       <p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p>
       <h2 data-i18n="unlockSignals">Unlock signals</h2>
+      <p id="payment-state" role="status"></p>
       <p class="payment-amount"><span data-i18n="payExact">Exact amount</span> <strong id="payment-amount">—</strong> USDT</p>
       <p class="payment-network"><span data-i18n="network">Network</span> <b id="payment-network">—</b></p>
       <div class="payment-address"><code id="payment-address">—</code><button type="button" id="payment-copy" data-i18n="copyAddress">Copy</button></div>
@@ -105,12 +101,12 @@
     </div>
 
     <nav class="bottom-nav" aria-label="Primary">
-      <button class="active" data-target="overview"><i data-lucide="layout-dashboard"></i><span data-i18n="overview">Overview</span></button>
-      <button data-target="signals"><i data-lucide="chart-candlestick"></i><span data-i18n="signals">Signals</span></button>
-      <button data-target="settings"><i data-lucide="sliders-horizontal"></i><span data-i18n="settings">Settings</span></button>
+      <button class="active" data-target="overview"><span data-i18n="overview">Overview</span></button>
+      <button data-target="signals"><span data-i18n="signals">Signals</span></button>
+      <button data-target="settings"><span data-i18n="settings">Settings</span></button>
     </nav>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/static/app.js?v=20260928-3"></script>
+  <script src="/static/app.js?v=20260928-4"></script>
 </body>
 </html>

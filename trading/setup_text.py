@@ -186,3 +186,53 @@ def render_setup(
         lines.append(why)
     lines.append(_t(lang, "size_disclaimer"))
     return "\n".join(lines)
+
+
+def render_alert_block(
+    plan: dict,
+    symbol: str,
+    side: str,
+    conf: float,
+    deposit: float,
+    risk_pct: float,
+    leverage: float,
+    *,
+    lang: str = "en",
+    uses_reference_deposit: bool = False,
+) -> str:
+    """At most eight lines for an auto-alert, scan row, or digest row.
+
+    The longer plan, including the size disclaimer, stays on the plan screen.
+    """
+    del conf, uses_reference_deposit
+    primary = plan.get("primary") or {}
+    targets = primary.get("tps") or []
+    entry = primary.get("entry")
+    stop = primary.get("stop")
+    tp1 = targets[0]["price"] if targets else None
+    price_unit = primary.get("price_unit")
+    direction = str(side or "").upper()
+    position_usdt = None
+    leverage_limited = False
+    sizing_errors: list = []
+    try:
+        sizing = position_size_for_contract(
+            primary, float(entry), float(stop), float(deposit), float(risk_pct), float(leverage)
+        )
+        position_usdt = sizing["position_usdt"]
+        leverage_limited = sizing["effective_leverage"] < sizing["requested_leverage"]
+        sizing_errors = sizing["errors"]
+    except (TypeError, ValueError, ZeroDivisionError, KeyError):
+        pass
+    lines = [
+        f"<b>{_esc(symbol)}</b> {_esc(direction)}",
+        f"{_t(lang, 'alert_entry')}: <code>{_esc(_fmt_price(entry, price_unit))}</code>",
+        f"{_t(lang, 'alert_stop')}: <code>{_esc(_fmt_price(stop, price_unit))}</code>",
+        f"TP1: <code>{_esc(_fmt_price(tp1, price_unit))}</code>",
+        f"{_t(lang, 'alert_position')}: <b>{_fmt_usdt(position_usdt)} USDT</b>",
+    ]
+    if "position_below_min_contract" in sizing_errors:
+        lines.append(_t(lang, "alert_min_contract"))
+    elif leverage_limited:
+        lines.append(_t(lang, "alert_lev_capped"))
+    return "\n".join(lines[:8])

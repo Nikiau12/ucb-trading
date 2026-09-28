@@ -1,0 +1,2 @@
+ALTER TABLE user_profiles
+    ADD COLUMN IF NOT EXISTS language_chosen BOOLEAN NOT NULL DEFAULT FALSE;

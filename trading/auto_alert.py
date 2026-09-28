@@ -16,11 +16,11 @@ def render_auto_alert(
     uses_reference_deposit: bool = False,
 ) -> str:
     try:
-        from .setup_text import render_setup
+        from .setup_text import render_alert_block
     except ImportError:
-        from setup_text import render_setup
+        from setup_text import render_alert_block
 
-    return render_setup(
+    return render_alert_block(
         plan,
         symbol,
         side,

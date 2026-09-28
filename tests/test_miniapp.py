@@ -266,6 +266,20 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "min-height:44px" in css
     assert "chart-skeleton" in css
     assert "syncSymbolPicker" in script
+    assert "signal-row" in script
+    assert "scannerSilent" in script
+    assert "lastScan" in script
+    assert "paymentWaiting" in script
+    assert "paymentMismatch" in script
+    assert "accessOpenUntil" in script
+    assert "confidenceLabel(signal)" in script and "confidenceNote" in script
+    assert "coincap.io" not in script
+    assert "lucide" not in script
+    assert "unpkg.com/lucide" not in html
+    assert 'id="payment-state"' in html
+    assert 'id="language"' in html
+    assert "trade-levels" not in css
+    assert "level-line" not in css
     assert "signal_id" in script
     assert "setHeaderColor?.('#090b10')" in script
     assert "MainButton" in script

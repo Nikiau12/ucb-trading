@@ -71,7 +71,7 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
-from setup_text import signal_query
+from setup_text import render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
     bare_plan_symbol,
@@ -99,17 +99,6 @@ SETUP_COOLDOWN = 8 * 3600
 SCAN_REFERENCE_DEPOSIT = 1000.0
 MAJOR_SCAN_SYMBOLS = ["BTC_USDT", "ETH_USDT", "SOL_USDT"]
 MAJOR_SCAN_MIN_CONFIDENCE = float(os.getenv("MAJOR_SCAN_MIN_CONFIDENCE", "0.50"))
-ENGLISH_START_MESSAGE = (
-    "👋 Welcome to <b>UCB_TRADING_BOT</b>\n\n"
-    "I scan MEXC Futures 24/7, find high-probability setups and instantly calculate "
-    "your exact entry, stop-loss, two take-profits and position size — "
-    "all calibrated to your deposit and risk tolerance.\n\n"
-    f"🎁 <b>You get {FREE_TRIAL_SIGNALS} free signals</b> — "
-    f"one signal every {FREE_TRIAL_COOLDOWN_MINUTES} minutes, no payment needed.\n\n"
-    "💰 <b>One step to start</b>\n"
-    "Send your trading deposit as a number so I can size positions correctly.\n\n"
-    "Example: <code>5000</code>"
-)
 
 
 class DepositSetup(StatesGroup):
@@ -306,20 +295,61 @@ def _signal_app_url(signal_id: int) -> str:
     return urlunparse(parts._replace(query=urlencode(query)))
 
 
+def _language_only_keyboard() -> InlineKeyboardMarkup:
+    buttons = [InlineKeyboardButton(text=label, callback_data=callback) for label, callback in LANG_BUTTONS]
+    return InlineKeyboardMarkup(inline_keyboard=[buttons[:3], buttons[3:]])
+
+
+def _panel_url(view: str | None = None) -> str:
+    parts = urlparse(MINI_APP_URL)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    if view:
+        query["view"] = view
+    return urlunparse(parts._replace(query=urlencode(query)))
+
+
+def _webapp_button(lang: str, label_key: str, url: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=_t(lang, label_key), web_app=WebAppInfo(url=url))
+
+
 def _open_setup_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup | None:
     if not MINI_APP_URL or not signal_id:
         return None
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text=_t(lang, "open_setup"),
-            web_app=WebAppInfo(url=_signal_app_url(int(signal_id))),
-        )
+        _webapp_button(lang, "open_setup", _signal_app_url(int(signal_id)))
     ]])
 
 
-def _deposit_prompt_reply(lang: str) -> tuple[str, InlineKeyboardMarkup]:
-    text = _t(lang, "deposit_invalid") + "\n\n" + _t(lang, "deposit_prompt")
-    return text, _lang_keyboard(lang)
+def _alert_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup:
+    row = []
+    if MINI_APP_URL and signal_id:
+        row.append(_webapp_button(lang, "open_setup", _signal_app_url(int(signal_id))))
+    row.append(InlineKeyboardButton(text=_t(lang, "alert_later"), callback_data="alert_later"))
+    return InlineKeyboardMarkup(inline_keyboard=[row])
+
+
+def _ready_keyboard(lang: str) -> InlineKeyboardMarkup:
+    rows = []
+    if MINI_APP_URL:
+        rows.append([_webapp_button(lang, "open_setup", MINI_APP_URL)])
+    rows.append([InlineKeyboardButton(text=_t(lang, "plan_btc"), callback_data="plan_for:BTC")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _settings_keyboard(lang: str) -> InlineKeyboardMarkup | None:
+    if not MINI_APP_URL:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        _webapp_button(lang, "open_settings", _panel_url("settings"))
+    ]])
+
+
+def _ready_text(lang: str, deposit, risk) -> str:
+    return _t(lang, "ready_next", deposit=f"{float(deposit):,.2f}", risk=risk)
+
+
+def _deposit_prompt_reply(lang: str) -> tuple[str, None]:
+    return _t(lang, "deposit_invalid") + "\n\n" + _t(lang, "deposit_prompt"), None
 
 
 class _CommandView:
@@ -526,7 +556,7 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
     await message.reply(
         text,
         parse_mode="HTML",
-        reply_markup=_open_setup_keyboard(signal_id, lang),
+        reply_markup=_alert_keyboard(signal_id, lang),
     )
     return True
 
@@ -583,18 +613,24 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await state.clear()
         await cmd_plan(_CommandView(message, message.from_user, "/plan BTC_USDT"))
         return
+    if not st.language_is_chosen(message.from_user.id):
+        await state.clear()
+        await message.reply(_t("en", "choose_lang"), parse_mode="HTML", reply_markup=_language_only_keyboard())
+        return
     if not _has_saved_deposit(message.from_user.id):
         notifier.active_users.discard(user_id)
         await state.set_state(DepositSetup.waiting_for_amount)
-        text = ENGLISH_START_MESSAGE if lang == "en" else (
-            _t(lang, "welcome") + "\n\n" + _t(lang, "deposit_prompt")
-        )
-        await message.reply(text, parse_mode="HTML", reply_markup=_lang_keyboard(lang))
+        await message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
         return
 
     notifier.active_users.add(user_id)
     await state.clear()
-    await message.reply(_t(lang, "welcome"), parse_mode="HTML", reply_markup=_lang_keyboard(lang))
+    settings = st.get_user_settings(message.from_user.id)
+    await message.reply(
+        _ready_text(lang, settings.get("deposit"), settings.get("risk_pct")),
+        parse_mode="HTML",
+        reply_markup=_ready_keyboard(lang),
+    )
 
 
 @router.callback_query(lambda c: c.data.startswith("lang_"))
@@ -602,15 +638,17 @@ async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext)
     lang = callback.data.split("_")[1]
     st.set_user_lang(callback.from_user.id, lang)
     settings = st.get_user_settings(callback.from_user.id)
-    text = _t(lang, "lang_set")
     if not settings.get("deposit"):
-        text += "\n\n" + _t(lang, "deposit_start_hint") + "\n\n" + _t(lang, "deposit_prompt")
+        text = _t(lang, "deposit_prompt")
+        markup = None
         await state.set_state(DepositSetup.waiting_for_amount)
     else:
         notifier.active_users.add(str(callback.from_user.id))
+        text = _ready_text(lang, settings.get("deposit"), settings.get("risk_pct"))
+        markup = _ready_keyboard(lang)
     await _set_user_commands(callback.from_user.id, lang)
     await _set_panel_menu(callback.from_user.id, lang)
-    await _finish_callback(callback, text, parse_mode="HTML", reply_markup=_lang_keyboard(lang))
+    await _finish_callback(callback, text, parse_mode="HTML", reply_markup=markup)
 
 
 @router.callback_query(F.data == "set_deposit")
@@ -651,6 +689,16 @@ async def handle_run_scan(callback: types.CallbackQuery):
     await cmd_scan(_CommandView(callback.message, callback.from_user, "/scan"))
 
 
+@router.callback_query(F.data == "alert_later")
+async def handle_alert_later(callback: types.CallbackQuery):
+    try:
+        if callback.message is not None:
+            await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        logger.warning("later dismiss failed")
+    await _finish_callback(callback)
+
+
 @router.callback_query(F.data.startswith("plan_for:"))
 async def handle_plan_for(callback: types.CallbackQuery):
     await _finish_callback(callback)
@@ -687,10 +735,11 @@ async def handle_deposit_amount(message: types.Message, state: FSMContext):
     access_manager.ensure_user(_user_id(message))
     notifier.active_users.add(_user_id(message))
     await state.clear()
+    settings = st.get_user_settings(message.from_user.id)
     await message.reply(
-        _t(lang, "deposit_saved", deposit=f"{deposit:,.2f}"),
+        _ready_text(lang, deposit, settings.get("risk_pct")),
         parse_mode="HTML",
-        reply_markup=_lang_keyboard(lang),
+        reply_markup=_ready_keyboard(lang),
     )
 
 
@@ -888,7 +937,7 @@ async def cmd_plan(message: types.Message):
         if side == "SKIP":
             text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
         else:
-            text = render_auto_alert(
+            text = render_setup(
                 plan, symbol, side, _conf(plan), deposit, risk_pct, lev, lang=lang,
             )
             signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
@@ -918,9 +967,12 @@ async def cmd_set(message: types.Message):
     lang = get_lang(uid)
     kv   = _parse_kv(message.text.split()[1:])
     if not kv:
-        await message.reply(_t(lang, "set_usage"), parse_mode="HTML")
+        await message.reply(
+            _t(lang, "set_usage"),
+            parse_mode="HTML",
+            reply_markup=_settings_keyboard(lang),
+        )
         return
-    updated = []
     for key, raw in kv.items():
         try:
             storage_key, value = parse_setting(key, raw)
@@ -935,11 +987,14 @@ async def cmd_set(message: types.Message):
                 await message.reply(_t(lang, "set_invalid", key=html.escape(key)), parse_mode="HTML")
             return
         st.set_user_setting(uid, storage_key, value)
-        updated.append(f"{html.escape(key)}={html.escape(raw)}")
     if _has_saved_deposit(uid):
         access_manager.ensure_user(str(uid))
         notifier.active_users.add(str(uid))
-    await message.reply(_t(lang, "set_saved", params=", ".join(updated)), parse_mode="HTML")
+    await message.reply(
+        _t(lang, "set_saved"),
+        parse_mode="HTML",
+        reply_markup=_settings_keyboard(lang),
+    )
 
 
 @router.message(Command("settings"))
@@ -1129,7 +1184,7 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
                 chat_id=chat_id,
                 text=full,
                 parse_mode="HTML",
-                reply_markup=_open_setup_keyboard(signal_id, lang),
+                reply_markup=_alert_keyboard(signal_id, lang),
             )
             await asyncio.sleep(0.4)
         return True
@@ -1267,11 +1322,24 @@ async def _handle_spikes(message: types.Message):
 _SKIP_WORDS = {"ПО", "НА", "ДАЙ", "И", "В", "ЗА", "THE", "A", "BY", "FOR", "OF"}
 
 @router.message(F.text)
-async def handle_text(message: types.Message):
+async def handle_text(message: types.Message, state: FSMContext | None = None):
     text = message.text.lower()
     lang = get_lang(message.from_user.id)
     if is_greeting(message.text):
-        await message.reply(_t(lang, "choose_lang"), parse_mode="HTML", reply_markup=_lang_keyboard(lang))
+        if not st.language_is_chosen(message.from_user.id):
+            await message.reply(_t("en", "choose_lang"), parse_mode="HTML", reply_markup=_language_only_keyboard())
+            return
+        if not _has_saved_deposit(message.from_user.id):
+            if state is not None:
+                await state.set_state(DepositSetup.waiting_for_amount)
+            await message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
+            return
+        settings = st.get_user_settings(message.from_user.id)
+        await message.reply(
+            _ready_text(lang, settings.get("deposit"), settings.get("risk_pct")),
+            parse_mode="HTML",
+            reply_markup=_ready_keyboard(lang),
+        )
         return
     if asks_for_plan_scan(message.text):
         await cmd_scan(_CommandView(message, message.from_user, "/scan"))
@@ -1558,7 +1626,7 @@ async def plan_scanner_loop():
                             if await notifier.send_message_to_user(
                                 chat_id,
                                 alert,
-                                reply_markup=_open_setup_keyboard(signal_id, get_lang(user_id)),
+                                reply_markup=_alert_keyboard(signal_id, get_lang(user_id)),
                             ):
                                 delivered_count += 1
                                 if signal_id:

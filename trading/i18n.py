@@ -83,7 +83,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "⚠️ <b>ВАЖНО</b>\n"
             "Бот предоставляет аналитику, а не торговые сигналы.\n"
             "Решение о входе в сделку всегда остаётся за тобой.\n\n"
-            "🌐 Сменить язык → /start"
+            "🌐 Язык меняется в панели."
         ),
         "no_deposit": (
             "⚠️ Депозит не установлен.\n\n"
@@ -91,14 +91,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "Бот запомнит — больше вводить не нужно."
         ),
-        "set_usage": (
-            "Использование:\n"
-            "<code>/set deposit=5000</code>\n"
-            "<code>/set risk=1.5</code>\n"
-            "<code>/set lev=20</code>\n"
-            "<code>/set deposit=5000 risk=1 lev=20</code>"
-        ),
-        "set_saved":       "✅ Сохранено: {params}",
+        "set_usage": "Настройки — в панели.",
+        "set_saved":       "✅ Сохранено.",
         "set_unknown":     "❌ Неизвестный параметр: {key}. Доступны: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Твои параметры</b>\n\n",
         "settings_deposit":"💰 Депозит: {val}\n",
@@ -106,7 +100,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Изменить: <code>/set deposit=X risk=X lev=X</code>",
+        "settings_change": "Изменить их можно в панели.",
         "deposit_not_set": "⚠️ не установлен → /set deposit=XXXX",
         "plan_loading":    "⏳ Загружаю {symbol}...",
         "plan_error":      "❌ Ошибка: {error}",
@@ -238,7 +232,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "⚠️ <b>DISCLAIMER</b>\n"
             "The bot provides analytics, not trading signals.\n"
             "The decision to enter a trade is always yours.\n\n"
-            "🌐 Change language → /start"
+            "🌐 Change the language in the panel."
         ),
         "no_deposit": (
             "⚠️ <b>Deposit required</b>\n\n"
@@ -246,14 +240,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "Example: <code>5000</code>\n\n"
             "The bot saves it and uses it for every position calculation."
         ),
-        "set_usage": (
-            "Usage:\n"
-            "<code>/set deposit=5000</code>\n"
-            "<code>/set risk=1.5</code>\n"
-            "<code>/set lev=20</code>\n"
-            "<code>/set deposit=5000 risk=1 lev=20</code>"
-        ),
-        "set_saved":       "✅ Saved: {params}",
+        "set_usage": "Settings are in the panel.",
+        "set_saved":       "✅ Saved.",
         "set_unknown":     "❌ Unknown parameter: {key}. Allowed: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Your settings</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
@@ -261,7 +249,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Change: <code>/set deposit=X risk=X lev=X</code>",
+        "settings_change": "Change them in the panel.",
         "deposit_not_set": "⚠️ not set → /set deposit=XXXX",
         "plan_loading":    "⏳ Loading {symbol}...",
         "plan_error":      "❌ Error: {error}",
@@ -392,7 +380,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "⚠️ <b>HINWEIS</b>\n"
             "Der Bot liefert Analysen, keine Handelssignale.\n"
             "Die Entscheidung zum Handeln liegt immer bei dir.\n\n"
-            "🌐 Sprache ändern → /start"
+            "🌐 Die Sprache änderst du im Panel."
         ),
         "no_deposit": (
             "⚠️ Kapital nicht festgelegt.\n\n"
@@ -400,14 +388,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "Der Bot merkt es sich — du musst es nicht erneut eingeben."
         ),
-        "set_usage": (
-            "Verwendung:\n"
-            "<code>/set deposit=5000</code>\n"
-            "<code>/set risk=1.5</code>\n"
-            "<code>/set lev=20</code>\n"
-            "<code>/set deposit=5000 risk=1 lev=20</code>"
-        ),
-        "set_saved":       "✅ Gespeichert: {params}",
+        "set_usage": "Die Einstellungen sind im Panel.",
+        "set_saved":       "✅ Gespeichert.",
         "set_unknown":     "❌ Unbekannter Parameter: {key}. Erlaubt: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Deine Parameter</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
@@ -415,7 +397,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Ändern: <code>/set deposit=X risk=X lev=X</code>",
+        "settings_change": "Ändern kannst du sie im Panel.",
         "deposit_not_set": "⚠️ nicht festgelegt → /set deposit=XXXX",
         "plan_loading":    "⏳ Lade {symbol}...",
         "plan_error":      "❌ Fehler: {error}",
@@ -546,7 +528,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "⚠️ <b>AVERTISSEMENT</b>\n"
             "Le bot fournit des analyses, pas des signaux de trading.\n"
             "La décision d'entrer en position reste toujours la tienne.\n\n"
-            "🌐 Changer de langue → /start"
+            "🌐 La langue se change dans le panneau."
         ),
         "no_deposit": (
             "⚠️ Dépôt non défini.\n\n"
@@ -554,14 +536,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "Le bot s'en souviendra — pas besoin de le ressaisir."
         ),
-        "set_usage": (
-            "Utilisation :\n"
-            "<code>/set deposit=5000</code>\n"
-            "<code>/set risk=1.5</code>\n"
-            "<code>/set lev=20</code>\n"
-            "<code>/set deposit=5000 risk=1 lev=20</code>"
-        ),
-        "set_saved":       "✅ Sauvegardé : {params}",
+        "set_usage": "Les réglages sont dans le panneau.",
+        "set_saved":       "✅ Sauvegardé.",
         "set_unknown":     "❌ Paramètre inconnu : {key}. Autorisés : deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Tes paramètres</b>\n\n",
         "settings_deposit":"💰 Dépôt : {val}\n",
@@ -569,7 +545,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk : <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev : <b>{val}x</b>\n",
         "settings_margin": "📐 margin : <b>{val}</b>\n\n",
-        "settings_change": "Modifier : <code>/set deposit=X risk=X lev=X</code>",
+        "settings_change": "Tu peux les modifier dans le panneau.",
         "deposit_not_set": "⚠️ non défini → /set deposit=XXXX",
         "plan_loading":    "⏳ Chargement de {symbol}...",
         "plan_error":      "❌ Erreur : {error}",
@@ -700,7 +676,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "⚠️ <b>AVISO</b>\n"
             "El bot proporciona análisis, no señales de trading.\n"
             "La decisión de entrar en una operación es siempre tuya.\n\n"
-            "🌐 Cambiar idioma → /start"
+            "🌐 El idioma se cambia en el panel."
         ),
         "no_deposit": (
             "⚠️ Depósito no establecido.\n\n"
@@ -708,14 +684,8 @@ STRINGS: dict[str, dict[str, Any]] = {
             "<code>/set deposit=5000</code>\n\n"
             "El bot lo recordará — no necesitas ingresarlo de nuevo."
         ),
-        "set_usage": (
-            "Uso:\n"
-            "<code>/set deposit=5000</code>\n"
-            "<code>/set risk=1.5</code>\n"
-            "<code>/set lev=20</code>\n"
-            "<code>/set deposit=5000 risk=1 lev=20</code>"
-        ),
-        "set_saved":       "✅ Guardado: {params}",
+        "set_usage": "Los ajustes están en el panel.",
+        "set_saved":       "✅ Guardado.",
         "set_unknown":     "❌ Parámetro desconocido: {key}. Permitidos: deposit, risk, lev, margin",
         "settings_title":  "⚙️ <b>Tus parámetros</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
@@ -723,7 +693,7 @@ STRINGS: dict[str, dict[str, Any]] = {
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Cambiar: <code>/set deposit=X risk=X lev=X</code>",
+        "settings_change": "Puedes cambiarlos en el panel.",
         "deposit_not_set": "⚠️ no establecido → /set deposit=XXXX",
         "plan_loading":    "⏳ Cargando {symbol}...",
         "plan_error":      "❌ Error: {error}",

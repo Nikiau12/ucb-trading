@@ -22,6 +22,7 @@ from miniapp import app as miniapp
 from miniapp.invoice_amount import unique_invoice_amount
 from trading import state
 from trading.auto_alert import render_auto_alert
+from trading.setup_text import render_setup
 from trading.i18n import t
 from trading.telegram_render import render_telegram_plan
 from trading.user_input import parse_setting
@@ -144,6 +145,7 @@ def test_html_renderers_escape_interpolated_values():
     }
 
     rendered = render_telegram_plan(plan, deposit=1000, risk_pct=1, lang="en")
+    plan_text = render_setup(plan, "<script>", "LONG", 0.8, 1000, 1, 10, lang="en")
     alert = render_auto_alert(
         plan, "<script>", "LONG", 0.8, 1000, 1, 10, lang="en"
     )
@@ -152,10 +154,13 @@ def test_html_renderers_escape_interpolated_values():
     assert "&lt;script&gt;" in rendered
     assert "<script>" not in alert
     assert "&lt;script&gt;" in alert
+    assert "<script>" not in plan_text
+    assert "&lt;script&gt;" in plan_text
     assert "<img>" not in alert
     assert "80%" in rendered
-    assert "80%" in alert
+    assert "80%" in plan_text
     assert "/ 1.0" not in alert
+    assert len(alert.splitlines()) <= 8
 
 
 def test_confidence_percent_is_one_scale():
@@ -174,10 +179,12 @@ def test_confidence_percent_is_one_scale():
         },
     }
     rendered = render_telegram_plan(plan, deposit=1000, risk_pct=1, lang="en")
+    plan_text = render_setup(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="en")
     alert = render_auto_alert(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="en")
     assert "78%" in rendered
-    assert "78%" in alert
+    assert "78%" in plan_text
     assert "0.78" not in alert
+    assert len(alert.splitlines()) <= 8
     assert "/ 1.0" not in alert
     isolated = dict(plan, margin="isolated")
     named = render_telegram_plan(isolated, deposit=1000, risk_pct=1, lang="en")
@@ -280,14 +287,20 @@ def test_russian_setup_uses_panel_words_without_english_tokens():
         },
     }
     text = render_auto_alert(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="ru")
+    plan_text = render_setup(plan, "BTC_USDT", "LONG", 0.78, 1000, 1, 10, lang="ru")
     lowered = text.lower()
     assert "Вход" in text
     assert "entry" not in lowered
     assert "midrange" not in lowered
     assert "deposit" not in lowered
-    assert "Бот считает размер. Ордер ставишь ты." in text
-    assert "исполнен" not in lowered
-    assert "78%" in text
+    assert len(text.splitlines()) <= 8
+    assert "Бот считает размер. Ордер ставишь ты." in plan_text
+    assert "исполнен" not in plan_text.lower()
+    assert "78%" in plan_text
+    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    assert source.count("_alert_keyboard(") >= 3
+    assert "render_setup(" in source
+    assert 'callback_data="alert_later"' in source
 
 
 def test_paid_feed_is_scanner_only_and_trial_feed_is_granted_only():

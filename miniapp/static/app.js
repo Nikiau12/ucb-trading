@@ -2,11 +2,11 @@ const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
 
 const translations = {
-  en:{workspace:'PRIVATE WORKSPACE',hello:'Hello',marketLive:'MEXC LIVE',deposit:'Deposit',riskTrade:'Risk / trade',leverage:'Leverage',access:'Access',cross:'Cross',isolated:'Isolated',scanner:'MARKET SCANNER',latestSignals:'Latest signals',viewAll:'View all',signalHistory:'Signal history',all:'All',riskProfile:'RISK PROFILE',settings:'Settings',depositUsdt:'Deposit, USDT',riskPercent:'Risk per trade, %',leverageX:'Leverage',marginMode:'Margin mode',saveSettings:'Save settings',subscription:'SUBSCRIPTION',monthlyAccess:'Monthly access',subscriptionCopy:'Automatic signals, scanner and full position plans.',paymentInstructions:'Payment instructions',overview:'Overview',signals:'Signals',trial:'Trial',signalsLeft:'signals left',active:'Active',inactive:'Inactive',entry:'Entry',stop:'Stop',confidence:'Confidence',saved:'Settings saved',paymentHelp:'Opening payment instructions in the bot...',paymentUnavailable:'Could not open the bot. Close the app and send /subscribe.',noSignals:'No signals yet',currentPrice:'Current price',tp1:'TP1',tp2:'TP2',positionSize:'Position size',marginRequired:'Margin required',stopRisk:'Stop risk',backToSignals:'Back to signals',tradeSetup:'TRADE SETUP',livePrice:'LIVE PRICE',signalLevels:'SIGNAL LEVELS',executionPlan:'Execution plan',personalSizing:'PERSONAL SIZING',positionPlan:'Position plan',trialComplete:'Free trial completed',trialCompleteCopy:'You used 5 free signals. Subscribe to continue receiving new setups.',unlockSignals:'Unlock signals',marketOffline:'MEXC OFFLINE',bullish:'BULLISH',bearish:'BEARISH',marketView:'MARKET VIEW',legendEntry:'Entry',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'TIMEFRAME',requestPlan:'Request a plan',payExact:'Exact amount',copyAddress:'Copy',txHash:'Transaction hash',submitHash:'Submit hash',paymentFailed:'Payment was not confirmed. Check the hash and try again.',retryPayment:'Try again',accessOpen:'Access open',accessOpenCopy:'Access is open on this screen.',listing:'Listing',copied:'Address copied',filterEmpty:'No {side} signals in this filter.',saveFailed:'Could not save settings.',settingsAccessCopy:'Access is open. You do not need to pay again.',levCapped:'Leverage was reduced to the MEXC maximum for this market.',minContract:'The minimum MEXC contract is too large for this risk. Do not open the trade.',sizeDisclaimer:'The bot calculates the size. You place the order.',regimeLabel:'Regime',network:'Network',flat:'Flat',regimeTrend:'Trend',regimeRange:'Range',needAccess:'Need access',openMexc:'Open in MEXC',copiedSetup:'Setup copied',confidenceNote:'Rules estimate, not a probability.',tf1d:'1D trend',tf4h:'4H trend',tfStruct:'4H structure'},
-  ru:{workspace:'ЛИЧНЫЙ КАБИНЕТ',hello:'Привет',marketLive:'MEXC ОНЛАЙН',deposit:'Депозит',riskTrade:'Риск / сделку',leverage:'Плечо',access:'Доступ',cross:'Кросс',isolated:'Изолированная',scanner:'СКАНЕР РЫНКА',latestSignals:'Последние сигналы',viewAll:'Все сигналы',signalHistory:'История сигналов',all:'Все',riskProfile:'РИСК-ПРОФИЛЬ',settings:'Настройки',depositUsdt:'Депозит, USDT',riskPercent:'Риск на сделку, %',leverageX:'Кредитное плечо',marginMode:'Режим маржи',saveSettings:'Сохранить',subscription:'ПОДПИСКА',monthlyAccess:'Месячный доступ',subscriptionCopy:'Автосигналы, сканер и полные торговые планы.',paymentInstructions:'Инструкция по оплате',overview:'Обзор',signals:'Сигналы',trial:'Пробный доступ',signalsLeft:'сигналов осталось',active:'Активна',inactive:'Неактивна',entry:'Вход',stop:'Стоп',confidence:'Уверенность',saved:'Настройки сохранены',paymentHelp:'Открываю инструкцию по оплате в боте...',paymentUnavailable:'Не удалось открыть бота. Закрой приложение и отправь /subscribe.',noSignals:'Сигналов пока нет',currentPrice:'Цена сейчас',tp1:'TP1',tp2:'TP2',positionSize:'Объём позиции',marginRequired:'Нужно маржи',stopRisk:'Риск по стопу',backToSignals:'Назад к сигналам',tradeSetup:'ТОРГОВЫЙ СЕТАП',livePrice:'ЦЕНА ОНЛАЙН',signalLevels:'УРОВНИ СИГНАЛА',levelsTitle:'Уровни',personalSizing:'ПЕРСОНАЛЬНЫЙ РАСЧЁТ',positionPlan:'План позиции',trialComplete:'Пробный доступ завершён',trialCompleteCopy:'Ты использовал 5 бесплатных сигналов. Оформи подписку, чтобы получать новые сетапы.',unlockSignals:'Открыть доступ',marketOffline:'MEXC НЕ В СЕТИ',bullish:'РОСТ',bearish:'ПАДЕНИЕ',marketView:'ОБЗОР РЫНКА',legendEntry:'Вход',legendStop:'Стоп',legendTargets:'TP1 / TP2',trendLabel:'ТРЕНД',setupLabel:'СЕТАП',timeframeLabel:'ТАЙМФРЕЙМ',requestPlan:'Запросить план',payExact:'Точная сумма',copyAddress:'Копировать',txHash:'Хеш транзакции',submitHash:'Отправить хеш',paymentFailed:'Платёж не подтверждён. Проверь хеш и повтори.',retryPayment:'Повторить',accessOpen:'Доступ открыт',accessOpenCopy:'Доступ открыт на этом экране.',listing:'Листинг',copied:'Адрес скопирован',filterEmpty:'В фильтре {side} пусто.',saveFailed:'Не удалось сохранить настройки.',settingsAccessCopy:'Доступ открыт. Повторная оплата не нужна.',levCapped:'Плечо снижено до максимума MEXC для этой монеты.',minContract:'Минимальный контракт MEXC слишком велик для этого риска. Сделку открывать не нужно.',sizeDisclaimer:'Бот считает размер. Ордер ставишь ты.',regimeLabel:'Режим',network:'Сеть',flat:'Флэт',regimeTrend:'Тренд',regimeRange:'Диапазон',needAccess:'Нужен доступ',openMexc:'Открыть в MEXC',copiedSetup:'Сетап скопирован',confidenceNote:'Оценка правил, не вероятность.',tf1d:'Тренд 1Д',tf4h:'Тренд 4Ч',tfStruct:'Структура 4Ч'},
-  de:{workspace:'PRIVATER ARBEITSBEREICH',hello:'Hallo',marketLive:'MEXC LIVE',deposit:'Kapital',riskTrade:'Risiko / Trade',leverage:'Hebel',access:'Zugang',cross:'Cross',isolated:'Isoliert',scanner:'MARKTSCANNER',latestSignals:'Neueste Signale',viewAll:'Alle anzeigen',signalHistory:'Signalverlauf',all:'Alle',riskProfile:'RISIKOPROFIL',settings:'Einstellungen',depositUsdt:'Kapital, USDT',riskPercent:'Risiko pro Trade, %',leverageX:'Hebel',marginMode:'Margin-Modus',saveSettings:'Speichern',subscription:'ABONNEMENT',monthlyAccess:'Monatlicher Zugang',subscriptionCopy:'Automatische Signale, Scanner und vollständige Pläne.',paymentInstructions:'Zahlungsanleitung',overview:'Übersicht',signals:'Signale',trial:'Testzugang',signalsLeft:'Signale übrig',active:'Aktiv',inactive:'Inaktiv',entry:'Einstieg',stop:'Stop',confidence:'Konfidenz',saved:'Einstellungen gespeichert',paymentHelp:'Zahlungsanleitung wird im Bot geöffnet...',paymentUnavailable:'Der Bot konnte nicht geöffnet werden. Schließe die App und sende /subscribe.',noSignals:'Noch keine Signale',currentPrice:'Aktueller Preis',tp1:'TP1',tp2:'TP2',positionSize:'Positionsgröße',marginRequired:'Benötigte Margin',stopRisk:'Stop-Risiko',backToSignals:'Zurück zu Signalen',tradeSetup:'TRADE-SETUP',livePrice:'LIVE-PREIS',signalLevels:'SIGNALNIVEAUS',executionPlan:'Ausführungsplan',personalSizing:'PERSÖNLICHE GRÖSSE',positionPlan:'Positionsplan',trialComplete:'Testphase beendet',trialCompleteCopy:'Du hast 5 kostenlose Signale genutzt. Abonniere, um neue Setups zu erhalten.',unlockSignals:'Signale freischalten',marketOffline:'MEXC OFFLINE',bullish:'STEIGEND',bearish:'FALLEND',marketView:'MARKTÜBERBLICK',legendEntry:'Einstieg',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'ZEITRAHMEN',requestPlan:'Plan anfordern',payExact:'Genauer Betrag',copyAddress:'Kopieren',txHash:'Transaktions-Hash',submitHash:'Hash senden',paymentFailed:'Zahlung nicht bestätigt. Prüfe den Hash und versuche es erneut.',retryPayment:'Erneut versuchen',accessOpen:'Zugang offen',accessOpenCopy:'Der Zugang ist auf diesem Bildschirm offen.',listing:'Listing',copied:'Adresse kopiert',filterEmpty:'Keine {side}-Signale in diesem Filter.',saveFailed:'Einstellungen konnten nicht gespeichert werden.',settingsAccessCopy:'Der Zugang ist offen. Eine erneute Zahlung ist nicht nötig.',levCapped:'Der Hebel wurde auf das MEXC-Maximum für diesen Markt gesenkt.',minContract:'Der minimale MEXC-Kontrakt ist für dieses Risiko zu groß. Trade nicht eröffnen.',sizeDisclaimer:'Der Bot berechnet die Größe. Die Order setzt du.',regimeLabel:'Regime',network:'Netzwerk',flat:'Seitwärts',regimeTrend:'Trend',regimeRange:'Range',needAccess:'Zugang nötig',openMexc:'In MEXC öffnen',copiedSetup:'Setup kopiert',confidenceNote:'Regeleinschätzung, keine Wahrscheinlichkeit.',tf1d:'Trend 1D',tf4h:'Trend 4H',tfStruct:'Struktur 4H'},
-  fr:{workspace:'ESPACE PRIVÉ',hello:'Bonjour',marketLive:'MEXC EN DIRECT',deposit:'Dépôt',riskTrade:'Risque / trade',leverage:'Levier',access:'Accès',cross:'Cross',isolated:'Isolée',scanner:'SCANNER DU MARCHÉ',latestSignals:'Derniers signaux',viewAll:'Tout voir',signalHistory:'Historique des signaux',all:'Tous',riskProfile:'PROFIL DE RISQUE',settings:'Paramètres',depositUsdt:'Dépôt, USDT',riskPercent:'Risque par trade, %',leverageX:'Levier',marginMode:'Mode de marge',saveSettings:'Enregistrer',subscription:'ABONNEMENT',monthlyAccess:'Accès mensuel',subscriptionCopy:'Signaux automatiques, scanner et plans complets.',paymentInstructions:'Instructions de paiement',overview:'Aperçu',signals:'Signaux',trial:'Essai',signalsLeft:'signaux restants',active:'Actif',inactive:'Inactif',entry:'Entrée',stop:'Stop',confidence:'Confiance',saved:'Paramètres enregistrés',paymentHelp:'Ouverture des instructions de paiement dans le bot...',paymentUnavailable:'Impossible d\'ouvrir le bot. Ferme l\'application et envoie /subscribe.',noSignals:'Aucun signal',currentPrice:'Prix actuel',tp1:'TP1',tp2:'TP2',positionSize:'Taille de position',marginRequired:'Marge requise',stopRisk:'Risque au stop',backToSignals:'Retour aux signaux',tradeSetup:'CONFIGURATION',livePrice:'PRIX EN DIRECT',signalLevels:'NIVEAUX DU SIGNAL',executionPlan:'Plan d\'exécution',personalSizing:'TAILLE PERSONNELLE',positionPlan:'Plan de position',trialComplete:'Essai terminé',trialCompleteCopy:'Tu as utilisé 5 signaux gratuits. Abonne-toi pour continuer à recevoir de nouveaux setups.',unlockSignals:'Débloquer les signaux',marketOffline:'MEXC HORS LIGNE',bullish:'HAUSSIER',bearish:'BAISSIER',marketView:'VUE DU MARCHÉ',legendEntry:'Entrée',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDANCE',setupLabel:'SETUP',timeframeLabel:'UNITÉ DE TEMPS',requestPlan:'Demander un plan',payExact:'Montant exact',copyAddress:'Copier',txHash:'Hash de transaction',submitHash:'Envoyer le hash',paymentFailed:'Paiement non confirmé. Vérifie le hash et réessaie.',retryPayment:'Réessayer',accessOpen:'Accès ouvert',accessOpenCopy:'L\'accès est ouvert sur cet écran.',listing:'Listing',copied:'Adresse copiée',filterEmpty:'Aucun signal {side} dans ce filtre.',saveFailed:'Impossible d\'enregistrer les paramètres.',settingsAccessCopy:'L\'accès est ouvert. Un nouveau paiement n\'est pas nécessaire.',levCapped:'Le levier a été réduit au maximum MEXC de ce marché.',minContract:'Le contrat minimum MEXC est trop grand pour ce risque. N\'ouvre pas le trade.',sizeDisclaimer:'Le bot calcule la taille. Tu passes l\'ordre.',regimeLabel:'Régime',network:'Réseau',flat:'Plat',regimeTrend:'Tendance',regimeRange:'Range',needAccess:'Accès requis',openMexc:'Ouvrir dans MEXC',copiedSetup:'Setup copié',confidenceNote:'Estimation des règles, pas une probabilité.',tf1d:'Tendance 1J',tf4h:'Tendance 4H',tfStruct:'Structure 4H'},
-  es:{workspace:'ESPACIO PRIVADO',hello:'Hola',marketLive:'MEXC EN VIVO',deposit:'Depósito',riskTrade:'Riesgo / operación',leverage:'Apalancamiento',access:'Acceso',cross:'Cruzado',isolated:'Aislado',scanner:'ESCÁNER DE MERCADO',latestSignals:'Últimas señales',viewAll:'Ver todas',signalHistory:'Historial de señales',all:'Todas',riskProfile:'PERFIL DE RIESGO',settings:'Ajustes',depositUsdt:'Depósito, USDT',riskPercent:'Riesgo por operación, %',leverageX:'Apalancamiento',marginMode:'Modo de margen',saveSettings:'Guardar',subscription:'SUSCRIPCIÓN',monthlyAccess:'Acceso mensual',subscriptionCopy:'Señales automáticas, escáner y planes completos.',paymentInstructions:'Instrucciones de pago',overview:'Resumen',signals:'Señales',trial:'Prueba',signalsLeft:'señales restantes',active:'Activo',inactive:'Inactivo',entry:'Entrada',stop:'Stop',confidence:'Confianza',saved:'Ajustes guardados',paymentHelp:'Abriendo las instrucciones de pago en el bot...',paymentUnavailable:'No se pudo abrir el bot. Cierra la aplicación y envía /subscribe.',noSignals:'Aún no hay señales',currentPrice:'Precio actual',tp1:'TP1',tp2:'TP2',positionSize:'Tamaño de posición',marginRequired:'Margen necesario',stopRisk:'Riesgo al stop',backToSignals:'Volver a señales',tradeSetup:'CONFIGURACIÓN',livePrice:'PRECIO EN VIVO',signalLevels:'NIVELES DE SEÑAL',executionPlan:'Plan de ejecución',personalSizing:'TAMAÑO PERSONAL',positionPlan:'Plan de posición',trialComplete:'Prueba finalizada',trialCompleteCopy:'Has usado 5 señales gratis. Suscríbete para seguir recibiendo nuevos setups.',unlockSignals:'Desbloquear señales',marketOffline:'MEXC SIN CONEXIÓN',bullish:'ALCISTA',bearish:'BAJISTA',marketView:'VISTA DEL MERCADO',legendEntry:'Entrada',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDENCIA',setupLabel:'SETUP',timeframeLabel:'MARCO TEMPORAL',requestPlan:'Pedir un plan',payExact:'Importe exacto',copyAddress:'Copiar',txHash:'Hash de la transacción',submitHash:'Enviar hash',paymentFailed:'El pago no se confirmó. Revisa el hash e inténtalo de nuevo.',retryPayment:'Reintentar',accessOpen:'Acceso abierto',accessOpenCopy:'El acceso está abierto en esta pantalla.',listing:'Listing',copied:'Dirección copiada',filterEmpty:'No hay señales {side} en este filtro.',saveFailed:'No se pudieron guardar los ajustes.',settingsAccessCopy:'El acceso está abierto. No hace falta pagar otra vez.',levCapped:'El apalancamiento se redujo al máximo de MEXC para este mercado.',minContract:'El contrato mínimo de MEXC es demasiado grande para este riesgo. No abras la operación.',sizeDisclaimer:'El bot calcula el tamaño. La orden la pones tú.',regimeLabel:'Régimen',network:'Red',flat:'Plano',regimeTrend:'Tendencia',regimeRange:'Rango',needAccess:'Hace falta acceso',openMexc:'Abrir en MEXC',copiedSetup:'Setup copiado',confidenceNote:'Estimación de reglas, no una probabilidad.',tf1d:'Tendencia 1D',tf4h:'Tendencia 4H',tfStruct:'Estructura 4H'}
+  en:{workspace:'PRIVATE WORKSPACE',hello:'Hello',marketLive:'MEXC LIVE',deposit:'Deposit',riskTrade:'Risk / trade',leverage:'Leverage',access:'Access',cross:'Cross',isolated:'Isolated',scanner:'MARKET SCANNER',latestSignals:'Latest signals',viewAll:'View all',signalHistory:'Signal history',all:'All',riskProfile:'RISK PROFILE',settings:'Settings',depositUsdt:'Deposit, USDT',riskPercent:'Risk per trade, %',leverageX:'Leverage',marginMode:'Margin mode',saveSettings:'Save settings',subscription:'SUBSCRIPTION',monthlyAccess:'Monthly access',subscriptionCopy:'Automatic signals, scanner and full position plans.',paymentInstructions:'Payment instructions',overview:'Overview',signals:'Signals',trial:'Trial',signalsLeft:'signals left',active:'Active',inactive:'Inactive',entry:'Entry',stop:'Stop',confidence:'Confidence',saved:'Settings saved',paymentHelp:'Opening payment instructions in the bot...',paymentUnavailable:'Could not open the bot. Close the app and send /subscribe.',noSignals:'No signals yet',currentPrice:'Current price',tp1:'TP1',tp2:'TP2',positionSize:'Position size',marginRequired:'Margin required',stopRisk:'Stop risk',backToSignals:'Back to signals',tradeSetup:'TRADE SETUP',livePrice:'LIVE PRICE',signalLevels:'SIGNAL LEVELS',executionPlan:'Execution plan',personalSizing:'PERSONAL SIZING',positionPlan:'Position plan',trialComplete:'Free trial completed',trialCompleteCopy:'You used 5 free signals. Subscribe to continue receiving new setups.',unlockSignals:'Unlock signals',marketOffline:'MEXC OFFLINE',bullish:'BULLISH',bearish:'BEARISH',marketView:'MARKET VIEW',legendEntry:'Entry',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'TIMEFRAME',requestPlan:'Request a plan',payExact:'Exact amount',copyAddress:'Copy',txHash:'Transaction hash',submitHash:'Submit hash',paymentFailed:'Payment was not confirmed. Check the hash and try again.',retryPayment:'Try again',accessOpen:'Access open',accessOpenCopy:'Access is open on this screen.',listing:'Listing',copied:'Address copied',filterEmpty:'No {side} signals in this filter.',saveFailed:'Could not save settings.',settingsAccessCopy:'Access is open. You do not need to pay again.',levCapped:'Leverage was reduced to the MEXC maximum for this market.',minContract:'The minimum MEXC contract is too large for this risk. Do not open the trade.',sizeDisclaimer:'The bot calculates the size. You place the order.',regimeLabel:'Regime',network:'Network',flat:'Flat',regimeTrend:'Trend',regimeRange:'Range',needAccess:'Need access',openMexc:'Open in MEXC',copiedSetup:'Setup copied',confidenceNote:'Rules estimate, not a probability.',tf1d:'1D trend',tf4h:'4H trend',tfStruct:'4H structure',languageLabel:'Language',paymentWaiting:'Waiting for the check',paymentMismatch:'It did not match.',accessOpenUntil:'Access is open until {date}.',scannerSilent:'The scanner was silent.',lastScan:'Last scan {time}.',scanNever:'not yet',ageMinute:'m',ageHour:'h',ageDay:'d'},
+  ru:{workspace:'ЛИЧНЫЙ КАБИНЕТ',hello:'Привет',marketLive:'MEXC ОНЛАЙН',deposit:'Депозит',riskTrade:'Риск / сделку',leverage:'Плечо',access:'Доступ',cross:'Кросс',isolated:'Изолированная',scanner:'СКАНЕР РЫНКА',latestSignals:'Последние сигналы',viewAll:'Все сигналы',signalHistory:'История сигналов',all:'Все',riskProfile:'РИСК-ПРОФИЛЬ',settings:'Настройки',depositUsdt:'Депозит, USDT',riskPercent:'Риск на сделку, %',leverageX:'Кредитное плечо',marginMode:'Режим маржи',saveSettings:'Сохранить',subscription:'ПОДПИСКА',monthlyAccess:'Месячный доступ',subscriptionCopy:'Автосигналы, сканер и полные торговые планы.',paymentInstructions:'Инструкция по оплате',overview:'Обзор',signals:'Сигналы',trial:'Пробный доступ',signalsLeft:'сигналов осталось',active:'Активна',inactive:'Неактивна',entry:'Вход',stop:'Стоп',confidence:'Уверенность',saved:'Настройки сохранены',paymentHelp:'Открываю инструкцию по оплате в боте...',paymentUnavailable:'Не удалось открыть бота. Закрой приложение и отправь /subscribe.',noSignals:'Сигналов пока нет',currentPrice:'Цена сейчас',tp1:'TP1',tp2:'TP2',positionSize:'Объём позиции',marginRequired:'Нужно маржи',stopRisk:'Риск по стопу',backToSignals:'Назад к сигналам',tradeSetup:'ТОРГОВЫЙ СЕТАП',livePrice:'ЦЕНА ОНЛАЙН',signalLevels:'УРОВНИ СИГНАЛА',levelsTitle:'Уровни',personalSizing:'ПЕРСОНАЛЬНЫЙ РАСЧЁТ',positionPlan:'План позиции',trialComplete:'Пробный доступ завершён',trialCompleteCopy:'Ты использовал 5 бесплатных сигналов. Оформи подписку, чтобы получать новые сетапы.',unlockSignals:'Открыть доступ',marketOffline:'MEXC НЕ В СЕТИ',bullish:'РОСТ',bearish:'ПАДЕНИЕ',marketView:'ОБЗОР РЫНКА',legendEntry:'Вход',legendStop:'Стоп',legendTargets:'TP1 / TP2',trendLabel:'ТРЕНД',setupLabel:'СЕТАП',timeframeLabel:'ТАЙМФРЕЙМ',requestPlan:'Запросить план',payExact:'Точная сумма',copyAddress:'Копировать',txHash:'Хеш транзакции',submitHash:'Отправить хеш',paymentFailed:'Платёж не подтверждён. Проверь хеш и повтори.',retryPayment:'Повторить',accessOpen:'Доступ открыт',accessOpenCopy:'Доступ открыт на этом экране.',listing:'Листинг',copied:'Адрес скопирован',filterEmpty:'В фильтре {side} пусто.',saveFailed:'Не удалось сохранить настройки.',settingsAccessCopy:'Доступ открыт. Повторная оплата не нужна.',levCapped:'Плечо снижено до максимума MEXC для этой монеты.',minContract:'Минимальный контракт MEXC слишком велик для этого риска. Сделку открывать не нужно.',sizeDisclaimer:'Бот считает размер. Ордер ставишь ты.',regimeLabel:'Режим',network:'Сеть',flat:'Флэт',regimeTrend:'Тренд',regimeRange:'Диапазон',needAccess:'Нужен доступ',openMexc:'Открыть в MEXC',copiedSetup:'Сетап скопирован',confidenceNote:'Оценка правил, не вероятность.',tf1d:'Тренд 1Д',tf4h:'Тренд 4Ч',tfStruct:'Структура 4Ч',languageLabel:'Язык',paymentWaiting:'Ждём проверку',paymentMismatch:'Не сошлось.',accessOpenUntil:'Доступ открыт до {date}.',scannerSilent:'Сканер молчал.',lastScan:'Последний скан {time}.',scanNever:'ещё не было',ageMinute:'м',ageHour:'ч',ageDay:'д'},
+  de:{workspace:'PRIVATER ARBEITSBEREICH',hello:'Hallo',marketLive:'MEXC LIVE',deposit:'Kapital',riskTrade:'Risiko / Trade',leverage:'Hebel',access:'Zugang',cross:'Cross',isolated:'Isoliert',scanner:'MARKTSCANNER',latestSignals:'Neueste Signale',viewAll:'Alle anzeigen',signalHistory:'Signalverlauf',all:'Alle',riskProfile:'RISIKOPROFIL',settings:'Einstellungen',depositUsdt:'Kapital, USDT',riskPercent:'Risiko pro Trade, %',leverageX:'Hebel',marginMode:'Margin-Modus',saveSettings:'Speichern',subscription:'ABONNEMENT',monthlyAccess:'Monatlicher Zugang',subscriptionCopy:'Automatische Signale, Scanner und vollständige Pläne.',paymentInstructions:'Zahlungsanleitung',overview:'Übersicht',signals:'Signale',trial:'Testzugang',signalsLeft:'Signale übrig',active:'Aktiv',inactive:'Inaktiv',entry:'Einstieg',stop:'Stop',confidence:'Konfidenz',saved:'Einstellungen gespeichert',paymentHelp:'Zahlungsanleitung wird im Bot geöffnet...',paymentUnavailable:'Der Bot konnte nicht geöffnet werden. Schließe die App und sende /subscribe.',noSignals:'Noch keine Signale',currentPrice:'Aktueller Preis',tp1:'TP1',tp2:'TP2',positionSize:'Positionsgröße',marginRequired:'Benötigte Margin',stopRisk:'Stop-Risiko',backToSignals:'Zurück zu Signalen',tradeSetup:'TRADE-SETUP',livePrice:'LIVE-PREIS',signalLevels:'SIGNALNIVEAUS',executionPlan:'Ausführungsplan',personalSizing:'PERSÖNLICHE GRÖSSE',positionPlan:'Positionsplan',trialComplete:'Testphase beendet',trialCompleteCopy:'Du hast 5 kostenlose Signale genutzt. Abonniere, um neue Setups zu erhalten.',unlockSignals:'Signale freischalten',marketOffline:'MEXC OFFLINE',bullish:'STEIGEND',bearish:'FALLEND',marketView:'MARKTÜBERBLICK',legendEntry:'Einstieg',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TREND',setupLabel:'SETUP',timeframeLabel:'ZEITRAHMEN',requestPlan:'Plan anfordern',payExact:'Genauer Betrag',copyAddress:'Kopieren',txHash:'Transaktions-Hash',submitHash:'Hash senden',paymentFailed:'Zahlung nicht bestätigt. Prüfe den Hash und versuche es erneut.',retryPayment:'Erneut versuchen',accessOpen:'Zugang offen',accessOpenCopy:'Der Zugang ist auf diesem Bildschirm offen.',listing:'Listing',copied:'Adresse kopiert',filterEmpty:'Keine {side}-Signale in diesem Filter.',saveFailed:'Einstellungen konnten nicht gespeichert werden.',settingsAccessCopy:'Der Zugang ist offen. Eine erneute Zahlung ist nicht nötig.',levCapped:'Der Hebel wurde auf das MEXC-Maximum für diesen Markt gesenkt.',minContract:'Der minimale MEXC-Kontrakt ist für dieses Risiko zu groß. Trade nicht eröffnen.',sizeDisclaimer:'Der Bot berechnet die Größe. Die Order setzt du.',regimeLabel:'Regime',network:'Netzwerk',flat:'Seitwärts',regimeTrend:'Trend',regimeRange:'Range',needAccess:'Zugang nötig',openMexc:'In MEXC öffnen',copiedSetup:'Setup kopiert',confidenceNote:'Regeleinschätzung, keine Wahrscheinlichkeit.',tf1d:'Trend 1D',tf4h:'Trend 4H',tfStruct:'Struktur 4H',languageLabel:'Sprache',paymentWaiting:'Warten auf die Prüfung',paymentMismatch:'Es hat nicht gepasst.',accessOpenUntil:'Zugang offen bis {date}.',scannerSilent:'Der Scanner war still.',lastScan:'Letzter Scan {time}.',scanNever:'noch keiner',ageMinute:'m',ageHour:'h',ageDay:'T'},
+  fr:{workspace:'ESPACE PRIVÉ',hello:'Bonjour',marketLive:'MEXC EN DIRECT',deposit:'Dépôt',riskTrade:'Risque / trade',leverage:'Levier',access:'Accès',cross:'Cross',isolated:'Isolée',scanner:'SCANNER DU MARCHÉ',latestSignals:'Derniers signaux',viewAll:'Tout voir',signalHistory:'Historique des signaux',all:'Tous',riskProfile:'PROFIL DE RISQUE',settings:'Paramètres',depositUsdt:'Dépôt, USDT',riskPercent:'Risque par trade, %',leverageX:'Levier',marginMode:'Mode de marge',saveSettings:'Enregistrer',subscription:'ABONNEMENT',monthlyAccess:'Accès mensuel',subscriptionCopy:'Signaux automatiques, scanner et plans complets.',paymentInstructions:'Instructions de paiement',overview:'Aperçu',signals:'Signaux',trial:'Essai',signalsLeft:'signaux restants',active:'Actif',inactive:'Inactif',entry:'Entrée',stop:'Stop',confidence:'Confiance',saved:'Paramètres enregistrés',paymentHelp:'Ouverture des instructions de paiement dans le bot...',paymentUnavailable:'Impossible d\'ouvrir le bot. Ferme l\'application et envoie /subscribe.',noSignals:'Aucun signal',currentPrice:'Prix actuel',tp1:'TP1',tp2:'TP2',positionSize:'Taille de position',marginRequired:'Marge requise',stopRisk:'Risque au stop',backToSignals:'Retour aux signaux',tradeSetup:'CONFIGURATION',livePrice:'PRIX EN DIRECT',signalLevels:'NIVEAUX DU SIGNAL',executionPlan:'Plan d\'exécution',personalSizing:'TAILLE PERSONNELLE',positionPlan:'Plan de position',trialComplete:'Essai terminé',trialCompleteCopy:'Tu as utilisé 5 signaux gratuits. Abonne-toi pour continuer à recevoir de nouveaux setups.',unlockSignals:'Débloquer les signaux',marketOffline:'MEXC HORS LIGNE',bullish:'HAUSSIER',bearish:'BAISSIER',marketView:'VUE DU MARCHÉ',legendEntry:'Entrée',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDANCE',setupLabel:'SETUP',timeframeLabel:'UNITÉ DE TEMPS',requestPlan:'Demander un plan',payExact:'Montant exact',copyAddress:'Copier',txHash:'Hash de transaction',submitHash:'Envoyer le hash',paymentFailed:'Paiement non confirmé. Vérifie le hash et réessaie.',retryPayment:'Réessayer',accessOpen:'Accès ouvert',accessOpenCopy:'L\'accès est ouvert sur cet écran.',listing:'Listing',copied:'Adresse copiée',filterEmpty:'Aucun signal {side} dans ce filtre.',saveFailed:'Impossible d\'enregistrer les paramètres.',settingsAccessCopy:'L\'accès est ouvert. Un nouveau paiement n\'est pas nécessaire.',levCapped:'Le levier a été réduit au maximum MEXC de ce marché.',minContract:'Le contrat minimum MEXC est trop grand pour ce risque. N\'ouvre pas le trade.',sizeDisclaimer:'Le bot calcule la taille. Tu passes l\'ordre.',regimeLabel:'Régime',network:'Réseau',flat:'Plat',regimeTrend:'Tendance',regimeRange:'Range',needAccess:'Accès requis',openMexc:'Ouvrir dans MEXC',copiedSetup:'Setup copié',confidenceNote:'Estimation des règles, pas une probabilité.',tf1d:'Tendance 1J',tf4h:'Tendance 4H',tfStruct:'Structure 4H',languageLabel:'Langue',paymentWaiting:'En attente de la vérification',paymentMismatch:'Ça ne correspond pas.',accessOpenUntil:'Accès ouvert jusqu\'au {date}.',scannerSilent:'Le scanner est resté silencieux.',lastScan:'Dernier scan {time}.',scanNever:'pas encore',ageMinute:'min',ageHour:'h',ageDay:'j'},
+  es:{workspace:'ESPACIO PRIVADO',hello:'Hola',marketLive:'MEXC EN VIVO',deposit:'Depósito',riskTrade:'Riesgo / operación',leverage:'Apalancamiento',access:'Acceso',cross:'Cruzado',isolated:'Aislado',scanner:'ESCÁNER DE MERCADO',latestSignals:'Últimas señales',viewAll:'Ver todas',signalHistory:'Historial de señales',all:'Todas',riskProfile:'PERFIL DE RIESGO',settings:'Ajustes',depositUsdt:'Depósito, USDT',riskPercent:'Riesgo por operación, %',leverageX:'Apalancamiento',marginMode:'Modo de margen',saveSettings:'Guardar',subscription:'SUSCRIPCIÓN',monthlyAccess:'Acceso mensual',subscriptionCopy:'Señales automáticas, escáner y planes completos.',paymentInstructions:'Instrucciones de pago',overview:'Resumen',signals:'Señales',trial:'Prueba',signalsLeft:'señales restantes',active:'Activo',inactive:'Inactivo',entry:'Entrada',stop:'Stop',confidence:'Confianza',saved:'Ajustes guardados',paymentHelp:'Abriendo las instrucciones de pago en el bot...',paymentUnavailable:'No se pudo abrir el bot. Cierra la aplicación y envía /subscribe.',noSignals:'Aún no hay señales',currentPrice:'Precio actual',tp1:'TP1',tp2:'TP2',positionSize:'Tamaño de posición',marginRequired:'Margen necesario',stopRisk:'Riesgo al stop',backToSignals:'Volver a señales',tradeSetup:'CONFIGURACIÓN',livePrice:'PRECIO EN VIVO',signalLevels:'NIVELES DE SEÑAL',executionPlan:'Plan de ejecución',personalSizing:'TAMAÑO PERSONAL',positionPlan:'Plan de posición',trialComplete:'Prueba finalizada',trialCompleteCopy:'Has usado 5 señales gratis. Suscríbete para seguir recibiendo nuevos setups.',unlockSignals:'Desbloquear señales',marketOffline:'MEXC SIN CONEXIÓN',bullish:'ALCISTA',bearish:'BAJISTA',marketView:'VISTA DEL MERCADO',legendEntry:'Entrada',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDENCIA',setupLabel:'SETUP',timeframeLabel:'MARCO TEMPORAL',requestPlan:'Pedir un plan',payExact:'Importe exacto',copyAddress:'Copiar',txHash:'Hash de la transacción',submitHash:'Enviar hash',paymentFailed:'El pago no se confirmó. Revisa el hash e inténtalo de nuevo.',retryPayment:'Reintentar',accessOpen:'Acceso abierto',accessOpenCopy:'El acceso está abierto en esta pantalla.',listing:'Listing',copied:'Dirección copiada',filterEmpty:'No hay señales {side} en este filtro.',saveFailed:'No se pudieron guardar los ajustes.',settingsAccessCopy:'El acceso está abierto. No hace falta pagar otra vez.',levCapped:'El apalancamiento se redujo al máximo de MEXC para este mercado.',minContract:'El contrato mínimo de MEXC es demasiado grande para este riesgo. No abras la operación.',sizeDisclaimer:'El bot calcula el tamaño. La orden la pones tú.',regimeLabel:'Régimen',network:'Red',flat:'Plano',regimeTrend:'Tendencia',regimeRange:'Rango',needAccess:'Hace falta acceso',openMexc:'Abrir en MEXC',copiedSetup:'Setup copiado',confidenceNote:'Estimación de reglas, no una probabilidad.',tf1d:'Tendencia 1D',tf4h:'Tendencia 4H',tfStruct:'Estructura 4H',languageLabel:'Idioma',paymentWaiting:'Esperando la comprobación',paymentMismatch:'No coincidió.',accessOpenUntil:'Acceso abierto hasta {date}.',scannerSilent:'El escáner estuvo en silencio.',lastScan:'Último escaneo {time}.',scanNever:'aún no',ageMinute:'min',ageHour:'h',ageDay:'d'}
 };
 
 const taglines={
@@ -30,23 +30,11 @@ const clamp=(value,min,max)=>Math.min(Math.max(Number(value)||0,min),max);
 const displaySymbol=symbol=>String(symbol||'').replace('_',' / ');
 const isUsdtPair=symbol=>String(symbol||'').toUpperCase().split(':',1)[0].replace(/[/-]/g,'_').endsWith('_USDT');
 const coinBase=symbol=>String(symbol||'').toUpperCase().split('_',1)[0].replace(/[^A-Z0-9]/g,'').slice(0,16);
-const coinIconUrl=symbol=>`https://assets.coincap.io/assets/icons/${coinBase(symbol).toLowerCase()}@2x.png`;
-
 function coinIconMarkup(symbol){
-  const base=coinBase(symbol);
-  return `<span class="coin-fallback">${escapeHtml(base.slice(0,2))}</span><img src="${escapeHtml(coinIconUrl(symbol))}" alt="${escapeHtml(base)}" loading="lazy">`;
+  return `<span class="coin-fallback">${escapeHtml(coinBase(symbol).slice(0,2))}</span>`;
 }
 
-function hydrateCoinIcons(scope=document){
-  scope.querySelectorAll('.coin-dot img').forEach(image=>{
-    const avatar=image.closest('.coin-dot');
-    const markLoaded=()=>avatar.classList.remove('no-image');
-    const markMissing=()=>avatar.classList.add('no-image');
-    image.addEventListener('load',markLoaded,{once:true});
-    image.addEventListener('error',markMissing,{once:true});
-    if(image.complete)(image.naturalWidth?markLoaded:markMissing)();
-  });
-}
+function hydrateCoinIcons(){}
 
 function applyLanguage(){
   document.documentElement.lang=language;
@@ -55,9 +43,9 @@ function applyLanguage(){
   renderProfile();
   renderSignals();
   renderHome();
+  paintPaymentState();
   const current=homeSignal();
   if(overviewChart&&current)addSignalLines(overviewChart,current);
-  lucide.createIcons();
 }
 
 function paywalled(){
@@ -117,31 +105,43 @@ function confidenceLabel(signal){
   return `${Math.round(clamp(signal.confidence,0,1)*100)}%`;
 }
 
-function levelLine(signal){
-  const parts=[];
-  if(signal.entry!=null)parts.push(`${tr('entry')} ${fmt(signal.entry)}`);
-  if(signal.stop!=null)parts.push(`${tr('stop')} ${fmt(signal.stop)}`);
-  if(!parts.length&&signal.price!=null)parts.push(`${tr('currentPrice')} ${fmt(signal.price)}`);
-  return parts.join(' · ');
+function rewardRisk(signal){
+  const entry=Number(signal.entry);
+  const stop=Number(signal.stop);
+  const target=Number(signal.tp1);
+  const risk=Math.abs(entry-stop);
+  const reward=Math.abs(target-entry);
+  if(!Number.isFinite(risk)||!Number.isFinite(reward)||risk===0)return '—';
+  return `${(reward/risk).toLocaleString(language,{maximumFractionDigits:2})}R`;
+}
+
+function signalAge(signal){
+  const then=new Date(signal.created_at).valueOf();
+  if(!Number.isFinite(then))return '—';
+  const minutes=Math.max(0,Math.round((Date.now()-then)/60000));
+  if(minutes<60)return `${minutes}${tr('ageMinute')}`;
+  const hours=Math.round(minutes/60);
+  if(hours<48)return `${hours}${tr('ageHour')}`;
+  return `${Math.round(hours/24)}${tr('ageDay')}`;
+}
+
+function lastScanLine(){
+  const raw=profile?.last_scan_at;
+  const time=raw?new Date(raw).toLocaleString(language):tr('scanNever');
+  return tr('lastScan').split('{time}').join(time);
 }
 
 function signalCard(signal){
-  const requestedSide=String(signal.side||'').toUpperCase();
-  const side=requestedSide==='SHORT'?'SHORT':'LONG';
-  const direction=String(signal.source||'')==='listing'?tr('listing'):side;
-  const date=new Date(signal.created_at);
+  const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
   const symbol=escapeHtml(displaySymbol(signal.symbol));
-  const timestamp=escapeHtml(Number.isNaN(date.valueOf())?'—':date.toLocaleString(language,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
-  return `<button type="button" class="signal-card" data-signal-id="${signalId}" data-side="${side}" aria-label="${symbol} ${escapeHtml(direction)}"><header><div class="signal-symbol"><span class="coin-dot">${coinIconMarkup(signal.symbol)}</span><div><strong>${symbol}</strong><small>${timestamp}</small></div></div><span class="side ${side.toLowerCase()}">${escapeHtml(direction)}</span><div class="signal-confidence"><span>${escapeHtml(tr('confidence'))}</span><b>${confidenceLabel(signal)}</b></div></header><p class="level-line">${escapeHtml(levelLine(signal))}</p></button>`;
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><strong>${symbol}</strong><span class="side ${side.toLowerCase()}">${side}</span><b>${escapeHtml(rewardRisk(signal))}</b><small>${escapeHtml(signalAge(signal))}</small></button>`;
 }
 
 function emptySignals(filterOnly){
-  if(filterOnly){
-    const message=tr('filterEmpty').split('{side}').join(activeFilter);
-    return `<div class="empty-state"><p>${escapeHtml(message)}</p></div>`;
-  }
-  return `<div class="empty-state"><p>${escapeHtml(tr('noSignals'))}</p><button type="button" class="primary-button empty-action" data-empty-action="plan">${escapeHtml(tr('requestPlan'))}</button></div>`;
+  const reason=filterOnly?tr('filterEmpty').split('{side}').join(activeFilter):tr('scannerSilent');
+  const action=filterOnly?'':`<button type="button" class="primary-button empty-action" data-empty-action="plan">${escapeHtml(tr('requestPlan'))}</button>`;
+  return `<div class="empty-state"><p>${escapeHtml(reason)}</p><p>${escapeHtml(lastScanLine())}</p>${action}</div>`;
 }
 
 const BASE_OVERVIEW_SYMBOLS=['BTC_USDT','ETH_USDT','SOL_USDT'];
@@ -174,7 +174,6 @@ function renderSignals(){
   if(history)history.innerHTML=filtered.length?filtered.map(signalCard).join(''):emptySignals(filterOnly);
   syncSymbolPicker();
   hydrateCoinIcons();
-  lucide.createIcons();
 }
 
 function chartBundle(container,height){
@@ -387,6 +386,7 @@ async function load(){
     if(!selectedSignal)selectedSignal=signals.find(isSetup)||null;
     selectTimeframe(selectedSignal?.timeframe||'4h');
     applyLanguage();
+    if(new URLSearchParams(window.location.search).get('view')==='settings')showView('settings');
     await loadHomeChart();
   }catch(error){showToast(error.message||'Connection error')}
 }
@@ -422,11 +422,25 @@ const signalBack=$('#signal-back');
 if(signalBack)signalBack.addEventListener('click',()=>showView('signals'));
 $('#language').addEventListener('change',async event=>{const previous=language;const next=event.target.value;language=next;applyLanguage();try{await api('/api/settings',{method:'PATCH',body:JSON.stringify({language:next})})}catch(error){language=previous;applyLanguage();showToast(tr('saveFailed'))}});
 $('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));selectedSignal=selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||signals.find(isSetup)||null:signals.find(isSetup)||null;renderProfile();renderSignals();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
+function setPaymentState(state, until=''){
+  const node=$('#payment-state');
+  if(!node)return;
+  node.dataset.state=state;
+  node.dataset.until=until||'';
+  if(state==='waiting')node.textContent=tr('paymentWaiting');
+  else if(state==='mismatch')node.textContent=tr('paymentMismatch');
+  else if(state==='open')node.textContent=tr('accessOpenUntil').split('{date}').join(until||'—');
+}
+function paintPaymentState(){
+  const node=$('#payment-state');
+  if(node?.dataset.state)setPaymentState(node.dataset.state, node.dataset.until||'');
+}
 function showPaymentForm(){
   $('#payment-form').hidden=false;
   $('#payment-error').hidden=true;
   $('#payment-retry').hidden=true;
   $('#payment-success').hidden=true;
+  setPaymentState('waiting');
 }
 function showPaymentError(message){
   $('#payment-error').textContent=message||tr('paymentFailed');
@@ -434,12 +448,16 @@ function showPaymentError(message){
   $('#payment-form').hidden=true;
   $('#payment-retry').hidden=false;
   $('#payment-success').hidden=true;
+  setPaymentState('mismatch');
 }
-function showPaymentSuccess(){
+function showPaymentSuccess(until){
   $('#payment-form').hidden=true;
   $('#payment-error').hidden=true;
   $('#payment-retry').hidden=true;
   $('#payment-success').hidden=false;
+  const date=until?new Date(until):null;
+  const label=date&&!Number.isNaN(date.valueOf())?date.toLocaleDateString(language):'—';
+  setPaymentState('open', label);
 }
 function requestPlan(){
   const username=profile?.bot_username;
@@ -521,6 +539,7 @@ async function onMainButton(){
 async function submitPayment(event){
   event.preventDefault();
   const tx_hash=$('#payment-hash').value.trim();
+  setPaymentState('waiting');
   try{
     const response=await fetch('/api/payment',{method:'POST',headers,body:JSON.stringify({tx_hash})});
     const body=await response.json().catch(()=>({}));
@@ -528,8 +547,9 @@ async function submitPayment(event){
       showPaymentError(tr('paymentFailed'));
       return;
     }
-    showPaymentSuccess();
-    profile={...profile,has_paid_access:true,paid_until:body.paid_until?new Date(body.paid_until*1000).toISOString():profile.paid_until};
+    const paidUntil=body.paid_until?new Date(body.paid_until*1000).toISOString():profile.paid_until;
+    showPaymentSuccess(paidUntil);
+    profile={...profile,has_paid_access:true,paid_until:paidUntil};
     renderProfile();
     syncMainButton();
   }catch(error){
@@ -547,6 +567,5 @@ window.addEventListener('resize',()=>{if(overviewChart)overviewChart.chart.apply
 tg?.setHeaderColor?.('#090b10');
 tg?.setBackgroundColor?.('#090b10');
 tg?.MainButton?.onClick(onMainButton);
-lucide.createIcons();
 load();
 setInterval(refreshLiveData,60000);
