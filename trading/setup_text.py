@@ -88,6 +88,15 @@ def signal_query(signal_id: int) -> str:
     return f"signal_id={int(signal_id)}"
 
 
+def no_setup_query(symbol: str) -> str:
+    """Panel link for a symbol that has no setup. Never a signal id."""
+    pair = str(symbol or "").strip().upper()
+    base = pair[:-5] if pair.endswith("_USDT") else ""
+    if not base or not base.isalnum() or not 2 <= len(base) <= 20:
+        raise ValueError("symbol")
+    return f"no_setup={pair}"
+
+
 def _fmt_price(price, price_unit=None) -> str:
     if price is None:
         return "—"

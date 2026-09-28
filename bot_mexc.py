@@ -71,7 +71,7 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
-from setup_text import render_scan_card, render_setup, signal_query
+from setup_text import no_setup_query, render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
     bare_plan_symbol,
@@ -312,10 +312,19 @@ def _webapp_button(lang: str, label_key: str, url: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(text=_t(lang, label_key), web_app=WebAppInfo(url=url))
 
 
-def _no_setup_keyboard(lang: str) -> InlineKeyboardMarkup:
+def _no_setup_app_url(symbol: str) -> str:
+    parts = urlparse(MINI_APP_URL)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.pop("signal_id", None)
+    query.pop("symbol", None)
+    query.update(dict(parse_qsl(no_setup_query(symbol))))
+    return urlunparse(parts._replace(query=urlencode(query)))
+
+
+def _no_setup_keyboard(lang: str, symbol: str) -> InlineKeyboardMarkup:
     if MINI_APP_URL:
         return InlineKeyboardMarkup(inline_keyboard=[[
-            _webapp_button(lang, "open_setup", MINI_APP_URL)
+            _webapp_button(lang, "open_setup", _no_setup_app_url(symbol))
         ]])
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=_t(lang, "another_symbol"), callback_data="another_symbol")
@@ -973,9 +982,10 @@ async def cmd_plan(message: types.Message):
         plan     = core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
         side = str((plan.get("primary") or {}).get("side", "skip")).upper()
         signal_id = None
-        markup = _no_setup_keyboard(lang)
+        markup = None
         if side == "SKIP":
             text = render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
+            markup = _no_setup_keyboard(lang, symbol)
         else:
             text = render_setup(
                 plan, symbol, side, _conf(plan), deposit, risk_pct, lev, lang=lang,

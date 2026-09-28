@@ -329,7 +329,33 @@ def test_skip_plan_does_not_show_raw_filters():
     assert eth.replace("ETH_USDT", "BTC_USDT") == text
     source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
     plan_fn = source.split("async def cmd_plan", 1)[1].split("async def cmd_set", 1)[0]
-    assert "_no_setup_keyboard" in plan_fn
+    skip_branch = plan_fn.split('if side == "SKIP":', 1)[1].split("else:", 1)[0]
+    assert "_no_setup_keyboard(lang, symbol)" in skip_branch
+    assert "render_setup(" not in skip_branch
+
+
+def test_skip_open_link_is_the_symbol_empty_state():
+    from setup_text import no_setup_query
+
+    assert no_setup_query("btc_usdt") == "no_setup=BTC_USDT"
+    assert "signal_id" not in no_setup_query("ETH_USDT")
+    try:
+        no_setup_query("BTC")
+    except ValueError:
+        rejected = True
+    else:
+        rejected = False
+    assert rejected
+    panel = (ROOT / "miniapp/static/app.js").read_text(encoding="utf-8")
+    home = panel.split("function homeSignal()", 1)[1].split("function biasWord", 1)[0]
+    assert "if(pinnedNoSetup)return null;" in home
+    assert "noSetupFor" in panel
+    load = panel.split("async function load()", 1)[1].split("async function refreshLiveData", 1)[0]
+    assert "pinnedNoSetup?0" in load
+    assert "!pinnedNoSetup" in load
+    render = panel.split("function renderHome()", 1)[1].split("async function loadHomeChart", 1)[0]
+    assert "body.hidden=!signal" in render
+    assert "action.hidden=true" in render
 
 
 def test_plan_message_is_a_trade_ticket():
