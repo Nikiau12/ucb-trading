@@ -2,7 +2,7 @@ pandas==2.3.3
 numpy==1.26.4
 ccxt==4.5.64
 aiogram==3.30.0
-aiohttp==3.14.3
+aiohttp==3.14.4
 python-dotenv==1.2.2
 smartmoneyconcepts==0.0.27
 
