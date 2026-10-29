@@ -1748,7 +1748,7 @@ async def signal_lifecycle_loop():
             replay_pending = [
                 signal for signal in trackable
                 if signal.get("status") == "replay_pending"
-            ][:20]
+            ][:40]
             live = [
                 signal for signal in trackable
                 if signal.get("status") != "replay_pending"

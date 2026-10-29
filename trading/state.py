@@ -512,7 +512,10 @@ def load_trackable_signals(limit: int = 200) -> list[dict]:
                 JOIN signals s ON s.id = l.signal_id
                 WHERE l.status IN ('replay_pending', 'waiting_entry', 'active', 'tp1_reached')
                   AND s.source IN ('scanner', 'manual')
-                ORDER BY s.created_at ASC
+                ORDER BY
+                    CASE WHEN l.status = 'replay_pending' THEN 0 ELSE 1 END,
+                    CASE WHEN l.status = 'replay_pending' THEN s.created_at END DESC,
+                    s.created_at ASC
                 LIMIT %s
                 """,
                 (max(1, min(int(limit), 1000)),),
