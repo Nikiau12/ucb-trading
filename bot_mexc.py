@@ -1758,13 +1758,37 @@ async def signal_lifecycle_loop():
                 prices = await loop.run_in_executor(None, _public_signal_prices)
             replayed = 0
             transitioned = 0
+            unsupported = 0
+            replay_errors = 0
             candle_cache: dict[str, list[dict]] = {}
+            failed_symbols: set[str] = set()
             for signal in replay_pending:
                 symbol = str(signal.get("symbol") or "").upper()
-                if symbol not in candle_cache:
-                    candle_cache[symbol] = await loop.run_in_executor(
-                        None, _public_signal_candles, symbol,
+                if symbol not in prices:
+                    # Old MEXC-era symbols and delisted instruments cannot be
+                    # reconstructed from BingX. Their entry window is already
+                    # over, so close them safely instead of blocking the queue.
+                    result = await loop.run_in_executor(
+                        None, st.replay_signal_lifecycle, int(signal["id"]), [],
                     )
+                    replayed += int(bool(result))
+                    unsupported += 1
+                    continue
+                if symbol in failed_symbols:
+                    continue
+                if symbol not in candle_cache:
+                    try:
+                        candle_cache[symbol] = await loop.run_in_executor(
+                            None, _public_signal_candles, symbol,
+                        )
+                    except Exception as exc:
+                        failed_symbols.add(symbol)
+                        replay_errors += 1
+                        logger.warning(
+                            "signal replay market data failed symbol=%s: %s",
+                            symbol, type(exc).__name__,
+                        )
+                        continue
                 result = await loop.run_in_executor(
                     None,
                     st.replay_signal_lifecycle,
@@ -1826,6 +1850,8 @@ async def signal_lifecycle_loop():
                     "trackable": len(trackable),
                     "replay_pending": len(replay_pending),
                     "replayed": replayed,
+                    "unsupported": unsupported,
+                    "replay_errors": replay_errors,
                     "transitioned": transitioned,
                     "pending_updates": len(deliveries),
                     "delivered": delivered,
