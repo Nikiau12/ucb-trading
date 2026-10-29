@@ -20,7 +20,7 @@ def position_size_for_contract(
     risk_pct: float,
     leverage: float,
 ) -> Dict[str, Any]:
-    """Calculate a user-specific position using executable MEXC contract volume."""
+    """Calculate a user-specific position using normalized exchange quantity rules."""
     risk_budget = max(0.0, float(deposit)) * (max(0.0, float(risk_pct)) / 100.0)
     dist = abs(float(entry) - float(stop))
     requested_leverage = max(1.0, float(leverage))
@@ -33,6 +33,7 @@ def position_size_for_contract(
     vol_unit = _positive_decimal(rules.get("vol_unit", rules.get("volUnit")))
     min_vol = _positive_decimal(rules.get("min_vol", rules.get("minVol")))
     max_vol = _positive_decimal(rules.get("max_vol", rules.get("maxVol")))
+    min_notional = _positive_decimal(rules.get("min_notional", rules.get("minNotional")))
     errors: List[str] = []
 
     if dist <= 0:
@@ -56,6 +57,12 @@ def position_size_for_contract(
         actual_risk = qty * dist
 
     position_usdt = qty * float(entry)
+    if qty > 0 and min_notional is not None and position_usdt < float(min_notional):
+        errors.append("position_below_min_notional")
+        qty = 0.0
+        contract_vol = 0.0 if contract_vol is not None else None
+        actual_risk = 0.0
+        position_usdt = 0.0
     return {
         "risk_budget_usdt": risk_budget,
         "risk_usdt": actual_risk,
@@ -67,6 +74,7 @@ def position_size_for_contract(
         "requested_leverage": requested_leverage,
         "effective_leverage": effective_leverage,
         "max_leverage": float(max_leverage) if max_leverage is not None else None,
+        "min_notional": float(min_notional) if min_notional is not None else None,
         "dist": dist,
         "errors": errors,
     }

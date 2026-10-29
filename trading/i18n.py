@@ -15,7 +15,7 @@ STRINGS: dict[str, dict[str, Any]] = {
     "ru": {
         "welcome": (
             "👋 Добро пожаловать в <b>UCB_TRADING_BOT</b>\n\n"
-            "Я сканирую MEXC Futures 24/7, нахожу сильные сетапы и мгновенно рассчитываю "
+            "Я сканирую BingX Futures 24/7, нахожу сильные сетапы и мгновенно рассчитываю "
             "точку входа, стоп-лосс, два тейк-профита и размер позиции — "
             "с учётом твоего депозита и риск-профиля.\n\n"
             "🌐 Выбери язык:"
@@ -164,7 +164,7 @@ STRINGS: dict[str, dict[str, Any]] = {
     "en": {
         "welcome": (
             "👋 Welcome to <b>UCB_TRADING_BOT</b>\n\n"
-            "I scan MEXC Futures 24/7, find high-probability setups and instantly calculate "
+            "I scan BingX Futures 24/7, find high-probability setups and instantly calculate "
             "entry, stop-loss, two take-profits and position size — "
             "calibrated to your deposit and risk tolerance.\n\n"
             "🌐 Choose your language:"
@@ -312,7 +312,7 @@ STRINGS: dict[str, dict[str, Any]] = {
     "de": {
         "welcome": (
             "👋 Hallo! Ich bin <b>UCB_TRADING_BOT</b>\n\n"
-            "Dein Trading-Assistent für MEXC Futures.\n"
+            "Dein Trading-Assistent für BingX Futures.\n"
             "Ich analysiere den Markt auf 4h- und 1d-Kerzen, finde Setups\n"
             "und erstelle Pläne: Einstieg, Stop-Loss, zwei TPs und Positionsgröße.\n\n"
             "🌐 Wähle deine Sprache:"
@@ -460,7 +460,7 @@ STRINGS: dict[str, dict[str, Any]] = {
     "fr": {
         "welcome": (
             "👋 Bonjour ! Je suis <b>UCB_TRADING_BOT</b>\n\n"
-            "Ton assistant de trading pour MEXC Futures.\n"
+            "Ton assistant de trading pour BingX Futures.\n"
             "J'analyse le marché sur les bougies 4h et 1d, trouve des setups\n"
             "et crée des plans : entrée, stop-loss, deux TP et taille de position.\n\n"
             "🌐 Choisis ta langue :"
@@ -608,7 +608,7 @@ STRINGS: dict[str, dict[str, Any]] = {
     "es": {
         "welcome": (
             "👋 ¡Hola! Soy <b>UCB_TRADING_BOT</b>\n\n"
-            "Tu asistente de trading para MEXC Futures.\n"
+            "Tu asistente de trading para BingX Futures.\n"
             "Analizo el mercado en velas de 4h y 1d, encuentro setups\n"
             "y creo planes: entrada, stop-loss, dos TP y tamaño de posición.\n\n"
             "🌐 Elige tu idioma:"

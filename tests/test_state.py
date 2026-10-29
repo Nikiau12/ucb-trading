@@ -51,6 +51,7 @@ def test_signal_contract_rules_are_extracted_for_history():
             "min_vol": 1,
             "max_vol": 1000,
             "max_leverage": 50,
+            "min_notional": 2,
         }
     }
 
@@ -61,6 +62,7 @@ def test_signal_contract_rules_are_extracted_for_history():
         "min_vol": 1,
         "max_vol": 1000,
         "max_leverage": 50,
+        "min_notional": 2,
     }
 
 

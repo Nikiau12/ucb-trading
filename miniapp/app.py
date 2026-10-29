@@ -373,11 +373,11 @@ _SETUP_ONLY = "source NOT IN ('spike', 'smc', 'listing')"
 
 PAID_SIGNALS_SQL = f"""
 SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
-       price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
+       price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, min_notional,
        created_at, source, reason, regime, timeframe
 FROM (
     SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
-           price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
+           price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, min_notional,
            created_at, source, reason, regime, timeframe
     FROM signals
     WHERE source = 'scanner'
@@ -386,7 +386,7 @@ FROM (
     UNION
     SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
            s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
-           s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source,
+           s.min_vol, s.max_vol, s.max_leverage, s.min_notional, s.created_at, s.source,
            s.reason, s.regime, s.timeframe
     FROM signals s
     JOIN user_signal_access a ON a.signal_id = s.id
@@ -402,7 +402,7 @@ LIMIT 30
 TRIAL_SIGNALS_SQL = f"""
 SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
        s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
-       s.min_vol, s.max_vol, s.max_leverage, s.created_at, s.source,
+       s.min_vol, s.max_vol, s.max_leverage, s.min_notional, s.created_at, s.source,
        s.reason, s.regime, s.timeframe
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
@@ -452,7 +452,8 @@ def attach_personal_sizing(signal: dict, profile: dict) -> dict:
             key: sizing[key]
             for key in (
                 "risk_budget_usdt", "risk_usdt", "position_usdt", "margin_usdt",
-                "contract_vol", "effective_leverage", "requested_leverage", "max_leverage",
+                "qty", "contract_vol", "effective_leverage", "requested_leverage",
+                "max_leverage", "min_notional",
             )
         }
         | {"tradable": not sizing["errors"], "errors": sizing["errors"]},
@@ -736,11 +737,12 @@ def signals(x_telegram_init_data: str = Header(default="")):
          "min_vol": float(row[12]) if row[12] is not None else None,
          "max_vol": float(row[13]) if row[13] is not None else None,
          "max_leverage": float(row[14]) if row[14] is not None else None,
-         "created_at": row[15].isoformat(),
-         "source": row[16] or "scanner",
-         "reason": row[17],
-         "regime": row[18],
-         "timeframe": row[19] or "4h"},
+         "min_notional": float(row[15]) if row[15] is not None else None,
+         "created_at": row[16].isoformat(),
+         "source": row[17] or "scanner",
+         "reason": row[18],
+         "regime": row[19],
+         "timeframe": row[20] or "4h"},
         profile,
     )
         for row in rows
@@ -754,38 +756,52 @@ def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Heade
     normalized = symbol.upper().replace("_", "")
     if not normalized.endswith("USDT") or not normalized.isalnum():
         raise HTTPException(422, "Invalid symbol")
-    intervals = {
-        "15m": ("Min15", 15 * 60),
-        "1h": ("Min60", 60 * 60),
-        "4h": ("Hour4", 4 * 60 * 60),
-        "1d": ("Day1", 24 * 60 * 60),
-    }
+    intervals = {"15m": "15m", "1h": "1h", "4h": "4h", "1d": "1d"}
     if timeframe not in intervals:
         raise HTTPException(422, "Invalid timeframe")
-    mexc_interval, candle_seconds = intervals[timeframe]
-    contract_symbol = normalized[:-4] + "_USDT"
+    bingx_interval = intervals[timeframe]
+    contract_symbol = normalized[:-4] + "-USDT"
     cache_key = (contract_symbol, timeframe)
     with market_cache_lock:
         cached = market_cache.get(cache_key)
         if cached and cached[0] > time.monotonic() - 15:
             return cached[1]
     try:
-        end = int(time.time())
         response = requests.get(
-            f"https://contract.mexc.com/api/v1/contract/kline/{contract_symbol}",
-            params={"interval": mexc_interval, "start": end - 180 * candle_seconds, "end": end},
+            "https://open-api.bingx.com/openApi/swap/v3/quote/klines",
+            params={"symbol": contract_symbol, "interval": bingx_interval, "limit": 180},
             timeout=10,
         )
         response.raise_for_status()
-        data = response.json().get("data") or {}
-        volumes = data.get("vol") or data.get("volume") or []
-        candles = [
-            {"time": int(timestamp), "open": float(data["open"][index]),
-             "high": float(data["high"][index]), "low": float(data["low"][index]),
-             "close": float(data["close"][index]),
-             "volume": float(volumes[index]) if index < len(volumes) else 0.0}
-            for index, timestamp in enumerate(data.get("time", []))
-        ]
+        payload = response.json()
+        if int(payload.get("code", -1)) != 0:
+            raise ValueError(str(payload.get("msg") or "BingX API error"))
+        candles = []
+        for row in payload.get("data") or []:
+            if isinstance(row, dict):
+                candle = {
+                    "time": int(row["time"]) // 1000,
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": float(row.get("volume") or 0),
+                }
+            elif isinstance(row, list) and len(row) >= 6:
+                candle = {
+                    "time": int(row[0]) // 1000,
+                    "open": float(row[1]),
+                    "high": float(row[2]),
+                    "low": float(row[3]),
+                    "close": float(row[4]),
+                    "volume": float(row[5]),
+                }
+            else:
+                raise ValueError("unexpected BingX candle format")
+            candles.append(candle)
+        candles.sort(key=lambda candle: candle["time"])
+        if not candles:
+            raise ValueError("BingX returned no candles")
         with market_cache_lock:
             market_cache[cache_key] = (time.monotonic(), candles)
             if len(market_cache) > 100:
@@ -793,4 +809,4 @@ def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Heade
                 market_cache.pop(oldest, None)
         return candles
     except (requests.RequestException, ValueError, TypeError, IndexError) as exc:
-        raise HTTPException(502, "MEXC market data unavailable") from exc
+        raise HTTPException(502, "BingX market data unavailable") from exc

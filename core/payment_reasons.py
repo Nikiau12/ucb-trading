@@ -1,5 +1,7 @@
 """Map TronGrid and invoice failures to distinct user-facing copy keys."""
 
+from __future__ import annotations
+
 PAYMENT_REASON_KEYS = {
     "invalid_hash": "payment_invalid_hash",
     "amount_too_low": "payment_amount_low",

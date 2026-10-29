@@ -3,7 +3,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# MEXC API Credentials (Bot 1 - Signals)
+# BingX credentials are used only by explicitly enabled private trading paths.
+# Public scanning and Mini App charts never receive them.
+BINGX_API_KEY = os.getenv("BINGX_API_KEY", "")
+BINGX_API_SECRET = os.getenv("BINGX_API_SECRET", "")
+
+# Deprecated compatibility values for the archived MEXC adapter and its tests.
+# Production entry points do not import or use that adapter anymore.
 MEXC_API_KEY = os.getenv("MEXC_API_KEY", "")
 MEXC_API_SECRET = os.getenv("MEXC_API_SECRET", "")
 
@@ -38,10 +44,14 @@ SMART_SPIKE_MIN_SCORE = int(os.getenv("SMART_SPIKE_MIN_SCORE", "65"))
 SMART_SPIKE_MIN_QUOTE_VOLUME = float(os.getenv("SMART_SPIKE_MIN_QUOTE_VOLUME", "500000"))
 
 # New listing watcher
-MEXC_LISTING_SNAPSHOT_FILE = os.getenv("MEXC_LISTING_SNAPSHOT_FILE", "mexc_markets_snapshot.json")
-MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE = os.getenv("MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE", "mexc_announcements_snapshot.json")
-MEXC_LISTING_CHECK_INTERVAL = int(os.getenv("MEXC_LISTING_CHECK_INTERVAL", "600"))
-MEXC_NEW_LISTINGS_URL = os.getenv("MEXC_NEW_LISTINGS_URL", "https://www.mexc.com/announcements/new-listings")
+BINGX_LISTING_SNAPSHOT_FILE = os.getenv(
+    "BINGX_LISTING_SNAPSHOT_FILE", "bingx_markets_snapshot.json"
+)
+BINGX_ANNOUNCEMENTS_SNAPSHOT_FILE = os.getenv(
+    "BINGX_ANNOUNCEMENTS_SNAPSHOT_FILE", "bingx_announcements_snapshot.json"
+)
+BINGX_LISTING_CHECK_INTERVAL = int(os.getenv("BINGX_LISTING_CHECK_INTERVAL", "600"))
+BINGX_NEW_LISTINGS_URL = os.getenv("BINGX_NEW_LISTINGS_URL", "").strip()
 
 # Payments / access control
 FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
@@ -63,7 +73,7 @@ elif MINI_APP_URL and not MINI_APP_URL.startswith("https://"):
 # SMC Analyzer parameters
 SMC_LOOKBACK_PERIOD = 200 # Candles to look back for structure
 
-# Global Risk Management (For Alerts / MEXC)
+# Global Risk Management (For BingX alerts)
 RISK_PER_TRADE_PERCENT = 1.0 # 1% of total balance per trade
 MAX_OPEN_POSITIONS = 3
 LEVERAGE = 10

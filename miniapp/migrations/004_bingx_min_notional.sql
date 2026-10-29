@@ -1,0 +1,1 @@
+ALTER TABLE signals ADD COLUMN IF NOT EXISTS min_notional NUMERIC;

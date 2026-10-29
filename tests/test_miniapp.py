@@ -85,6 +85,24 @@ def test_personal_signal_sizing_uses_contract_rules_and_exchange_leverage_limit(
     assert payload["sizing"]["tradable"] is True
 
 
+def test_personal_signal_sizing_rejects_bingx_minimum_notional():
+    signal = {
+        "entry": 1.0,
+        "stop": 0.9,
+        "contract_size": 1.0,
+        "vol_unit": 0.1,
+        "min_vol": 0.1,
+        "min_notional": 5.0,
+    }
+    profile = {"deposit": 10.0, "risk_pct": 1.0, "leverage": 10.0}
+
+    payload = miniapp.attach_personal_sizing(signal, profile)
+
+    assert payload["sizing"]["qty"] == 0
+    assert "position_below_min_notional" in payload["sizing"]["errors"]
+    assert payload["sizing"]["tradable"] is False
+
+
 def test_miniapp_imports_from_railway_service_root():
     result = subprocess.run(
         [sys.executable, "-c", "import app"],
@@ -118,6 +136,57 @@ def test_market_endpoint_validates_input_before_external_request(demo_client):
 
     assert bad_symbol.status_code == 422
     assert bad_timeframe.status_code == 422
+
+
+def test_market_endpoint_normalizes_bingx_candles(demo_client, monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "code": 0,
+                "msg": "",
+                "data": [
+                    {"time": 8_000, "open": "2", "high": "3", "low": "1", "close": "2.5", "volume": "5"},
+                    {"time": 4_000, "open": "1", "high": "2", "low": "0.5", "close": "1.5", "volume": "4"},
+                ],
+            }
+
+    captured = {}
+
+    def fake_get(url, params, timeout):
+        captured.update({"url": url, "params": params, "timeout": timeout})
+        return Response()
+
+    monkeypatch.setattr(miniapp.requests, "get", fake_get)
+    with miniapp.market_cache_lock:
+        miniapp.market_cache.clear()
+    response = demo_client.get("/api/market/BTC_USDT?timeframe=4h")
+
+    assert response.status_code == 200
+    assert captured["url"] == "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
+    assert captured["params"] == {"symbol": "BTC-USDT", "interval": "4h", "limit": 180}
+    assert [row["time"] for row in response.json()] == [4, 8]
+
+
+def test_market_endpoint_accepts_bingx_array_candles(demo_client, monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"code": 0, "data": [[8_000, "2", "3", "1", "2.5", "5"]]}
+
+    monkeypatch.setattr(miniapp.requests, "get", lambda *args, **kwargs: Response())
+    with miniapp.market_cache_lock:
+        miniapp.market_cache.clear()
+    response = demo_client.get("/api/market/ETH_USDT?timeframe=1d")
+    assert response.status_code == 200
+    assert response.json()[0] == {
+        "time": 8, "open": 2.0, "high": 3.0, "low": 1.0,
+        "close": 2.5, "volume": 5.0,
+    }
 
 
 def test_telegram_init_data_signature_is_verified(monkeypatch):

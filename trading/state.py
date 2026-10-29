@@ -99,7 +99,10 @@ def _signal_contract_rules(plan: Optional[dict]) -> dict:
     primary = (plan or {}).get("primary") or {}
     return {
         key: primary.get(key)
-        for key in ("price_unit", "contract_size", "vol_unit", "min_vol", "max_vol", "max_leverage")
+        for key in (
+            "price_unit", "contract_size", "vol_unit", "min_vol", "max_vol",
+            "max_leverage", "min_notional",
+        )
     }
 
 
@@ -354,9 +357,10 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                 INSERT INTO signals (
                     symbol, side, confidence, price, entry, stop, tp1, tp2,
                     price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
+                    min_notional,
                     reason, regime, timeframe, source
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (symbol, side.upper(), confidence, plan.get("price"), primary.get("entry"),
@@ -364,6 +368,7 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                  tps[1].get("price") if len(tps) > 1 else None,
                  rules["price_unit"], rules["contract_size"], rules["vol_unit"],
                  rules["min_vol"], rules["max_vol"], rules["max_leverage"],
+                 rules["min_notional"],
                  reason, regime, timeframe, origin),
             ).fetchone()
             connection.commit()

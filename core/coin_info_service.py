@@ -90,7 +90,7 @@ class CoinInfoService:
                 url,
                 headers={
                     "accept": "application/json",
-                    "user-agent": "mexc-signal-bot/1.0",
+                    "user-agent": "ucb-trading-bingx/1.0",
                 },
             )
             with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310

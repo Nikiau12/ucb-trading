@@ -146,8 +146,14 @@ def _build_snapshot_from_precomputed(
     decision_time: int,
     contract_rules: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    end_4h = bisect.bisect_right(bars_4h, decision_time, key=lambda bar: bar.ts + 4 * HOUR_SECONDS)
-    end_1d = bisect.bisect_right(bars_1d, decision_time, key=lambda bar: bar.ts + 24 * HOUR_SECONDS)
+    # Python 3.9 has no ``key`` argument for bisect.  Compare the candle close
+    # timestamps explicitly so local and CI backtests use identical logic.
+    end_4h = bisect.bisect_right(
+        [bar.ts + 4 * HOUR_SECONDS for bar in bars_4h], decision_time
+    )
+    end_1d = bisect.bisect_right(
+        [bar.ts + 24 * HOUR_SECONDS for bar in bars_1d], decision_time
+    )
     closed_1h = bars_1h[max(0, signal_index - 499): signal_index + 1]
     closed_4h = bars_4h[max(0, end_4h - 500):end_4h]
     closed_1d = bars_1d[max(0, end_1d - 400):end_1d]
