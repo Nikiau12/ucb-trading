@@ -63,6 +63,47 @@ def test_demo_profile_and_signal_history_are_available(demo_client):
     assert all(item["sizing"]["risk_usdt"] == pytest.approx(4.0) for item in signals.json())
 
 
+def test_asset_icon_proxy_uses_bingx_cdn_and_browser_cache(demo_client, monkeypatch):
+    calls = []
+    png = b"\x89PNG\r\n\x1a\n" + b"safe-icon"
+
+    class IconResponse:
+        status_code = 200
+        content = png
+        headers = {"Content-Type": "image/png"}
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return IconResponse()
+
+    miniapp._download_bingx_icon.cache_clear()
+    monkeypatch.setattr(miniapp.requests, "get", fake_get)
+
+    response = demo_client.get("/api/asset-icon/SUI")
+
+    assert response.status_code == 200
+    assert response.content == png
+    assert response.headers["content-type"].startswith("image/png")
+    assert "max-age=86400" in response.headers["cache-control"]
+    assert calls[0][0] == "https://static-app.bb-os.com/icon/SUI.png"
+
+
+@pytest.mark.parametrize(
+    ("symbol", "icon_name"),
+    [("1000BONK", "BONK"), ("10000SATS", "SATS"), ("AERO", "aero"), ("PLAYSOUT", "PlaysOut")],
+)
+def test_asset_icon_aliases_match_bingx_catalog(symbol, icon_name):
+    assert miniapp._asset_icon_name(symbol) == icon_name
+
+
+def test_asset_icon_proxy_rejects_hostile_symbols(demo_client):
+    response = demo_client.get("/api/asset-icon/%3Cscript%3E")
+    assert response.status_code == 422
+
+
 def test_personal_signal_sizing_uses_contract_rules_and_exchange_leverage_limit():
     signal = {
         "entry": 100.0,
@@ -351,7 +392,8 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "level-line" not in css
     assert "signal_id" in script
     assert "setHeaderColor?.('#f5f7fb')" in script
-    assert "MainButton" in script
+    assert "MainButton" not in script
+    assert "setupClipboard" not in script
     assert "riskUsdt/distance" not in script
     assert "filterEmpty" in script
     assert "saveFailed" in script

@@ -1,6 +1,13 @@
 # Instrument icon assets
 
-Bundled locally; no third-party requests are made from the browser. These logos identify assets, not affiliation or endorsement. Unknown symbols use initials, never a guessed company logo.
+The most common assets are bundled locally. For every other valid crypto ticker,
+the browser requests a same-origin Mini App endpoint. The server retrieves the
+exact ticker logo from BingX's asset CDN (`static-app.bb-os.com/icon`) and the
+browser caches it for one day. The browser never receives a user-supplied image
+URL. If BingX has not published an image yet, the UI keeps the ticker initials.
+
+These logos identify assets, not affiliation or endorsement. Stock aliases
+remain explicit and are never inferred from an arbitrary crypto ticker.
 
 Sources (CC0-1.0 collections; brand rights remain with their owners):
 
@@ -39,4 +46,6 @@ Sources (CC0-1.0 collections; brand rights remain with their owners):
 - `stock-intel.svg`: https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/intel.svg
 - `stock-amd.svg`: https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/amd.svg
 
-Stock aliases are explicit. Do not infer a company from an arbitrary crypto ticker or strip numeric multipliers generically. Adding logos does not enable equity scanning.
+Current BingX filename exceptions are explicit (`10000NEX`, `10000SATS`,
+`1000BONK`, `1000SHIB`, `AERO`, and `PLAYSOUT`). Adding logos does not enable
+equity scanning.
