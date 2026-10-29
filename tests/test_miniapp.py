@@ -392,7 +392,8 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "level-line" not in css
     assert "signal_id" in script
     assert "setHeaderColor?.('#f5f7fb')" in script
-    assert "MainButton" in script
+    assert "MainButton" not in script
+    assert "setupClipboard" not in script
     assert "riskUsdt/distance" not in script
     assert "filterEmpty" in script
     assert "saveFailed" in script

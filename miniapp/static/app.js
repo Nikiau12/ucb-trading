@@ -316,7 +316,6 @@ function renderHome(){
     }
   }
   if(body)body.hidden=!signal;
-  syncMainButton();
   if(!signal)return;
   overviewSymbol=String(signal.symbol||overviewSymbol).toUpperCase();
   const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
@@ -550,45 +549,6 @@ async function copyPaymentAddress(){
   }
   showToast(tr('copied'));
 }
-async function copyText(text){
-  try{await navigator.clipboard.writeText(text);return}
-  catch(error){
-    const input=document.createElement('textarea');
-    input.value=text;
-    document.body.append(input);
-    input.select();
-    document.execCommand('copy');
-    input.remove();
-  }
-}
-function setupClipboard(signal){
-  const metrics=signalMetrics(signal);
-  const lines=[
-    displaySymbol(signal.symbol),
-    String(signal.side||'').toUpperCase(),
-    `${tr('entry')} ${fmt(signal.entry)}`,
-    `${tr('stop')} ${fmt(signal.stop)}`,
-    `TP1 ${fmt(signal.tp1)}`,
-    `TP2 ${fmt(signal.tp2)}`,
-  ];
-  if(metrics)lines.push(`${tr('positionSize')} ${fmt(metrics.position)} USDT`);
-  return lines.join('\n');
-}
-function syncMainButton(){
-  const button=tg?.MainButton;
-  if(!button)return;
-  if(paywalled()){button.setText(tr('needAccess'));button.show();return;}
-  if(!homeSignal()){button.hide();return;}
-  button.setText(tr('openMexc'));
-  button.show();
-}
-async function onMainButton(){
-  if(paywalled()){await openPayment();return;}
-  const signal=homeSignal();
-  if(!signal)return;
-  await copyText(setupClipboard(signal));
-  showToast(tr('copiedSetup'));
-}
 async function submitPayment(event){
   event.preventDefault();
   const submit=$('#payment-form button[type=submit]');
@@ -608,7 +568,6 @@ async function submitPayment(event){
     showPaymentSuccess(paidUntil);
     profile={...profile,has_paid_access:true,paid_until:paidUntil};
     renderProfile();
-    syncMainButton();
   }catch(error){
     showPaymentError(tr('paymentFailed'));
   }finally{
@@ -636,6 +595,5 @@ $('#refresh').addEventListener('click',async()=>{await load()});
 window.addEventListener('resize',()=>{if(overviewChart)overviewChart.chart.applyOptions({width:overviewChart.container.clientWidth,height:overviewChart.container.clientHeight})});
 tg?.setHeaderColor?.('#f5f7fb');
 tg?.setBackgroundColor?.('#f5f7fb');
-tg?.MainButton?.onClick(onMainButton);
 load();
 setInterval(refreshLiveData,60000);
