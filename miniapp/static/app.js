@@ -9,6 +9,12 @@ const translations = {
   es:{btcChart:'MERCADO DE BITCOIN',majorTrades:'OPERACIONES BTC, ETH Y SOL',waitingSetup:'Esperando un setup 4H/1D',workspace:'ESPACIO PRIVADO',hello:'Hola',marketLive:'BingX EN VIVO',deposit:'Depósito',riskTrade:'Riesgo / operación',leverage:'Apalancamiento',access:'Acceso',cross:'Cruzado',isolated:'Aislado',scanner:'ESCÁNER DE MERCADO',latestSignals:'Últimas señales',viewAll:'Ver todas',signalHistory:'Historial de señales',all:'Todas',riskProfile:'PERFIL DE RIESGO',settings:'Ajustes',depositUsdt:'Depósito, USDT',riskPercent:'Riesgo por operación, %',leverageX:'Apalancamiento',marginMode:'Modo de margen',saveSettings:'Guardar',subscription:'SUSCRIPCIÓN',monthlyAccess:'Acceso mensual',subscriptionCopy:'Señales automáticas, escáner y planes completos.',paymentInstructions:'Instrucciones de pago',overview:'Resumen',signals:'Señales',trial:'Prueba',signalsLeft:'señales restantes',active:'Activo',inactive:'Inactivo',entry:'Entrada',stop:'Stop',confidence:'Confianza',saved:'Ajustes guardados',paymentHelp:'Abriendo las instrucciones de pago en el bot...',paymentUnavailable:'No se pudo abrir el bot. Cierra la aplicación y envía /subscribe.',noSignals:'Aún no hay señales',noSetupFor:'No hay setup para {symbol}.',currentPrice:'Precio actual',tp1:'TP1',tp2:'TP2',positionSize:'Tamaño de posición',marginRequired:'Margen necesario',stopRisk:'Riesgo al stop',backToSignals:'Volver a señales',tradeSetup:'CONFIGURACIÓN',livePrice:'PRECIO EN VIVO',signalLevels:'NIVELES DE SEÑAL',executionPlan:'Plan de ejecución',personalSizing:'TAMAÑO PERSONAL',positionPlan:'Plan de posición',trialComplete:'Prueba finalizada',trialCompleteCopy:'Has usado 5 señales gratis. Suscríbete para seguir recibiendo nuevos setups.',unlockSignals:'Desbloquear señales',marketOffline:'BingX SIN CONEXIÓN',bullish:'ALCISTA',bearish:'BAJISTA',marketView:'VISTA DEL MERCADO',legendEntry:'Entrada',legendStop:'Stop',legendTargets:'TP1 / TP2',trendLabel:'TENDENCIA',setupLabel:'SETUP',timeframeLabel:'MARCO TEMPORAL',requestPlan:'Pedir un plan',payExact:'Importe exacto',copyAddress:'Copiar',txHash:'Hash de la transacción',submitHash:'Enviar hash',paymentFailed:'El pago no se confirmó. Revisa el hash e inténtalo de nuevo.',retryPayment:'Reintentar',accessOpen:'Acceso abierto',accessOpenCopy:'El acceso está abierto en esta pantalla.',listing:'Listing',copied:'Dirección copiada',filterEmpty:'No hay señales {side} en este filtro.',saveFailed:'No se pudieron guardar los ajustes.',settingsAccessCopy:'El acceso está abierto. No hace falta pagar otra vez.',levCapped:'El apalancamiento se redujo al máximo de BingX para este mercado.',minContract:'El contrato mínimo BingX es demasiado grande para este riesgo. No abras la operación.',sizeDisclaimer:'El bot calcula el tamaño. La orden la pones tú.',regimeLabel:'Régimen',network:'Red',flat:'Plano',regimeTrend:'Tendencia',regimeRange:'Rango',needAccess:'Hace falta acceso',openMexc:'Copiar el setup',copiedSetup:'Setup copiado',confidenceNote:'Estimación de reglas, no una probabilidad.',tf1d:'Tendencia 1D',tf4h:'Tendencia 4H',tfStruct:'Estructura 4H',languageLabel:'Idioma',paymentWaiting:'Esperando la comprobación',paymentMismatch:'No coincidió.',accessOpenUntil:'Acceso abierto hasta {date}.',scannerSilent:'El escáner estuvo en silencio.',lastScan:'Último escaneo {time}.',scanNever:'aún no',ageMinute:'min',ageHour:'h',ageDay:'d'}
 };
 
+Object.assign(translations.en,{tradeNumber:'Trade',signalFrom:'Signal from',statusReplaying:'Restoring history',statusWaiting:'Waiting for entry',statusActive:'Trade active',statusTp1:'TP1 reached',statusTp2:'TP2 reached',statusStopped:'Stopped',statusExpired:'Expired',actionNow:'ACTION NOW',takeHalf:'Take profit on 50% of the position',moveBreakeven:'Move the Stop on the remainder to break-even',beReference:'Break-even reference',actualEntryNote:'If your actual fill differed, use your own entry price.'});
+Object.assign(translations.ru,{tradeNumber:'Сделка',signalFrom:'Сигнал от',statusReplaying:'Восстанавливаем историю',statusWaiting:'Ожидает входа',statusActive:'Сделка активна',statusTp1:'TP1 достигнут',statusTp2:'TP2 достигнут',statusStopped:'Закрыта по Stop',statusExpired:'Сигнал истёк',actionNow:'ДЕЙСТВИЕ СЕЙЧАС',takeHalf:'Зафиксируйте 50% позиции',moveBreakeven:'Перенесите Stop оставшейся позиции в безубыток',beReference:'Ориентир БУ',actualEntryNote:'Если ваша фактическая цена входа отличалась, используйте свою цену.'});
+Object.assign(translations.de,{tradeNumber:'Trade',signalFrom:'Signal vom',statusReplaying:'Verlauf wird rekonstruiert',statusWaiting:'Wartet auf Einstieg',statusActive:'Trade aktiv',statusTp1:'TP1 erreicht',statusTp2:'TP2 erreicht',statusStopped:'Am Stop beendet',statusExpired:'Abgelaufen',actionNow:'JETZT HANDELN',takeHalf:'50% der Position sichern',moveBreakeven:'Stop der Restposition auf Einstand setzen',beReference:'Einstand-Referenz',actualEntryNote:'Bei abweichender Ausführung den eigenen Einstieg verwenden.'});
+Object.assign(translations.fr,{tradeNumber:'Trade',signalFrom:'Signal du',statusReplaying:'Historique en cours',statusWaiting:'En attente d’entrée',statusActive:'Trade actif',statusTp1:'TP1 atteint',statusTp2:'TP2 atteint',statusStopped:'Clôturé au Stop',statusExpired:'Expiré',actionNow:'ACTION MAINTENANT',takeHalf:'Prenez vos bénéfices sur 50% de la position',moveBreakeven:'Déplacez le Stop du solde au seuil de rentabilité',beReference:'Référence du seuil',actualEntryNote:'Si votre exécution diffère, utilisez votre prix d’entrée réel.'});
+Object.assign(translations.es,{tradeNumber:'Operación',signalFrom:'Señal del',statusReplaying:'Restaurando historial',statusWaiting:'Esperando entrada',statusActive:'Operación activa',statusTp1:'TP1 alcanzado',statusTp2:'TP2 alcanzado',statusStopped:'Cerrada por Stop',statusExpired:'Expirada',actionNow:'ACCIÓN AHORA',takeHalf:'Asegura el 50% de la posición',moveBreakeven:'Mueve el Stop del resto al punto de equilibrio',beReference:'Referencia de equilibrio',actualEntryNote:'Si tu ejecución fue distinta, usa tu precio de entrada real.'});
+
 const taglines={
   en:'Setups, risk and execution — one screen.',
   ru:'Сетапы и риск — на одном экране.',
@@ -139,6 +145,18 @@ function signalAge(signal){
   return `${Math.round(hours/24)}${tr('ageDay')}`;
 }
 
+function signalDate(signal){
+  const value=new Date(signal?.created_at);
+  if(!Number.isFinite(value.valueOf()))return '—';
+  return `${value.toLocaleString(language,{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})} UTC`;
+}
+
+function signalStatus(signal){
+  const status=String(signal?.trade_status||'untracked');
+  const keys={replay_pending:'statusReplaying',waiting_entry:'statusWaiting',active:'statusActive',tp1_reached:'statusTp1',tp2_reached:'statusTp2',stopped:'statusStopped',expired:'statusExpired'};
+  return{status,label:keys[status]?tr(keys[status]):''};
+}
+
 function lastScanLine(){
   const raw=profile?.last_scan_at;
   const time=raw?new Date(raw).toLocaleString(language):tr('scanNever');
@@ -149,7 +167,8 @@ function signalCard(signal){
   const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
   const symbol=escapeHtml(displaySymbol(signal.symbol));
-  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><strong>${symbol}</strong></span><span class="side ${side.toLowerCase()}">${side}</span><b>${escapeHtml(rewardRisk(signal))}</b><small>${escapeHtml(signalAge(signal))}</small></button>`;
+  const state=signalStatus(signal);
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span><span class="side ${side.toLowerCase()}">${side}</span><b>${escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${escapeHtml(state.label||signalAge(signal))}</small></button>`;
 }
 
 function emptySignals(filterOnly){
@@ -379,6 +398,8 @@ function renderHome(){
   if(priceNode)priceNode.textContent=signal.price==null?'—':`${fmt(signal.price)} USDT`;
   const confidence=$('#plan-confidence');
   if(confidence)confidence.textContent=`${tr('confidence')} ${confidenceLabel(signal)} · ${tr('confidenceNote')}`;
+  const reference=$('#plan-reference');
+  if(reference)reference.textContent=`${tr('tradeNumber')} #${Number(signal.id)} · ${tr('signalFrom')} ${signalDate(signal)}`;
   const headingCoin=$('#plan-heading-coin');
   if(headingCoin){headingCoin.innerHTML=coinIconMarkup(signal.symbol,signal.asset_type);hydrateCoinIcons(headingCoin);}
   const sizing=signal.sizing||{};
@@ -407,6 +428,17 @@ function renderHome(){
   }
   const reason=$('#plan-reason');
   if(reason)reason.textContent=reasonLine(signal);
+  const action=$('#plan-action');
+  const state=signalStatus(signal);
+  if(action){
+    action.hidden=state.status!=='tp1_reached';
+    const status=$('#plan-action-status');
+    const steps=$('#plan-action-steps');
+    const note=$('#plan-action-note');
+    if(status)status.textContent=state.label;
+    if(steps)steps.innerHTML=`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`;
+    if(note)note.textContent=tr('actualEntryNote');
+  }
 }
 async function loadHomeChart(){
   const frame=$('#chart-frame');

@@ -22,6 +22,8 @@ body.home-light{
 .home-light .side.long{background:#e6f5ef}.home-light .side.short{background:#fcebef}
 .home-light .plan-price{font:600 clamp(27px,7.7vw,42px)/1.15 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.045em;overflow-wrap:anywhere}
 .home-light .plan-confidence{max-width:440px;font-size:12px;line-height:1.65;color:var(--muted)}
+.home-light .plan-reference{font-size:12px;color:var(--muted)}
+.home-light .trade-action{margin:0 0 26px;padding:20px;border:1px solid #cde9de;border-radius:18px;background:#eaf8f2}.home-light .trade-action>p{color:var(--green);font-size:10px;font-weight:600}.home-light .trade-action h2{font-size:22px;font-weight:600;letter-spacing:-.03em}.home-light .trade-action li{font-size:13px}.home-light .trade-action small{font-size:11px}
 .home-light .chart-section{border:1px solid #e7ebf2;box-shadow:0 6px 20px #25396004;border-radius:20px;margin-bottom:26px}
 .home-light .home-btc-chart{margin-top:4px}
 .home-light .section-toolbar{padding:16px;border:0;gap:16px}
@@ -98,6 +100,7 @@ body.home-light{
 .home-light .signal-row strong{font:600 16px var(--sans);letter-spacing:-.025em}
 .home-light .signal-row b{font:600 14px var(--sans);font-variant-numeric:tabular-nums;color:var(--text)}
 .home-light .signal-row small{font-size:12px;font-variant-numeric:tabular-nums}
+.home-light .signal-row .instrument-copy small{font-size:10px;color:var(--muted);font-weight:500}.home-light .signal-row .trade-state{font-size:11px;font-weight:600;background:#f2f5f9;color:var(--muted)}.home-light .signal-row .trade-state.active,.home-light .signal-row .trade-state.tp1_reached,.home-light .signal-row .trade-state.tp2_reached{background:#e8f6f1;color:var(--green)}.home-light .signal-row .trade-state.stopped{background:#fcecef;color:var(--red)}
 .home-light .signal-list .empty-state{margin-top:0}
 @media(hover:hover){.home-light .signal-row:hover{border-color:#c7d5f8;background:#fcfdff}}
 

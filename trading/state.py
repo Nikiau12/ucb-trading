@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 logger = logging.getLogger("ucb.state")
@@ -12,6 +13,11 @@ try:
     from .trade_plan import plan_payload_errors
 except ImportError:
     from trade_plan import plan_payload_errors
+
+try:
+    from .signal_updates import advance_lifecycle, replay_lifecycle
+except ImportError:
+    from signal_updates import advance_lifecycle, replay_lifecycle
 
 try:
     import psycopg
@@ -23,6 +29,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 SIGNAL_DEDUP_COOLDOWN_SECS = int(float(os.getenv("SIGNAL_DEDUP_HOURS", "4")) * 3600)
 SIGNAL_HARD_COOLDOWN_SECS = int(float(os.getenv("SIGNAL_HARD_COOLDOWN_MINUTES", "30")) * 60)
 SIGNAL_LEVEL_TOLERANCE = float(os.getenv("SIGNAL_LEVEL_TOLERANCE_PCT", "1.5")) / 100
+SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS = max(
+    1, int(os.getenv("SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS", "48"))
+)
 
 
 def normalize_usdt_symbol(symbol: str) -> Optional[str]:
@@ -104,6 +113,21 @@ def _signal_contract_rules(plan: Optional[dict]) -> dict:
             "max_leverage", "min_notional",
         )
     }
+
+
+def _signal_lifecycle_durations(plan: Optional[dict]) -> tuple[int, int]:
+    """Return entry-validity and maximum-holding durations in seconds."""
+    primary = (plan or {}).get("primary") or {}
+    try:
+        entry_bars = max(1, int(primary.get("entry_expiry_bars") or 3))
+    except (TypeError, ValueError):
+        entry_bars = 3
+    try:
+        holding_bars = max(1, int(primary.get("max_holding_bars") or 84))
+    except (TypeError, ValueError):
+        holding_bars = 84
+    four_hours = 4 * 60 * 60
+    return entry_bars * four_hours, holding_bars * four_hours
 
 
 def _levels_are_similar(previous: dict, current: dict) -> bool:
@@ -348,6 +372,7 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
     primary = plan.get("primary") or {}
     tps = primary.get("tps") or []
     rules = _signal_contract_rules(plan)
+    entry_expiry_seconds, max_holding_seconds = _signal_lifecycle_durations(plan)
     reason, regime, timeframe = signal_context(plan)
     origin = source if source in {"scanner", "manual"} else "manual"
     try:
@@ -371,6 +396,20 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                  rules["min_notional"],
                  reason, regime, timeframe, origin),
             ).fetchone()
+            if row:
+                connection.execute(
+                    """
+                    INSERT INTO signal_lifecycle (
+                        signal_id, status, entry_expires_at, max_holding_seconds
+                    )
+                    VALUES (
+                        %s, 'waiting_entry',
+                        NOW() + (%s * INTERVAL '1 second'), %s
+                    )
+                    ON CONFLICT (signal_id) DO NOTHING
+                    """,
+                    (row[0], entry_expiry_seconds, max_holding_seconds),
+                )
             connection.commit()
             return row[0] if row else None
     except Exception as exc:
@@ -438,9 +477,298 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
                 """,
                 (user_id, signal_id),
             )
+            # A very fast market can reach TP1 while the original Telegram
+            # message is still being delivered. Backfill that recipient's
+            # update atomically so the race cannot lose the BE instruction.
+            connection.execute(
+                """
+                INSERT INTO signal_update_deliveries (
+                    signal_id, telegram_user_id, event_type
+                )
+                SELECT %s, %s, 'tp1_reached'
+                FROM signal_lifecycle
+                WHERE signal_id = %s AND status = 'tp1_reached'
+                ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                """,
+                (signal_id, user_id, signal_id),
+            )
             connection.commit()
     except Exception as exc:
         logger.warning("signal access write failed: %s", type(exc).__name__)
+
+
+def load_trackable_signals(limit: int = 200) -> list[dict]:
+    """Load signals whose entry, TP1, or TP2 still needs public-price tracking."""
+    if not _db_ready():
+        return []
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            rows = connection.execute(
+                """
+                SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
+                       s.created_at, s.price_unit, l.status, l.entry_expires_at,
+                       l.holding_expires_at, l.max_holding_seconds
+                FROM signal_lifecycle l
+                JOIN signals s ON s.id = l.signal_id
+                WHERE l.status IN ('replay_pending', 'waiting_entry', 'active', 'tp1_reached')
+                  AND s.source IN ('scanner', 'manual')
+                ORDER BY s.created_at ASC
+                LIMIT %s
+                """,
+                (max(1, min(int(limit), 1000)),),
+            ).fetchall()
+        keys = (
+            "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
+            "created_at", "price_unit", "status", "entry_expires_at",
+            "holding_expires_at", "max_holding_seconds",
+        )
+        return [dict(zip(keys, row)) for row in rows]
+    except Exception as exc:
+        logger.warning("signal lifecycle read failed: %s", type(exc).__name__)
+        return []
+
+
+def update_signal_lifecycle(
+    signal_id: int,
+    price=None,
+    *,
+    checked_at: Optional[datetime] = None,
+) -> Optional[dict]:
+    """Atomically advance one signal and enqueue a TP1 update for its recipients."""
+    if not _db_ready() or not signal_id:
+        return None
+    now = checked_at or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            row = connection.execute(
+                """
+                SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
+                       s.created_at, s.price_unit, l.status, l.entry_expires_at,
+                       l.holding_expires_at, l.max_holding_seconds, l.entry_hit_at,
+                       l.tp1_hit_at, l.tp2_hit_at, l.stop_hit_at, l.expired_at
+                FROM signal_lifecycle l
+                JOIN signals s ON s.id = l.signal_id
+                WHERE s.id = %s
+                FOR UPDATE OF l
+                """,
+                (int(signal_id),),
+            ).fetchone()
+            if not row:
+                return None
+            keys = (
+                "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
+                "created_at", "price_unit", "status", "entry_expires_at",
+                "holding_expires_at", "max_holding_seconds", "entry_hit_at",
+                "tp1_hit_at", "tp2_hit_at", "stop_hit_at", "expired_at",
+            )
+            signal = dict(zip(keys, row))
+            outcome = advance_lifecycle(signal, price, now)
+            events = set(outcome["events"])
+            if "entry_reached" in events and signal["entry_hit_at"] is None:
+                signal["entry_hit_at"] = now
+                signal["holding_expires_at"] = now + timedelta(
+                    seconds=int(signal["max_holding_seconds"] or 0)
+                )
+            if "tp1_reached" in events and signal["tp1_hit_at"] is None:
+                signal["tp1_hit_at"] = now
+            if "tp2_reached" in events and signal["tp2_hit_at"] is None:
+                signal["tp2_hit_at"] = now
+            if "stop_reached" in events and signal["stop_hit_at"] is None:
+                signal["stop_hit_at"] = now
+            if "expired" in events and signal["expired_at"] is None:
+                signal["expired_at"] = now
+            connection.execute(
+                """
+                UPDATE signal_lifecycle
+                SET status = %s, holding_expires_at = %s, entry_hit_at = %s,
+                    tp1_hit_at = %s, tp2_hit_at = %s, stop_hit_at = %s,
+                    expired_at = %s, last_price = COALESCE(%s, last_price),
+                    last_checked_at = %s, updated_at = NOW()
+                WHERE signal_id = %s
+                """,
+                (
+                    outcome["status"], signal["holding_expires_at"],
+                    signal["entry_hit_at"], signal["tp1_hit_at"],
+                    signal["tp2_hit_at"], signal["stop_hit_at"],
+                    signal["expired_at"], price, now, int(signal_id),
+                ),
+            )
+            if outcome["status"] == "tp1_reached" and "tp1_reached" in events:
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'tp1_reached'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
+            if outcome["status"] in {"tp2_reached", "stopped", "expired"}:
+                # Never deliver a delayed BE instruction after the trade has
+                # already reached a terminal state.
+                connection.execute(
+                    """
+                    UPDATE signal_update_deliveries
+                    SET status = 'sent', sent_at = COALESCE(sent_at, NOW()),
+                        last_error = 'cancelled_after_terminal_state'
+                    WHERE signal_id = %s AND event_type = 'tp1_reached'
+                      AND status IN ('pending', 'failed')
+                    """,
+                    (int(signal_id),),
+                )
+            connection.commit()
+            return {**signal, "status": outcome["status"], "events": list(outcome["events"])}
+    except Exception as exc:
+        logger.warning("signal lifecycle update failed id=%s: %s", signal_id, type(exc).__name__)
+        return None
+
+
+def replay_signal_lifecycle(
+    signal_id: int,
+    candles: list[dict],
+    *,
+    checked_at: Optional[datetime] = None,
+) -> Optional[dict]:
+    """Rebuild one recent pre-migration signal and persist its true state."""
+    if not _db_ready() or not signal_id:
+        return None
+    now = checked_at or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            row = connection.execute(
+                """
+                SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
+                       s.created_at, s.price_unit, l.status, l.entry_expires_at,
+                       l.holding_expires_at, l.max_holding_seconds
+                FROM signal_lifecycle l
+                JOIN signals s ON s.id = l.signal_id
+                WHERE s.id = %s AND l.status = 'replay_pending'
+                FOR UPDATE OF l
+                """,
+                (int(signal_id),),
+            ).fetchone()
+            if not row:
+                return None
+            keys = (
+                "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
+                "created_at", "price_unit", "status", "entry_expires_at",
+                "holding_expires_at", "max_holding_seconds",
+            )
+            signal = dict(zip(keys, row))
+            restored = replay_lifecycle(signal, candles, now)
+            connection.execute(
+                """
+                UPDATE signal_lifecycle
+                SET status = %s, holding_expires_at = %s, entry_hit_at = %s,
+                    tp1_hit_at = %s, tp2_hit_at = %s, stop_hit_at = %s,
+                    expired_at = %s, last_checked_at = %s, updated_at = NOW()
+                WHERE signal_id = %s AND status = 'replay_pending'
+                """,
+                (
+                    restored["status"], restored.get("holding_expires_at"),
+                    restored.get("entry_hit_at"), restored.get("tp1_hit_at"),
+                    restored.get("tp2_hit_at"), restored.get("stop_hit_at"),
+                    restored.get("expired_at"), now, int(signal_id),
+                ),
+            )
+            tp1_hit_at = restored.get("tp1_hit_at")
+            recent_tp1 = bool(
+                restored["status"] == "tp1_reached"
+                and tp1_hit_at
+                and now - tp1_hit_at
+                <= timedelta(hours=SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS)
+            )
+            if recent_tp1:
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'tp1_reached'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
+            connection.commit()
+            return {**signal, **restored, "replayed": True, "tp1_update_queued": recent_tp1}
+    except Exception as exc:
+        logger.warning("signal lifecycle replay failed id=%s: %s", signal_id, type(exc).__name__)
+        return None
+
+
+def load_pending_signal_updates(limit: int = 100) -> list[dict]:
+    if not _db_ready():
+        return []
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            rows = connection.execute(
+                """
+                SELECT d.signal_id, d.telegram_user_id, d.event_type, d.attempts,
+                       s.symbol, s.side, s.entry, s.tp1, s.created_at, s.price_unit
+                FROM signal_update_deliveries d
+                JOIN signals s ON s.id = d.signal_id
+                WHERE d.status IN ('pending', 'failed')
+                  AND d.attempts < 5
+                  AND d.next_attempt_at <= NOW()
+                ORDER BY d.created_at ASC
+                LIMIT %s
+                """,
+                (max(1, min(int(limit), 500)),),
+            ).fetchall()
+        keys = (
+            "id", "telegram_user_id", "event_type", "attempts", "symbol",
+            "side", "entry", "tp1", "created_at", "price_unit",
+        )
+        return [dict(zip(keys, row)) for row in rows]
+    except Exception as exc:
+        logger.warning("signal update delivery read failed: %s", type(exc).__name__)
+        return []
+
+
+def mark_signal_update_delivery(
+    signal_id: int,
+    telegram_user_id: int,
+    event_type: str,
+    *,
+    sent: bool,
+    error: str = "",
+    retry_seconds: int = 60,
+) -> None:
+    if not _db_ready():
+        return
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            connection.execute(
+                """
+                UPDATE signal_update_deliveries
+                SET status = %s, attempts = attempts + 1,
+                    sent_at = CASE WHEN %s THEN NOW() ELSE sent_at END,
+                    last_error = %s,
+                    next_attempt_at = CASE
+                        WHEN %s THEN next_attempt_at
+                        ELSE NOW() + (%s * INTERVAL '1 second')
+                    END
+                WHERE signal_id = %s AND telegram_user_id = %s AND event_type = %s
+                """,
+                (
+                    "sent" if sent else "failed", sent,
+                    None if sent else str(error or "delivery_failed")[:200], sent,
+                    max(10, min(int(retry_seconds), 3600)), int(signal_id),
+                    int(telegram_user_id), str(event_type),
+                ),
+            )
+            connection.commit()
+    except Exception as exc:
+        logger.warning("signal update delivery write failed: %s", type(exc).__name__)
 
 
 def should_persist_sent_marker(delivered_count: int) -> bool:

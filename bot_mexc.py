@@ -73,6 +73,7 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
+from signal_updates import render_tp1_update, signal_identity_footer
 from setup_text import no_setup_query, render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
@@ -101,6 +102,9 @@ SETUP_COOLDOWN = 8 * 3600
 SCAN_REFERENCE_DEPOSIT = 1000.0
 MAJOR_SCAN_SYMBOLS = ["BTC_USDT", "ETH_USDT", "SOL_USDT"]
 MAJOR_SCAN_MIN_CONFIDENCE = float(os.getenv("MAJOR_SCAN_MIN_CONFIDENCE", "0.50"))
+SIGNAL_TRACKER_INTERVAL_SECONDS = max(
+    5, int(os.getenv("SIGNAL_TRACKER_INTERVAL_SECONDS", "15"))
+)
 
 
 class DepositSetup(StatesGroup):
@@ -341,6 +345,14 @@ def _open_setup_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup | None:
     ]])
 
 
+def _with_signal_identity(text: str, signal_id, symbol: str, side: str, lang: str) -> str:
+    if not signal_id:
+        return text
+    return text + "\n\n" + signal_identity_footer(
+        int(signal_id), symbol, side, lang=lang,
+    )
+
+
 def _alert_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup:
     row = []
     if MINI_APP_URL and signal_id:
@@ -573,6 +585,7 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
     signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
     if signal_id:
         st.grant_signal_access(message.from_user.id, signal_id)
+        text = _with_signal_identity(text, signal_id, symbol, side, lang)
     await message.reply(
         text,
         parse_mode="HTML",
@@ -995,6 +1008,7 @@ async def cmd_plan(message: types.Message):
             signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
             if signal_id:
                 st.grant_signal_access(uid, signal_id)
+                text = _with_signal_identity(text, signal_id, symbol, side, lang)
             markup = _open_setup_keyboard(signal_id, lang)
         await status_msg.edit_text(
             text,
@@ -1211,6 +1225,9 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
             signal_id = st.save_signal(plan, plan.get("symbol", ""), side, _conf(plan), source="manual")
             if signal_id and user_id:
                 st.grant_signal_access(user_id, signal_id)
+                card = _with_signal_identity(
+                    card, signal_id, plan.get("symbol", ""), side, lang,
+                )
             await bot_instance.send_message(
                 chat_id=chat_id,
                 text=card,
@@ -1654,6 +1671,9 @@ async def plan_scanner_loop():
                                 lang=get_lang(user_id),
                                 uses_reference_deposit=uses_reference,
                             )
+                            alert = _with_signal_identity(
+                                alert, signal_id, symbol, side, get_lang(user_id),
+                            )
                             if await notifier.send_message_to_user(
                                 chat_id,
                                 alert,
@@ -1694,6 +1714,134 @@ async def plan_scanner_loop():
             logger.warning("plan_scanner_loop error: %s", type(exc).__name__)
 
         await asyncio.sleep(60)
+
+
+def _public_signal_prices() -> dict[str, float]:
+    prices: dict[str, float] = {}
+    for item in snap.futures_all_tickers().get("data", []):
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").upper()
+        try:
+            price = float(item.get("lastPrice") or item.get("price"))
+        except (TypeError, ValueError):
+            continue
+        if symbol and price > 0:
+            prices[symbol] = price
+    return prices
+
+
+def _public_signal_candles(symbol: str) -> list[dict]:
+    """Load enough closed-market history to restore one recent signal."""
+    payload = snap.futures_kline(symbol, "1h", 400)
+    rows = payload.get("data", []) if isinstance(payload, dict) else []
+    return rows if isinstance(rows, list) else []
+
+
+async def signal_lifecycle_loop():
+    """Track public BingX prices and send one TP1/BE update per recipient."""
+    while True:
+        started_at = time.monotonic()
+        try:
+            loop = asyncio.get_running_loop()
+            trackable = await loop.run_in_executor(None, st.load_trackable_signals)
+            replay_pending = [
+                signal for signal in trackable
+                if signal.get("status") == "replay_pending"
+            ][:20]
+            live = [
+                signal for signal in trackable
+                if signal.get("status") != "replay_pending"
+            ]
+            prices = {}
+            if trackable:
+                prices = await loop.run_in_executor(None, _public_signal_prices)
+            replayed = 0
+            transitioned = 0
+            candle_cache: dict[str, list[dict]] = {}
+            for signal in replay_pending:
+                symbol = str(signal.get("symbol") or "").upper()
+                if symbol not in candle_cache:
+                    candle_cache[symbol] = await loop.run_in_executor(
+                        None, _public_signal_candles, symbol,
+                    )
+                result = await loop.run_in_executor(
+                    None,
+                    st.replay_signal_lifecycle,
+                    int(signal["id"]),
+                    candle_cache[symbol],
+                )
+                replayed += int(bool(result))
+                if result and result.get("status") in {"active", "tp1_reached"}:
+                    current = await loop.run_in_executor(
+                        None,
+                        st.update_signal_lifecycle,
+                        int(signal["id"]),
+                        prices.get(symbol),
+                    )
+                    if current and current.get("events"):
+                        transitioned += 1
+
+            for signal in live:
+                result = await loop.run_in_executor(
+                    None,
+                    st.update_signal_lifecycle,
+                    int(signal["id"]),
+                    prices.get(str(signal.get("symbol") or "").upper()),
+                )
+                if result and result.get("events"):
+                    transitioned += 1
+
+            deliveries = await loop.run_in_executor(None, st.load_pending_signal_updates)
+            delivered = 0
+            for update in deliveries:
+                user_id = int(update["telegram_user_id"])
+                lang = get_lang(user_id)
+                text = render_tp1_update(update, lang=lang)
+                sent = await notifier.send_message_to_user(
+                    str(user_id),
+                    text,
+                    gated=False,
+                    reply_markup=_open_setup_keyboard(update["id"], lang),
+                )
+                retry_seconds = min(900, 30 * (2 ** int(update.get("attempts") or 0)))
+                await loop.run_in_executor(
+                    None,
+                    lambda item=update, ok=sent, delay=retry_seconds: st.mark_signal_update_delivery(
+                        item["id"],
+                        item["telegram_user_id"],
+                        item["event_type"],
+                        sent=ok,
+                        error="telegram_delivery_failed" if not ok else "",
+                        retry_seconds=delay,
+                    ),
+                )
+                delivered += int(bool(sent))
+
+            st.record_runtime_health(
+                "signal_lifecycle",
+                success=True,
+                duration_seconds=time.monotonic() - started_at,
+                details={
+                    "trackable": len(trackable),
+                    "replay_pending": len(replay_pending),
+                    "replayed": replayed,
+                    "transitioned": transitioned,
+                    "pending_updates": len(deliveries),
+                    "delivered": delivered,
+                },
+            )
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            st.record_runtime_health(
+                "signal_lifecycle",
+                success=False,
+                duration_seconds=time.monotonic() - started_at,
+                details={"error": type(exc).__name__},
+            )
+            logger.warning("signal_lifecycle_loop error: %s", type(exc).__name__)
+        await asyncio.sleep(SIGNAL_TRACKER_INTERVAL_SECONDS)
 
 
 async def listing_watcher_loop():
@@ -1772,10 +1920,11 @@ async def main():
     t1 = asyncio.create_task(market_scanner_loop())
     t2 = asyncio.create_task(plan_scanner_loop())
     t3 = asyncio.create_task(listing_watcher_loop())
+    t4 = asyncio.create_task(signal_lifecycle_loop())
     try:
         await dp.start_polling(bot_instance)
     finally:
-        t1.cancel(); t2.cancel(); t3.cancel()
+        t1.cancel(); t2.cancel(); t3.cancel(); t4.cancel()
         await exchange.close()
         await notifier.close()
         if lock is not None:

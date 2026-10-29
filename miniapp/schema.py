@@ -38,6 +38,9 @@ def apply_migrations(database_url: str) -> None:
     import psycopg
 
     with psycopg.connect(database_url) as connection:
+        # The bot worker and Mini App can start from the same Railway commit.
+        # Serialize migrations so both services cannot apply one version at once.
+        connection.execute("SELECT pg_advisory_xact_lock(%s)", (7424246202608235,))
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS schema_migrations (

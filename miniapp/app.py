@@ -756,9 +756,9 @@ def signals(x_telegram_init_data: str = Header(default="")):
     if not DATABASE_URL:
         profile = demo_profile(user)
         return [attach_personal_sizing(signal, profile) for signal in [
-            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z", "source": "scanner", "reason": "trend_1d=up · trend_4h=up · regime=trend", "regime": "1d=up;4h=up;regime=trend", "timeframe": "4h"},
-            {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z", "source": "scanner", "reason": "trend_1d=down · trend_4h=down · regime=trend", "regime": "1d=down;4h=down;regime=trend", "timeframe": "4h"},
-            {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z", "source": "scanner", "reason": "trend_1d=up · trend_4h=flat · regime=range", "regime": "1d=up;4h=flat;regime=range", "timeframe": "4h"},
+            {"id": 3, "symbol": "BTC_USDT", "side": "LONG", "confidence": 0.78, "price": 64120, "entry": 64000, "stop": 62800, "tp1": 65500, "tp2": 67000, "created_at": "2026-06-22T08:25:00Z", "source": "scanner", "reason": "trend_1d=up · trend_4h=up · regime=trend", "regime": "1d=up;4h=up;regime=trend", "timeframe": "4h", "trade_status": "tp1_reached", "entry_hit_at": "2026-06-22T08:40:00Z", "tp1_hit_at": "2026-06-22T12:10:00Z", "tp2_hit_at": None, "stop_hit_at": None, "expired_at": None, "last_price": 65710},
+            {"id": 2, "symbol": "SOL_USDT", "side": "SHORT", "confidence": 0.69, "price": 147.9, "entry": 148.2, "stop": 152.6, "tp1": 141.5, "tp2": 136.8, "created_at": "2026-06-22T07:05:00Z", "source": "scanner", "reason": "trend_1d=down · trend_4h=down · regime=trend", "regime": "1d=down;4h=down;regime=trend", "timeframe": "4h", "trade_status": "active", "entry_hit_at": "2026-06-22T07:25:00Z", "tp1_hit_at": None, "tp2_hit_at": None, "stop_hit_at": None, "expired_at": None, "last_price": 145.4},
+            {"id": 1, "symbol": "ETH_USDT", "side": "LONG", "confidence": 0.66, "price": 3551, "entry": 3540, "stop": 3448, "tp1": 3695, "tp2": 3820, "created_at": "2026-06-22T05:05:00Z", "source": "scanner", "reason": "trend_1d=up · trend_4h=flat · regime=range", "regime": "1d=up;4h=flat;regime=range", "timeframe": "4h", "trade_status": "waiting_entry", "entry_hit_at": None, "tp1_hit_at": None, "tp2_hit_at": None, "stop_hit_at": None, "expired_at": None, "last_price": 3551},
         ]]
     user_id = int(user["id"])
     with db() as connection, connection.cursor() as cursor:
@@ -784,6 +784,30 @@ def signals(x_telegram_init_data: str = Header(default="")):
         else:
             cursor.execute(TRIAL_SIGNALS_SQL, (user_id, FREE_TRIAL_SIGNALS))
         rows = cursor.fetchall()
+        lifecycle_by_id = {}
+        signal_ids = [int(row[0]) for row in rows]
+        if signal_ids:
+            cursor.execute(
+                """
+                SELECT signal_id, status, entry_hit_at, tp1_hit_at, tp2_hit_at,
+                       stop_hit_at, expired_at, last_price
+                FROM signal_lifecycle
+                WHERE signal_id = ANY(%s)
+                """,
+                (signal_ids,),
+            )
+            lifecycle_by_id = {
+                int(item[0]): {
+                    "trade_status": item[1],
+                    "entry_hit_at": item[2].isoformat() if item[2] else None,
+                    "tp1_hit_at": item[3].isoformat() if item[3] else None,
+                    "tp2_hit_at": item[4].isoformat() if item[4] else None,
+                    "stop_hit_at": item[5].isoformat() if item[5] else None,
+                    "expired_at": item[6].isoformat() if item[6] else None,
+                    "last_price": float(item[7]) if item[7] is not None else None,
+                }
+                for item in cursor.fetchall()
+            }
     return [attach_personal_sizing(
         {"id": row[0], "symbol": normalize_usdt_symbol(row[1]), "side": row[2], "confidence": float(row[3]),
          "price": float(row[4]) if row[4] is not None else None,
@@ -802,7 +826,12 @@ def signals(x_telegram_init_data: str = Header(default="")):
          "source": row[17] or "scanner",
          "reason": row[18],
          "regime": row[19],
-         "timeframe": row[20] or "4h"},
+         "timeframe": row[20] or "4h",
+         **lifecycle_by_id.get(int(row[0]), {
+             "trade_status": "untracked", "entry_hit_at": None,
+             "tp1_hit_at": None, "tp2_hit_at": None, "stop_hit_at": None,
+             "expired_at": None, "last_price": None,
+         })},
         profile,
     )
         for row in rows
