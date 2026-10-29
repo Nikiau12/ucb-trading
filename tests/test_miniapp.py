@@ -405,6 +405,8 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "const previous=language" in script
     assert "position_below_min_contract" in script
     assert "const HOME_CHART_SYMBOL='BTC_USDT'" in script
+    assert "chartFollowsSelectedSignal" in script
+    assert "function chartContext()" in script
     assert "const BASE_OVERVIEW_SYMBOLS=['BTC_USDT','ETH_USDT','SOL_USDT']" in script
     assert "renderMajorMarkets" in script
     assert "waitingSetup" in script
