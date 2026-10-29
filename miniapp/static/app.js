@@ -21,6 +21,7 @@ let profile=null,signals=[],language='en',activeFilter='ALL',selectedSignal=null
 const pinnedNoSetup=(()=>{const raw=new URLSearchParams(window.location.search).get('no_setup')||'';const symbol=raw.trim().toUpperCase();return /^[A-Z0-9]{2,20}_USDT$/.test(symbol)?symbol:'';})();
 const HOME_CHART_SYMBOL='BTC_USDT';
 let overviewSymbol=HOME_CHART_SYMBOL,overviewTimeframe='4h',detailTimeframe='4h';
+let chartFollowsSelectedSignal=false;
 let overviewChart=null,detailChart=null;
 const initData=tg?.initData||'';
 const headers={'Content-Type':'application/json','X-Telegram-Init-Data':initData};
@@ -56,8 +57,9 @@ function applyLanguage(){
   renderMajorMarkets();
   renderHome();
   paintPaymentState();
-  const btcSignal=latestMajorSignal(HOME_CHART_SYMBOL,{activeOnly:true});
-  if(overviewChart){if(btcSignal)addSignalLines(overviewChart,btcSignal);else clearPriceLines(overviewChart);}
+  const context=chartContext();
+  syncChartIdentity(context.symbol);
+  if(overviewChart){if(context.signal)addSignalLines(overviewChart,context.signal);else clearPriceLines(overviewChart);}
 }
 
 function paywalled(){
@@ -174,6 +176,23 @@ function preferredSignal(){
     if(signal)return signal;
   }
   return signals.find(isSetup)||null;
+}
+
+function chartContext(){
+  if(chartFollowsSelectedSignal&&selectedSignal&&isSetup(selectedSignal)){
+    return{symbol:String(selectedSignal.symbol).toUpperCase(),signal:selectedSignal};
+  }
+  return{symbol:HOME_CHART_SYMBOL,signal:latestMajorSignal(HOME_CHART_SYMBOL,{activeOnly:true})};
+}
+
+function syncChartIdentity(symbol){
+  const normalized=String(symbol||HOME_CHART_SYMBOL).toUpperCase();
+  const title=$('#chart-title');
+  if(title){title.removeAttribute('data-i18n');title.textContent=!chartFollowsSelectedSignal&&normalized===HOME_CHART_SYMBOL?tr('btcChart'):displaySymbol(normalized);}
+  const coin=$('#chart-coin');
+  if(coin&&coin.dataset.symbol!==normalized){coin.dataset.symbol=normalized;coin.innerHTML=coinIconMarkup(normalized);hydrateCoinIcons(coin);}
+  const chart=$('#chart');
+  if(chart)chart.setAttribute('aria-label',`${displaySymbol(normalized)} price chart`);
 }
 
 function renderMajorMarkets(){
@@ -391,11 +410,11 @@ function renderHome(){
 }
 async function loadHomeChart(){
   const frame=$('#chart-frame');
-  const signal=latestMajorSignal(HOME_CHART_SYMBOL,{activeOnly:true});
+  const context=chartContext();
+  const signal=context.signal;
   frame?.classList.add('loading');
-  overviewSymbol=HOME_CHART_SYMBOL;
-  const coin=$('#chart-coin');
-  if(coin&&!coin.childElementCount){coin.innerHTML=coinIconMarkup(HOME_CHART_SYMBOL);hydrateCoinIcons(coin);}
+  overviewSymbol=context.symbol;
+  syncChartIdentity(overviewSymbol);
   try{
     const data=await api(`/api/market/${overviewSymbol}?timeframe=${overviewTimeframe}`);
     if(!overviewChart)overviewChart=chartBundle($('#chart'),310);
@@ -406,7 +425,7 @@ async function loadHomeChart(){
     const price=$('#chart-price');
     if(price){price.textContent=`${fmt(last?.close)} USDT`;price.classList.remove('negative');}
     const regime=$('#chart-regime');
-    if(regime)regime.textContent=signal?regimeLine(signal):'BingX · BTC/USDT';
+    if(regime)regime.textContent=signal?regimeLine(signal):`BingX · ${displaySymbol(overviewSymbol).replaceAll(' ','')}`;
     const frameLabel=$('#chart-timeframe');
     if(frameLabel)frameLabel.textContent=overviewTimeframe.toUpperCase();
   }finally{
@@ -419,6 +438,7 @@ function detailMetric(label,value,accent=''){
 async function openSignalDetail(signalId){
   selectedSignal=signals.find(signal=>String(signal.id)===String(signalId)&&isSetup(signal));
   if(!selectedSignal)return;
+  chartFollowsSelectedSignal=true;
   selectTimeframe(selectedSignal.timeframe||'4h');
   renderHome();
   showView('overview');
@@ -446,6 +466,7 @@ async function load(){
     language=profile.language||'en';
     const requested=pinnedNoSetup?0:signalIdFromLocation();
     selectedSignal=requested?signals.find(signal=>Number(signal.id)===requested)||null:null;
+    chartFollowsSelectedSignal=Boolean(requested&&selectedSignal);
     if(!selectedSignal&&!pinnedNoSetup)selectedSignal=preferredSignal();
     selectTimeframe(selectedSignal?.timeframe||'4h');
     applyLanguage();
@@ -458,7 +479,7 @@ async function refreshLiveData(){
   try{
     [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
     signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
-    if(selectedSignal)selectedSignal=signals.find(signal=>String(signal.id)===String(selectedSignal.id))||null;
+    if(selectedSignal){selectedSignal=signals.find(signal=>String(signal.id)===String(selectedSignal.id))||null;if(chartFollowsSelectedSignal&&!selectedSignal)chartFollowsSelectedSignal=false;}
     if(!selectedSignal&&!pinnedNoSetup)selectedSignal=preferredSignal();
     renderProfile();
     renderSignals();
@@ -467,7 +488,7 @@ async function refreshLiveData(){
     await loadHomeChart();
   }catch(error){}
 }
-document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',()=>{showView(button.dataset.target)}));
+document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',async()=>{showView(button.dataset.target);if(button.dataset.target==='overview'&&chartFollowsSelectedSignal){chartFollowsSelectedSignal=false;selectTimeframe('4h');renderHome();await loadHomeChart();}}));
 document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.go)));
 document.querySelectorAll('.filter').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;document.querySelectorAll('.filter').forEach(item=>item.classList.toggle('selected',item===button));renderSignals()}));
 const symbolPicker=$('#symbol-picker');
