@@ -186,7 +186,7 @@ def normalize_for_contract(
     risk_pct: float,
     leverage: float = 1.0,
 ) -> Dict[str, Any]:
-    """Make prices and size executable under the symbol's MEXC contract rules."""
+    """Make prices and size executable under normalized exchange contract rules."""
     detail = snapshot.get("contract")
     if not isinstance(detail, dict):
         risk_usdt, qty, dist = risk_position_size(deposit, risk_pct, entry, stop)
@@ -221,6 +221,7 @@ def normalize_for_contract(
     min_vol = _positive_decimal(detail.get("minVol"))
     max_vol = _positive_decimal(detail.get("maxVol"))
     max_leverage = _positive_decimal(detail.get("maxLeverage"))
+    min_notional = _positive_decimal(detail.get("minNotional"))
     if contract_size is None or vol_unit is None:
         sizing["errors"].append("invalid_contract_rules")
 
@@ -233,6 +234,7 @@ def normalize_for_contract(
         "min_vol": float(min_vol) if min_vol is not None else None,
         "max_vol": float(max_vol) if max_vol is not None else None,
         "max_leverage": float(max_leverage) if max_leverage is not None else None,
+        "min_notional": float(min_notional) if min_notional is not None else None,
         "effective_leverage": sizing["effective_leverage"],
         "position_usdt": sizing["position_usdt"],
         "margin_usdt": sizing["margin_usdt"],
@@ -809,7 +811,7 @@ def make_plan(snapshot: Dict[str, Any], deposit: float, risk_pct: float, lev: fl
 
 def load_snapshot(symbol: str) -> Dict[str, Any]:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    snap_py = os.path.join(script_dir, "mexc_snapshot.py")
+    snap_py = os.path.join(script_dir, "bingx_snapshot.py")
 
     p = subprocess.run([sys.executable, snap_py, "snapshot", symbol], capture_output=True, text=True)
     if p.returncode == 0:
@@ -818,9 +820,12 @@ def load_snapshot(symbol: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-    # Fallback: read cache written by mexc_snapshot.py
+    # Fallback: read cache written by bingx_snapshot.py
     safe = symbol.replace("/", "_")
-    cache_path = os.path.join(os.path.expanduser("~/.openclaw/trading/cache"), f"{safe}.snapshot.json")
+    cache_path = os.path.join(
+        os.path.expanduser("~/.openclaw/trading/cache/bingx"),
+        f"{safe}.snapshot.json",
+    )
     with open(cache_path, "r", encoding="utf-8") as f:
         j = json.load(f)
     j["stale"] = True

@@ -201,7 +201,7 @@ def test_confidence_percent_is_one_scale():
 def test_listing_alerts_follow_the_recipient_language():
     english = Notifier().format_listing_alert("NEW_USDT", {"name": "New", "rank": 4}, lang="en")
     russian = Notifier().format_listing_alert("NEW_USDT", {"name": "New"}, lang="ru")
-    assert "New MEXC pair" in english
+    assert "New BingX pair" in english
     assert "Новая пара" not in english
     assert "Новая пара" in russian
     news = Notifier().format_listing_news_alert(

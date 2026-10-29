@@ -7,12 +7,12 @@ import urllib.request
 from html import unescape
 
 
-class MexcListingWatcher:
+class BingxListingWatcher:
     def __init__(
         self,
         snapshot_file: str,
-        announcements_snapshot_file: str = "mexc_announcements_snapshot.json",
-        announcements_url: str = "https://www.mexc.com/announcements/new-listings",
+        announcements_snapshot_file: str = "bingx_announcements_snapshot.json",
+        announcements_url: str = "",
         min_first_run_silence: bool = True,
     ):
         self.snapshot_file = snapshot_file
@@ -23,7 +23,7 @@ class MexcListingWatcher:
 
     async def check_new_markets(self, exchange_client) -> list:
         await exchange_client.load_markets_if_needed()
-        current = self._extract_mexc_usdt_markets(exchange_client.exchange.markets)
+        current = self._extract_bingx_usdt_markets(exchange_client.exchange.markets)
         previous = self._load_snapshot()
 
         if not previous:
@@ -52,18 +52,22 @@ class MexcListingWatcher:
         return new_items
 
     def _fetch_announcements(self) -> list:
+        # BingX's notice center is rendered dynamically. Market-list diffs stay
+        # active; scraping stays off unless a stable HTTPS source is configured.
+        if not self.announcements_url:
+            return []
         try:
             parsed = urllib.parse.urlparse(self.announcements_url)
-            if parsed.scheme != "https" or parsed.hostname not in {"mexc.com", "www.mexc.com"}:
-                raise ValueError("unsupported MEXC announcements URL")
+            if parsed.scheme != "https" or parsed.hostname not in {"bingx.com", "www.bingx.com"}:
+                raise ValueError("unsupported BingX announcements URL")
             req = urllib.request.Request(
                 self.announcements_url,
-                headers={"user-agent": "mexc-signal-bot/1.0"},
+                headers={"user-agent": "ucb-trading-bingx/1.0"},
             )
             with urllib.request.urlopen(req, timeout=15) as response:  # nosec B310
                 page = response.read().decode("utf-8", errors="ignore")
         except Exception as e:
-            print(f"[MexcListingWatcher] announcements fetch failed: {e}")
+            print(f"[BingxListingWatcher] announcements fetch failed: {e}")
             return []
 
         pattern = re.compile(
@@ -81,19 +85,19 @@ class MexcListingWatcher:
             announcements.append({
                 "id": href.rsplit("/", 1)[-1],
                 "title": title,
-                "url": "https://www.mexc.com" + href,
+                "url": urllib.parse.urljoin("https://bingx.com", href),
                 "published_at": published_at,
                 "symbols": self._extract_symbols(title),
             })
         return announcements[:30]
 
-    def _extract_mexc_usdt_markets(self, markets: dict) -> set:
+    def _extract_bingx_usdt_markets(self, markets: dict) -> set:
         symbols = set()
         for symbol, market in markets.items():
             if not market.get("active", True):
                 continue
             quote = str(market.get("quote", "")).upper()
-            if quote == "USDT" and (market.get("spot") or market.get("swap")):
+            if quote == "USDT" and market.get("swap") and market.get("linear", True):
                 symbols.add(symbol)
         return symbols
 
@@ -111,7 +115,7 @@ class MexcListingWatcher:
             with open(path, "r") as f:
                 return set(json.load(f))
         except Exception as e:
-            print(f"[MexcListingWatcher] snapshot read failed: {e}")
+            print(f"[BingxListingWatcher] snapshot read failed: {e}")
             return set()
 
     def _save_json_set(self, path: str, values: set):
@@ -119,7 +123,7 @@ class MexcListingWatcher:
             with open(path, "w") as f:
                 json.dump(sorted(values), f, indent=2)
         except Exception as e:
-            print(f"[MexcListingWatcher] snapshot write failed: {e}")
+            print(f"[BingxListingWatcher] snapshot write failed: {e}")
 
     def _looks_like_listing(self, title: str) -> bool:
         lowered = title.lower()
@@ -136,7 +140,7 @@ class MexcListingWatcher:
 
     def _extract_symbols(self, title: str) -> list:
         symbols = set()
-        stop_words = {"UTC", "USDT", "MEXC", "ETF", "FEE"}
+        stop_words = {"UTC", "USDT", "BINGX", "ETF", "FEE"}
         for match in re.findall(r"\(([A-Z0-9]{1,12})\)", title):
             symbols.add(match)
         for match in re.findall(r"\b([A-Z0-9]{2,20})USDT\b", title):

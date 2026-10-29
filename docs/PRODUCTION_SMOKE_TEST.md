@@ -15,7 +15,7 @@ structured command logs.
 ## Before deployment
 
 - Confirm the deployment uses the repository's `main` branch.
-- Confirm the worker command is `python bot_mexc.py`.
+- Confirm the worker command is `python bot.py`.
 - Confirm `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`, and `MINI_APP_URL` are present.
 - Set `LOG_LEVEL=INFO`.
 - Run `pytest -q`; all 40 tests must pass.
@@ -63,7 +63,7 @@ appear for that user.
   not using this version.
 - `received` appears but no Telegram status message: inspect database access
   and Bot API errors before market-data calls.
-- Loading appears and later fails: inspect the logged stack trace and MEXC
+- Loading appears and later fails: inspect the logged stack trace and BingX
   availability.
 - Commands work but `/scan` is slow: compare production timing with the
   3.18-second median local evaluation and inspect worker/network concurrency.

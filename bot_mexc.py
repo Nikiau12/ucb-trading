@@ -3,6 +3,8 @@
 Старый функционал : SMC / MTF / спайки / листинги / access control
 Новый функционал  : /plan (EMA+ATR+ADX), /scan, /digest, /set, /settings, i18n x5
 """
+from __future__ import annotations
+
 import asyncio
 import html
 import json
@@ -34,20 +36,20 @@ from aiogram.types import (
 )
 
 # ── старые модули ──
-from mexc.exchange_client_mexc import ExchangeClient
+from bingx.exchange_client_bingx import ExchangeClient
 from core.smc_analyzer import SMCAnalyzer
 from core.spike_scanner import SpikeScanner
 from core.notifier import Notifier
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.coin_info_service import CoinInfoService
-from core.listing_watcher import MexcListingWatcher
+from core.listing_watcher import BingxListingWatcher
 from core.access_manager import AccessManager
 from core.config import (
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ADMIN_CHAT_IDS,
     TOP_COINS_LIMIT, TARGET_COINS,
     SMART_SPIKE_MIN_SCORE, SMART_SPIKE_MIN_QUOTE_VOLUME,
-    MEXC_LISTING_SNAPSHOT_FILE, MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE,
-    MEXC_LISTING_CHECK_INTERVAL, MEXC_NEW_LISTINGS_URL,
+    BINGX_LISTING_SNAPSHOT_FILE, BINGX_ANNOUNCEMENTS_SNAPSHOT_FILE,
+    BINGX_LISTING_CHECK_INTERVAL, BINGX_NEW_LISTINGS_URL,
     FREE_TRIAL_SIGNALS, FREE_TRIAL_COOLDOWN_MINUTES, PAID_ACCESS_HOURS,
     USDT_PAYMENT_ADDRESS, USDT_PAYMENT_AMOUNT, USDT_PAYMENT_NETWORK,
     ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY, MINI_APP_URL,
@@ -64,7 +66,7 @@ _TRADING_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading
 if _TRADING_DIR not in sys.path:
     sys.path.insert(0, _TRADING_DIR)
 
-import mexc_snapshot as snap
+import bingx_snapshot as snap
 import trade_plan as core_plan
 import scanner as sc
 import state as st
@@ -138,10 +140,10 @@ access_manager  = AccessManager(
     payment_amount=USDT_PAYMENT_AMOUNT,
     payment_network=USDT_PAYMENT_NETWORK,
 )
-listing_watcher = MexcListingWatcher(
-    MEXC_LISTING_SNAPSHOT_FILE,
-    announcements_snapshot_file=MEXC_ANNOUNCEMENTS_SNAPSHOT_FILE,
-    announcements_url=MEXC_NEW_LISTINGS_URL,
+listing_watcher = BingxListingWatcher(
+    BINGX_LISTING_SNAPSHOT_FILE,
+    announcements_snapshot_file=BINGX_ANNOUNCEMENTS_SNAPSHOT_FILE,
+    announcements_url=BINGX_NEW_LISTINGS_URL,
 )
 payment_verifier = TronPaymentVerifier(
     USDT_PAYMENT_ADDRESS,
@@ -1483,7 +1485,7 @@ def _listing_symbol(symbol: str) -> str | None:
     if normalized:
         return normalized
     base = re.sub(r"[^A-Z0-9]", "", str(symbol or "").upper())
-    if 2 <= len(base) <= 20 and base not in {"USDT", "MEXC", "UTC"}:
+    if 2 <= len(base) <= 20 and base not in {"USDT", "BINGX", "UTC"}:
         return st.normalize_usdt_symbol(f"{base}_USDT")
     return None
 
@@ -1734,7 +1736,7 @@ async def listing_watcher_loop():
                     } if listing_symbol else None,
                 )
                 await asyncio.sleep(0.2)
-            await asyncio.sleep(MEXC_LISTING_CHECK_INTERVAL)
+            await asyncio.sleep(BINGX_LISTING_CHECK_INTERVAL)
         except asyncio.CancelledError:
             break
         except Exception as exc:

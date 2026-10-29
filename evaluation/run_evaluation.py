@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a reproducible product-quality evaluation against live MEXC data.
+"""Run a reproducible product-quality evaluation against live BingX data.
 
 This evaluates data availability, plan invariants, latency, symbol
 normalization, and personalized risk calculations. It does not evaluate or
@@ -25,7 +25,7 @@ TRADING_DIR = ROOT / "trading"
 sys.path.insert(0, str(TRADING_DIR))
 sys.path.insert(0, str(ROOT))
 
-import mexc_snapshot  # noqa: E402
+import bingx_snapshot  # noqa: E402
 import trade_plan  # noqa: E402
 from miniapp.app import normalize_usdt_symbol  # noqa: E402
 
@@ -123,7 +123,7 @@ def scenario_violations(scenario: Dict[str, Any], profile: Dict[str, float]) -> 
 def evaluate_symbol(symbol: str) -> Dict[str, Any]:
     total_started = time.perf_counter()
     snapshot_started = time.perf_counter()
-    snapshot = mexc_snapshot.build_snapshot_with_fallback(symbol)
+    snapshot = bingx_snapshot.build_snapshot_with_fallback(symbol)
     snapshot_ms = (time.perf_counter() - snapshot_started) * 1_000
 
     plan_started = time.perf_counter()
@@ -293,7 +293,7 @@ def write_markdown(payload: Dict[str, Any], output_path: Path) -> None:
 
 Run: `{payload["run_id"]}`  
 Generated: {payload["generated_at"]}  
-Market source: live MEXC Futures API
+Market source: live BingX Perpetual Futures API
 
 ## Scope
 
@@ -371,7 +371,7 @@ def main() -> int:
         None,
     )
     if reference_symbol:
-        reference_snapshot = mexc_snapshot.build_snapshot_with_fallback(reference_symbol)
+        reference_snapshot = bingx_snapshot.build_snapshot_with_fallback(reference_symbol)
         risk_matrix = evaluate_risk_matrix(reference_snapshot)
     else:
         risk_matrix = {

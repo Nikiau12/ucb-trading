@@ -44,7 +44,7 @@ ALERT_STRINGS = {
         "plan_symbol_prompt": "One plan for <b>{symbol}</b>.",
         "listing_na": "n/a",
         "listing_new": (
-            "🆕 <b>New MEXC pair: {symbol}</b>\n\n"
+            "🆕 <b>New BingX pair: {symbol}</b>\n\n"
             "Coin: <b>{name}</b>\n"
             "CoinGecko rank: #{rank}\n"
             "Market cap: {cap}\n"
@@ -53,7 +53,7 @@ ALERT_STRINGS = {
             "⚠️ New listings often move sharply. Do not enter without a plan and a stop."
         ),
         "listing_news": (
-            "📰 <b>MEXC listing news</b>\n\n"
+            "📰 <b>BingX listing news</b>\n\n"
             "<b>{title}</b>\n"
             "Tickers: <b>{symbols}</b>\n"
             "Published: {published}\n\n"
@@ -64,7 +64,7 @@ ALERT_STRINGS = {
             "Risk profile: <b>{risk}</b>\n\n"
             "Link: {url}"
         ),
-        "coin_missing": "❌ {coin} was not found on MEXC.",
+        "coin_missing": "❌ {coin} was not found on BingX.",
         "command_error": "❌ Error: {error}",
         "analysis_running": "🤖 Deep analysis of {symbol} (15m→1w)...",
         "alert_signal": "SIGNAL",
@@ -79,9 +79,9 @@ ALERT_STRINGS = {
         "alert_position": "Position size",
         "alert_margin": "Margin required",
         "alert_risk": "Stop risk",
-        "alert_contracts": "MEXC contracts",
-        "alert_lev_capped": "Leverage was reduced to the MEXC maximum for this market.",
-        "alert_min_contract": "The minimum MEXC contract is too large for this risk. Do not open the trade.",
+        "alert_contracts": "BingX contracts",
+        "alert_lev_capped": "Leverage was reduced to the BingX maximum for this market.",
+        "alert_min_contract": "The minimum BingX contract is too large for this risk. Do not open the trade.",
         "alert_reference": "Sized on a 1 000 USDT example. Set your deposit with /start for a personal amount.",
         "alert_more": "Details:",
         "spike_title": "SPIKE",
@@ -198,7 +198,7 @@ ALERT_STRINGS = {
         "plan_symbol_prompt": "Один план по <b>{symbol}</b>.",
         "listing_na": "н/д",
         "listing_new": (
-            "🆕 <b>Новая пара на MEXC: {symbol}</b>\n\n"
+            "🆕 <b>Новая пара на BingX: {symbol}</b>\n\n"
             "Монета: <b>{name}</b>\n"
             "Рейтинг CoinGecko: #{rank}\n"
             "Market Cap: {cap}\n"
@@ -207,7 +207,7 @@ ALERT_STRINGS = {
             "⚠️ Новые листинги часто двигаются резко. Не входи без плана и стопа."
         ),
         "listing_news": (
-            "📰 <b>Новость MEXC по листингу</b>\n\n"
+            "📰 <b>Новость BingX по листингу</b>\n\n"
             "<b>{title}</b>\n"
             "Тикеры: <b>{symbols}</b>\n"
             "Опубликовано: {published}\n\n"
@@ -218,7 +218,7 @@ ALERT_STRINGS = {
             "Риск-профиль: <b>{risk}</b>\n\n"
             "Ссылка: {url}"
         ),
-        "coin_missing": "❌ {coin} не найдена на MEXC.",
+        "coin_missing": "❌ {coin} не найдена на BingX.",
         "command_error": "❌ Ошибка: {error}",
         "analysis_running": "🤖 Глубокий анализ {symbol} (15m→1w)...",
         "alert_signal": "СИГНАЛ",
@@ -233,9 +233,9 @@ ALERT_STRINGS = {
         "alert_position": "Объём позиции",
         "alert_margin": "Нужно маржи",
         "alert_risk": "Риск по стопу",
-        "alert_contracts": "Контрактов MEXC",
-        "alert_lev_capped": "Плечо снижено до максимума MEXC для этой монеты.",
-        "alert_min_contract": "Минимальный контракт MEXC слишком велик для этого риска. Сделку открывать не нужно.",
+        "alert_contracts": "Контрактов BingX",
+        "alert_lev_capped": "Плечо снижено до максимума BingX для этой монеты.",
+        "alert_min_contract": "Минимальный контракт BingX слишком велик для этого риска. Сделку открывать не нужно.",
         "alert_reference": "Расчёт на примере 1 000 USDT. Укажи свой депозит через /start.",
         "alert_more": "Подробнее:",
         "spike_title": "СПАЙК",
@@ -352,7 +352,7 @@ ALERT_STRINGS = {
         "plan_symbol_prompt": "Ein Plan für <b>{symbol}</b>.",
         "listing_na": "k. A.",
         "listing_new": (
-            "🆕 <b>Neues MEXC-Paar: {symbol}</b>\n\n"
+            "🆕 <b>Neues BingX-Paar: {symbol}</b>\n\n"
             "Coin: <b>{name}</b>\n"
             "CoinGecko-Rang: #{rank}\n"
             "Marktkapitalisierung: {cap}\n"
@@ -361,7 +361,7 @@ ALERT_STRINGS = {
             "⚠️ Neue Listings bewegen sich oft stark. Nicht ohne Plan und Stop einsteigen."
         ),
         "listing_news": (
-            "📰 <b>MEXC-Listing-News</b>\n\n"
+            "📰 <b>BingX-Listing-News</b>\n\n"
             "<b>{title}</b>\n"
             "Ticker: <b>{symbols}</b>\n"
             "Veröffentlicht: {published}\n\n"
@@ -372,7 +372,7 @@ ALERT_STRINGS = {
             "Risikoprofil: <b>{risk}</b>\n\n"
             "Link: {url}"
         ),
-        "coin_missing": "❌ {coin} wurde auf MEXC nicht gefunden.",
+        "coin_missing": "❌ {coin} wurde auf BingX nicht gefunden.",
         "command_error": "❌ Fehler: {error}",
         "analysis_running": "🤖 Tiefenanalyse von {symbol} (15m→1w)...",
         "alert_signal": "SIGNAL",
@@ -387,9 +387,9 @@ ALERT_STRINGS = {
         "alert_position": "Positionsgröße",
         "alert_margin": "Benötigte Margin",
         "alert_risk": "Stop-Risiko",
-        "alert_contracts": "MEXC-Kontrakte",
-        "alert_lev_capped": "Der Hebel wurde auf das MEXC-Maximum für diesen Markt gesenkt.",
-        "alert_min_contract": "Der minimale MEXC-Kontrakt ist für dieses Risiko zu groß. Trade nicht eröffnen.",
+        "alert_contracts": "BingX-Kontrakte",
+        "alert_lev_capped": "Der Hebel wurde auf das BingX-Maximum für diesen Markt gesenkt.",
+        "alert_min_contract": "Der minimale BingX-Kontrakt ist für dieses Risiko zu groß. Trade nicht eröffnen.",
         "alert_reference": "Beispielrechnung mit 1 000 USDT. Lege dein Kapital mit /start fest.",
         "alert_more": "Details:",
         "spike_title": "SPIKE",
@@ -483,7 +483,7 @@ ALERT_STRINGS = {
         "plan_symbol_prompt": "Un plan pour <b>{symbol}</b>.",
         "listing_na": "n/d",
         "listing_new": (
-            "🆕 <b>Nouvelle paire MEXC : {symbol}</b>\n\n"
+            "🆕 <b>Nouvelle paire BingX : {symbol}</b>\n\n"
             "Monnaie : <b>{name}</b>\n"
             "Rang CoinGecko : #{rank}\n"
             "Capitalisation : {cap}\n"
@@ -492,7 +492,7 @@ ALERT_STRINGS = {
             "⚠️ Les nouveaux listings bougent souvent fort. N'entre pas sans plan ni stop."
         ),
         "listing_news": (
-            "📰 <b>Actualité de listing MEXC</b>\n\n"
+            "📰 <b>Actualité de listing BingX</b>\n\n"
             "<b>{title}</b>\n"
             "Tickers : <b>{symbols}</b>\n"
             "Publié : {published}\n\n"
@@ -503,7 +503,7 @@ ALERT_STRINGS = {
             "Profil de risque : <b>{risk}</b>\n\n"
             "Lien : {url}"
         ),
-        "coin_missing": "❌ {coin} est introuvable sur MEXC.",
+        "coin_missing": "❌ {coin} est introuvable sur BingX.",
         "command_error": "❌ Erreur : {error}",
         "analysis_running": "🤖 Analyse approfondie de {symbol} (15m→1w)...",
         "alert_signal": "SIGNAL",
@@ -518,9 +518,9 @@ ALERT_STRINGS = {
         "alert_position": "Taille de position",
         "alert_margin": "Marge requise",
         "alert_risk": "Risque au stop",
-        "alert_contracts": "Contrats MEXC",
-        "alert_lev_capped": "Le levier a été réduit au maximum MEXC de ce marché.",
-        "alert_min_contract": "Le contrat minimum MEXC est trop grand pour ce risque. N'ouvre pas le trade.",
+        "alert_contracts": "Contrats BingX",
+        "alert_lev_capped": "Le levier a été réduit au maximum BingX de ce marché.",
+        "alert_min_contract": "Le contrat minimum BingX est trop grand pour ce risque. N'ouvre pas le trade.",
         "alert_reference": "Exemple calculé sur 1 000 USDT. Indique ton dépôt avec /start.",
         "alert_more": "Détails :",
         "spike_title": "SPIKE",
@@ -614,7 +614,7 @@ ALERT_STRINGS = {
         "plan_symbol_prompt": "Un plan para <b>{symbol}</b>.",
         "listing_na": "n/d",
         "listing_new": (
-            "🆕 <b>Nuevo par en MEXC: {symbol}</b>\n\n"
+            "🆕 <b>Nuevo par en BingX: {symbol}</b>\n\n"
             "Moneda: <b>{name}</b>\n"
             "Ranking CoinGecko: #{rank}\n"
             "Capitalización: {cap}\n"
@@ -623,7 +623,7 @@ ALERT_STRINGS = {
             "⚠️ Los listados nuevos se mueven con fuerza. No entres sin un plan y un stop."
         ),
         "listing_news": (
-            "📰 <b>Noticia de listado en MEXC</b>\n\n"
+            "📰 <b>Noticia de listado en BingX</b>\n\n"
             "<b>{title}</b>\n"
             "Tickers: <b>{symbols}</b>\n"
             "Publicado: {published}\n\n"
@@ -634,7 +634,7 @@ ALERT_STRINGS = {
             "Perfil de riesgo: <b>{risk}</b>\n\n"
             "Enlace: {url}"
         ),
-        "coin_missing": "❌ {coin} no se encontró en MEXC.",
+        "coin_missing": "❌ {coin} no se encontró en BingX.",
         "command_error": "❌ Error: {error}",
         "analysis_running": "🤖 Análisis profundo de {symbol} (15m→1w)...",
         "alert_signal": "SEÑAL",
@@ -649,9 +649,9 @@ ALERT_STRINGS = {
         "alert_position": "Tamaño de posición",
         "alert_margin": "Margen necesario",
         "alert_risk": "Riesgo al stop",
-        "alert_contracts": "Contratos MEXC",
-        "alert_lev_capped": "El apalancamiento se redujo al máximo de MEXC para este mercado.",
-        "alert_min_contract": "El contrato mínimo de MEXC es demasiado grande para este riesgo. No abras la operación.",
+        "alert_contracts": "Contratos BingX",
+        "alert_lev_capped": "El apalancamiento se redujo al máximo de BingX para este mercado.",
+        "alert_min_contract": "El contrato mínimo de BingX es demasiado grande para este riesgo. No abras la operación.",
         "alert_reference": "Cálculo de ejemplo con 1 000 USDT. Indica tu depósito con /start.",
         "alert_more": "Detalle:",
         "spike_title": "SPIKE",

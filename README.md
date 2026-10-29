@@ -1,6 +1,6 @@
 # UCB Trading
 
-Telegram bot and Mini App for turning live MEXC Futures market data into
+Telegram bot and Mini App for turning live BingX Perpetual Futures market data into
 structured trade plans with personalized risk and position sizing.
 
 [Launch the bot](https://t.me/ucbtrading_bot)
@@ -21,7 +21,7 @@ subscription access into one Telegram-native workflow.
 
 A user can:
 
-- scan liquid MEXC Futures markets for actionable setups;
+- scan liquid BingX Perpetual Futures markets for actionable setups;
 - request a plan for a specific USDT pair;
 - inspect live candlestick charts inside a Telegram Mini App;
 - review entry, stop-loss, TP1, TP2, and confidence;
@@ -42,14 +42,14 @@ The public production entry point is
 - `/digest` returns a compact market overview.
 - `/set` and `/settings` manage deposit, risk, leverage, and margin preferences.
 - Automatic workers monitor priority markets, broader market conditions, and
-  new MEXC listings.
+  new BingX listings.
 
 ### Telegram Mini App
 
 The Mini App provides:
 
 - an overview of the user's risk profile and access status;
-- live MEXC candlestick charts across `15m`, `1h`, `4h`, and `1d`;
+- live BingX candlestick charts across `15m`, `1h`, `4h`, and `1d`;
 - recent and historical signal cards;
 - detailed entry, stop, take-profit, and confidence views;
 - personalized position size, margin, and stop-risk calculations;
@@ -76,7 +76,7 @@ flowchart TD
     A <--> D[("PostgreSQL")]
     F <--> D
     B --> S["Market scanners"]
-    S --> M["MEXC market data"]
+    S --> M["BingX market data"]
     M --> E["Multi-timeframe analysis engine"]
     E --> C["Regime, structure, momentum, confidence"]
     C --> P["Trade plan and position sizing"]
@@ -107,8 +107,8 @@ runtime.
 
 ## Technology
 
-- **Backend:** Python 3.9, FastAPI, aiogram, Pydantic
-- **Data and analysis:** MEXC APIs, ccxt, pandas, NumPy
+- **Backend:** Python 3.12, FastAPI, aiogram, Pydantic
+- **Data and analysis:** BingX APIs, ccxt, pandas, NumPy
 - **Persistence:** PostgreSQL via psycopg
 - **Mini App:** HTML, CSS, JavaScript, Telegram Web App SDK
 - **Charts:** TradingView Lightweight Charts
@@ -118,14 +118,15 @@ runtime.
 
 ```text
 .
-├── bot_mexc.py              # Telegram bot, commands, and background workers
+├── bot.py                   # Production entry point
+├── bot_mexc.py              # Telegram bot implementation (legacy filename)
 ├── core/
 │   ├── smart_engine/        # Regime, structure, momentum, and MTF fusion
 │   ├── access_manager.py    # Trial, subscription, and access state
 │   ├── tron_payment.py      # Confirmed USDT TRC20 payment verification
 │   └── *_scanner.py         # Market-specific scanners and policies
-├── mexc/
-│   └── exchange_client_mexc.py
+├── bingx/
+│   └── exchange_client_bingx.py
 ├── miniapp/
 │   ├── app.py               # FastAPI API and Telegram authentication
 │   └── static/              # Mini App UI
@@ -168,7 +169,7 @@ TronGrid API key in production.
 ### 3. Run the Telegram bot
 
 ```bash
-python bot_mexc.py
+python bot.py
 ```
 
 ### 4. Run the Mini App API
@@ -201,11 +202,11 @@ The most important environment variables are:
 | `SUBSCRIPTION_DAYS` | Paid-access duration |
 | `USDT_PAYMENT_ADDRESS` | Receiving TRON wallet |
 | `TRONGRID_API_KEY` | TronGrid API access for payment verification |
-| `MEXC_API_KEY` / `MEXC_API_SECRET` | Optional authenticated MEXC access |
-| `MEXC_MIN_REQUEST_INTERVAL` | Minimum process-wide delay between public MEXC REST requests |
-| `MEXC_MAX_ATTEMPTS` | Retry count for MEXC throttling and transient failures |
-| `MEXC_SNAPSHOT_MAX_STALE_SECONDS` | Maximum cache age accepted for diagnostics; stale data is never signalled |
-| `MEXC_CONTRACT_CACHE_TTL_SECONDS` | Cache lifetime for symbol tick size, contract size, and volume limits |
+| `BINGX_API_KEY` / `BINGX_API_SECRET` | Optional private BingX trading access; not used for public scanning |
+| `BINGX_MIN_REQUEST_INTERVAL` | Minimum process-wide delay between public BingX REST requests |
+| `BINGX_MAX_ATTEMPTS` | Retry count for BingX throttling and transient failures |
+| `BINGX_SNAPSHOT_MAX_STALE_SECONDS` | Maximum BingX cache age accepted for diagnostics; stale data is never signalled |
+| `BINGX_CONTRACT_CACHE_TTL_SECONDS` | Cache lifetime for BingX symbol and quantity rules |
 
 See [`.env.example`](.env.example) for the complete documented template.
 
@@ -218,7 +219,7 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
-The suite covers deterministic analytics and trade-plan invariants, MEXC
+The suite covers deterministic analytics and trade-plan invariants, BingX
 throttling/cache recovery, Mini App API validation, Telegram
 Web App signature verification, and USDT TRC20 payment verification. GitHub
 Actions also compiles all Python sources and runs the tests on every push and
@@ -226,8 +227,9 @@ pull request.
 
 ## Evaluation
 
-A reproducible evaluation was run against 20 predefined USDT perpetual pairs
-using fresh live MEXC data on July 25, 2026:
+A historical reproducible evaluation was run against 20 predefined USDT
+perpetual pairs using MEXC data on July 25, 2026. It must be rerun against
+BingX before the migrated strategy can be approved:
 
 | Metric | Result |
 |---|---:|
