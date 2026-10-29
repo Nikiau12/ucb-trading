@@ -1,0 +1,157 @@
+/* Shared light theme for the local UCB redesign. */
+html{background:#f5f7fb;color-scheme:light}
+.home-light [hidden]{display:none!important}
+body.home-light{
+  --bg:#f5f7fb;--panel:#fff;--panel-2:#f0f3f8;--panel-3:#eef2f7;
+  --line:#e7ebf2;--line-strong:#d5dce8;--text:#18253b;--muted:#65738a;
+  --blue:#315fe9;--blue-soft:#eaf0ff;--green:#087e66;--red:#c5465a;
+  --radius:20px;color-scheme:light;background:var(--bg);
+}
+.home-light .topbar{height:76px;padding-inline:24px;background:rgba(245,247,251,.96);border:0}
+.home-light .brand-mark{width:38px;height:38px;border:0;border-radius:13px;background:#315fe9}
+.home-light .brand-mark span{background:#fff}
+.home-light .brand-lockup strong{font-size:18px;letter-spacing:-.04em}
+.home-light .brand-lockup small{color:var(--muted);font-size:9px;letter-spacing:.16em;font-weight:600}
+.home-light .icon-button{height:44px;width:44px;border:1px solid var(--line);border-radius:14px;background:#fff;color:#65738a}
+.home-light .view{padding:14px 24px 28px}
+.home-light .plan-head{gap:12px;margin-bottom:26px}
+.home-kicker{margin:0;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.15em}
+.home-light .plan-identity{gap:12px;flex-direction:row;justify-content:flex-start;flex-wrap:wrap}
+.home-light .plan-identity h1{font-size:24px;font-weight:600;letter-spacing:-.045em}
+.home-light .side{min-height:26px;border-radius:7px;padding:0 9px;font:650 11px var(--sans);letter-spacing:.04em}
+.home-light .side.long{background:#e6f5ef}.home-light .side.short{background:#fcebef}
+.home-light .plan-price{font:600 clamp(27px,7.7vw,42px)/1.15 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.045em;overflow-wrap:anywhere}
+.home-light .plan-confidence{max-width:440px;font-size:12px;line-height:1.65;color:var(--muted)}
+.home-light .chart-section{border:1px solid #e7ebf2;box-shadow:0 6px 20px #25396004;border-radius:20px;margin-bottom:26px}
+.home-light .section-toolbar{padding:16px;border:0;gap:16px}
+.home-light .symbol-title{min-width:0;gap:9px}
+.home-light .symbol-title strong{font-size:12px;font-weight:600}
+.home-light .symbol-title span{font:500 11px var(--sans)}
+.home-light .coin-dot{background:#f0f3f8;color:var(--text)}
+.home-light .chart-options{width:auto;margin-left:auto;flex-direction:row}
+.home-light .chart-controls{padding:3px;border-radius:12px;background:#f3f5f9;gap:1px}
+.home-light .chart-controls button{height:44px;min-width:44px;padding:0 10px;font:600 12px var(--sans);color:var(--muted);border-radius:9px}
+.home-light .chart-controls button.selected{background:#fff;color:var(--blue);box-shadow:0 2px 6px #20355a0d}
+.home-light .chart-frame,.home-light #chart{background:#fff;height:290px;min-height:290px}
+.home-light .chart-skeleton{background:linear-gradient(90deg,#fff,#eef2f8,#fff);background-size:200% 100%}
+.home-light .chart-readout{border-top:1px solid #eef1f6;gap:0;background:#fff}
+.home-light .chart-readout>div{padding:14px 16px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-width:0}
+.home-light .chart-readout>div+div{border-left:1px solid var(--line)}
+.home-light .chart-readout span{margin:0;color:var(--muted);font:500 11px var(--sans);letter-spacing:0;text-transform:none}
+.home-light .chart-readout strong{font:600 12px var(--sans)}
+.home-section-title{margin:24px 0 12px;font:600 11px var(--sans);letter-spacing:.12em;color:var(--muted)}
+.plan-levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.home-light .detail-metric{border:0;border-radius:14px;background:#fff;padding:16px;min-width:0}
+.home-light .detail-metric span{font-size:12px;margin-bottom:8px;color:var(--muted)}
+.home-light .detail-metric strong{font:600 17px var(--sans);letter-spacing:-.035em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.home-light .detail-metric.target strong{color:var(--green)}
+.home-light .detail-metric.entry strong{color:var(--blue)}
+.home-light .plan-numbers{grid-template-columns:repeat(3,minmax(0,1fr));gap:0;background:white;border-radius:16px;margin:0 0 20px;padding:16px 0;overflow:hidden}
+.home-light .plan-numbers .detail-metric{padding:0 16px;border-radius:0}
+.home-light .plan-numbers .detail-metric+.detail-metric{border-left:1px solid var(--line)}
+.home-light .plan-numbers .detail-metric strong{font-size:16px}
+.home-light .plan-reason{font-size:12px;line-height:1.8;margin:16px 0;color:var(--muted)}
+.home-light .plan-disclaimer{font-size:11px;line-height:1.7;color:var(--muted)}
+.home-light .bottom-nav{height:calc(76px + var(--safe-bottom));padding:10px 16px calc(10px + var(--safe-bottom));background:rgba(255,255,255,.97);border-color:var(--line);gap:8px}
+.home-light .bottom-nav button{border-radius:13px;color:var(--muted);font-size:12px;font-weight:500;min-height:44px}
+.home-light .bottom-nav button.active{background:#edf2ff;color:var(--blue);font-weight:600}
+.home-light .bottom-nav button.active:before{display:none}
+.home-light .primary-button{background:var(--blue);border-radius:13px;min-height:48px;box-shadow:none;font-weight:600}
+.home-light .empty-state{border:0;background:#fff;padding:44px 24px;border-radius:20px;margin-top:28px}
+.home-light button{transition:background-color .16s,box-shadow .16s,transform .16s}
+.home-light button:focus-visible{outline:3px solid #315fe9;outline-offset:3px}
+.home-light button:active{transform:scale(.98)}
+.home-light button:disabled{opacity:.5;cursor:not-allowed}
+@media(hover:hover){.home-light .icon-button:hover,.home-light .bottom-nav button:not(.active):hover{background:#eaf0ff}}
+@media(max-width:680px){
+  .home-light .view{padding:12px 20px 30px}.home-light .topbar{padding-inline:20px}
+  .home-light .section-toolbar{flex-wrap:wrap;padding:14px}
+  .home-light .symbol-title{display:none}
+  .home-light .chart-options,.home-light .chart-controls{width:100%;margin:0}
+  .home-light .chart-controls button{flex:1}
+  .plan-levels{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .home-light .plan-numbers{grid-template-columns:1fr;padding:0}
+  .home-light .plan-numbers .detail-metric{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .home-light .plan-numbers .detail-metric+.detail-metric{border-left:0;border-top:1px solid #f0f3f8}
+  .home-light .plan-numbers .detail-metric span{margin:0}
+}
+@media(prefers-reduced-motion:reduce){.home-light button{transition:none}.home-light .chart-skeleton{animation:none}}
+
+/* Signals: quiet list, clear instrument identity and direction. */
+.home-light .page-heading{margin:14px 0 26px}
+.home-light .page-heading h1{font-weight:600;font-size:30px;line-height:1.2;letter-spacing:-.045em}
+.home-light .eyebrow{color:var(--muted);font-size:10px;font-weight:600;letter-spacing:.14em;margin-bottom:10px}
+.home-light .filter-row{display:flex;gap:4px;width:fit-content;background:#eaf0f6;padding:4px;border-radius:14px;margin-bottom:20px}
+.home-light .filter{min-width:68px;height:44px;padding:0 18px;border:0;background:transparent;border-radius:10px;color:var(--muted);font-size:13px;font-weight:500}
+.home-light .filter.selected{background:white;color:var(--blue);box-shadow:0 2px 6px #20355a08}
+.home-light .signal-list{gap:12px}
+.home-light .signal-row{grid-template-columns:minmax(0,1fr) auto auto auto;gap:18px;min-height:84px;padding:18px 20px;border:1px solid transparent;border-radius:18px;background:#fff}
+.home-light .signal-row .instrument-identity{gap:12px}
+.home-light .signal-row .coin-dot{height:40px;width:40px}
+.home-light .signal-row strong{font:600 16px var(--sans);letter-spacing:-.025em}
+.home-light .signal-row b{font:600 14px var(--sans);font-variant-numeric:tabular-nums;color:var(--text)}
+.home-light .signal-row small{font-size:12px;font-variant-numeric:tabular-nums}
+.home-light .signal-list .empty-state{margin-top:0}
+@media(hover:hover){.home-light .signal-row:hover{border-color:#c7d5f8;background:#fcfdff}}
+
+/* Settings: natural input sizes, one consistent focus treatment. */
+.home-light .settings-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 20px;padding:24px;border:0;border-radius:20px;background:#fff}
+.home-light .settings-form label>span,.home-light .settings-form legend{font-size:12px;font-weight:500;color:var(--muted);margin-bottom:10px}
+.home-light .settings-form input[type=number],.home-light .settings-form .language-select,.home-light #payment-hash{height:52px;border:1px solid #dce3ed;border-radius:12px;background:#f8faff;color:var(--text);font:500 16px var(--sans);font-variant-numeric:tabular-nums;padding:0 14px;min-width:0}
+.home-light .settings-form input:focus-visible,.home-light .settings-form select:focus-visible,.home-light #payment-hash:focus-visible{outline:2px solid var(--blue);outline-offset:2px;box-shadow:none}
+.home-light .settings-form fieldset{grid-column:1/-1;min-width:0}
+.home-light .segmented.wide{background:#f0f3f8;border-radius:13px;height:54px;padding:4px}
+.home-light .segmented.wide label{position:relative;min-width:0}
+.home-light .segmented.wide span{height:46px;margin:0;border-radius:10px;color:var(--muted);font-size:13px}
+.home-light .segmented.wide input:checked+span{color:var(--blue);background:white;box-shadow:0 2px 6px #20355a08}
+.home-light .segmented.wide input:focus-visible+span{outline:2px solid var(--blue);outline-offset:1px}
+.home-light .settings-form .primary-button{grid-column:1/-1;height:52px;font-size:14px}
+.home-light .form-status{grid-column:1/-1;min-height:0;font-size:12px}
+.home-light .form-status:empty{display:none}
+.home-light .subscription-panel{margin-top:20px;padding:24px;gap:20px;border:1px solid #dce5f7;border-radius:20px;background:#eef3ff}
+.home-light .subscription-panel h2{font-size:20px;font-weight:600;letter-spacing:-.03em}
+.home-light .subscription-panel p:not(.eyebrow){font-size:12px;line-height:1.7;max-width:340px}
+.home-light .price strong{font:600 28px var(--sans);letter-spacing:-.04em}
+.home-light .price>span{font-size:11px}.home-light .price .subscription-days{display:inline;font:inherit}
+.home-light .secondary-button{height:auto;min-height:48px;padding:12px 16px;border:1px solid #d5def1;border-radius:12px;background:#fff;color:var(--blue);font-size:13px;font-weight:600}
+.home-light .toast{background:var(--text);color:white;max-width:calc(100% - 32px);box-shadow:0 8px 28px #18253b20}
+
+/* Payment: visible network/address, scrollable sheet, explicit states. */
+body.payment-open{overflow:hidden}
+.home-light .payment-sheet{background:rgba(24,37,59,.28);backdrop-filter:blur(5px);padding:24px;align-items:center;overscroll-behavior:contain}
+.home-light .payment-sheet .payment-panel{position:relative;margin:0;width:min(480px,100%);max-height:calc(100dvh - 48px);overflow-y:auto;overscroll-behavior:contain;border:0;border-radius:24px;padding:30px 24px calc(24px + var(--safe-bottom));box-shadow:0 24px 80px #18253b24;background:#fff}
+.home-light .payment-close{position:absolute;right:16px;top:16px;background:#f3f6fa;border:0;z-index:1}
+.home-light .payment-panel>.eyebrow,.home-light .payment-panel>h2{padding-right:40px}
+.home-light .payment-panel h2{font-size:26px;font-weight:600;letter-spacing:-.04em;margin-bottom:20px}
+.home-light #payment-state{background:#eef3ff;color:#3155b6;border-radius:12px;padding:12px 14px;margin-bottom:22px;font-size:13px;line-height:1.6}
+.home-light #payment-state[data-state=mismatch]{background:#fff0f2;color:#af3348}
+.home-light #payment-state[data-state=open]{background:#e7f6ef;color:#087257}
+.home-light .payment-amount{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:0 0 18px;font-size:13px}
+.home-light .payment-amount>span{width:100%;font-size:12px}
+.home-light .payment-amount strong{font:600 36px var(--sans);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.home-light .payment-network{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--line);font-size:12px}
+.home-light .payment-network b{padding:6px 10px;background:#edf2fa;color:#344563;border-radius:8px;font-size:12px}
+.home-light .payment-address{flex-direction:column;align-items:stretch;gap:10px;margin:0 0 24px}
+.home-light .payment-address code{flex:auto;padding:16px;border:1px solid var(--line);border-radius:12px;background:#f7f9fc;color:var(--text);font:500 13px/1.8 var(--mono);overflow-wrap:anywhere}
+.home-light #payment-copy{height:46px;border:0;border-radius:12px;background:var(--blue-soft);color:var(--blue);font-size:13px;font-weight:600}
+.home-light #payment-form{gap:16px}
+.home-light #payment-form label>span{font-size:12px;margin-bottom:10px}
+.home-light #payment-form .primary-button{height:50px;font-size:14px}
+.home-light .payment-error{font-size:13px;line-height:1.7;margin-bottom:18px}
+.home-light .payment-success{padding:22px 18px;border-radius:16px;background:#edf9f3}
+.home-light .payment-success h2{font-size:22px;margin-bottom:10px}
+.home-light .payment-success p{font-size:13px;line-height:1.7;margin:0}
+.home-light .trial-paywall{border-color:#dce5f7;background:#eef3ff}
+.home-light .paywall-icon{color:var(--blue)}
+@media(max-width:680px){
+ .home-light .page-heading h1{font-size:28px}
+ .home-light .signal-row{grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:18px 16px}
+ .home-light .signal-row b{justify-self:start;padding-left:52px;font-size:13px}
+ .home-light .signal-row small{justify-self:end}
+ .home-light .signal-row strong{font-size:15px}
+ .home-light .settings-form{padding:20px;grid-template-columns:1fr;gap:20px}
+ .home-light .subscription-panel{padding:22px;grid-template-columns:1fr}
+ .home-light .price{text-align:left}
+ .home-light .payment-sheet{padding:12px 0 0;align-items:flex-end}
+ .home-light .payment-sheet .payment-panel{max-height:calc(100dvh - 12px);border-radius:24px 24px 0 0;padding-top:28px}
+}

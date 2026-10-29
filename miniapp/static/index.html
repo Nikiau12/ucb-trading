@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#090b10">
+  <meta name="theme-color" content="#f5f7fb">
   <title>UCB Trading</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260928-4">
+  <link rel="stylesheet" href="/static/styles.css?v=20261029-2">
+  <link rel="stylesheet" href="/static/home-light.css?v=20261029-3">
   <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
 </head>
-<body>
+<body class="home-light">
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-lockup">
@@ -29,7 +30,8 @@
         </div>
         <div id="plan-body">
           <div class="plan-head">
-            <div class="plan-identity"><span class="side" id="plan-side">LONG</span><h1 id="plan-symbol">—</h1></div>
+            <p class="home-kicker" data-i18n="tradeSetup">TRADE SETUP</p>
+            <div class="plan-identity"><div class="instrument-identity"><span class="coin-dot" id="plan-heading-coin" aria-hidden="true"></span><h1 id="plan-symbol">—</h1></div><span class="side" id="plan-side">LONG</span></div>
             <b id="plan-price" class="plan-price">—</b>
             <p id="plan-confidence" class="plan-confidence"></p>
           </div>
@@ -52,6 +54,9 @@
             </div>
           </section>
           <p class="sizing-caveat" id="plan-caveat" hidden></p>
+          <h2 class="home-section-title" data-i18n="signalLevels">SIGNAL LEVELS</h2>
+          <div class="plan-levels" id="plan-levels"></div>
+          <h2 class="home-section-title" data-i18n="personalSizing">PERSONAL SIZING</h2>
           <div class="plan-numbers" id="plan-numbers"></div>
           <p id="plan-reason" class="plan-reason"></p>
           <p class="plan-disclaimer" data-i18n="sizeDisclaimer">The bot calculates the size. You place the order.</p>
@@ -80,13 +85,16 @@
     </main>
 
     <div class="payment-sheet" id="payment-sheet" hidden>
-    <section class="payment-panel" id="payment-panel">
+    <section class="payment-panel" id="payment-panel" role="dialog" aria-modal="true" aria-labelledby="payment-title" tabindex="-1">
+      <button type="button" class="icon-button payment-close" id="payment-close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       <p class="eyebrow" data-i18n="subscription">SUBSCRIPTION</p>
-      <h2 data-i18n="unlockSignals">Unlock signals</h2>
+      <h2 id="payment-title" data-i18n="unlockSignals">Unlock signals</h2>
       <p id="payment-state" role="status"></p>
+      <div id="payment-details">
       <p class="payment-amount"><span data-i18n="payExact">Exact amount</span> <strong id="payment-amount">—</strong> USDT</p>
       <p class="payment-network"><span data-i18n="network">Network</span> <b id="payment-network">—</b></p>
       <div class="payment-address"><code id="payment-address">—</code><button type="button" id="payment-copy" data-i18n="copyAddress">Copy</button></div>
+      </div>
       <form id="payment-form">
         <label><span data-i18n="txHash">Transaction hash</span><input id="payment-hash" name="tx_hash" autocomplete="off" spellcheck="false" inputmode="text" required></label>
         <button class="primary-button" type="submit" data-i18n="submitHash">Submit hash</button>
@@ -107,6 +115,7 @@
     </nav>
   </div>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/static/app.js?v=20260928-5"></script>
+  <script src="/static/asset-icons.js?v=20261029-1"></script>
+  <script src="/static/app.js?v=20261029-light-3"></script>
 </body>
 </html>

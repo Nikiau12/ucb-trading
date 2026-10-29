@@ -350,7 +350,7 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "trade-levels" not in css
     assert "level-line" not in css
     assert "signal_id" in script
-    assert "setHeaderColor?.('#090b10')" in script
+    assert "setHeaderColor?.('#f5f7fb')" in script
     assert "MainButton" in script
     assert "riskUsdt/distance" not in script
     assert "filterEmpty" in script
