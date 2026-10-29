@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from trading import state
 from trading.signal_updates import (
     advance_lifecycle,
+    render_stop_update,
     render_tp1_update,
     replay_lifecycle,
     signal_identity_footer,
@@ -165,6 +166,20 @@ def test_trade_reference_and_tp1_message_are_unambiguous():
     assert "1.082" in message
 
 
+def test_stop_messages_distinguish_stop_loss_from_break_even():
+    stopped = render_stop_update(_signal(stop=1.041, tp1_hit_at=None), lang="ru")
+    assert "Stop сработал" in stopped
+    assert "Сетап аннулирован" in stopped
+    assert "1.041" in stopped
+
+    break_even = render_stop_update(
+        _signal(entry=1.082, tp1_hit_at=NOW - timedelta(hours=1)),
+        lang="ru",
+    )
+    assert "Остаток закрыт в БУ" in break_even
+    assert "1.082" in break_even
+
+
 def test_lifecycle_duration_uses_4h_plan_bars():
     assert state._signal_lifecycle_durations({
         "primary": {"entry_expiry_bars": 2, "max_holding_bars": 42}
@@ -209,3 +224,23 @@ def test_tp1_transition_atomically_enqueues_original_recipients(monkeypatch):
     assert result["status"] == "tp1_reached"
     assert any("UPDATE signal_lifecycle" in query for query, _ in connection.calls)
     assert any("INSERT INTO signal_update_deliveries" in query for query, _ in connection.calls)
+
+
+def test_stop_transition_atomically_enqueues_original_recipients(monkeypatch):
+    row = (
+        1842, "ASTER_USDT", "LONG", 1.082, 1.041, 1.13, 1.176,
+        NOW - timedelta(hours=2), 0.001, "active",
+        NOW + timedelta(hours=2), NOW + timedelta(days=7), 7 * 86400,
+        NOW - timedelta(hours=1), None, None, None, None,
+    )
+    connection = _LifecycleConnection(row)
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    result = state.update_signal_lifecycle(1842, 1.03, checked_at=NOW)
+
+    assert result["status"] == "stopped"
+    assert any(
+        "'stop_reached'" in query and "INSERT INTO signal_update_deliveries" in query
+        for query, _ in connection.calls
+    )

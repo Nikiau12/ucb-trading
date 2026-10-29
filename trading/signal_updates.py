@@ -200,6 +200,13 @@ _COPY = {
         "move": "Перенесите Stop оставшейся позиции в безубыток",
         "be": "Ориентир БУ по цене входа",
         "actual": "Если ваша фактическая цена входа отличалась, ставьте БУ относительно своей цены.",
+        "stop_title": "Stop сработал",
+        "be_title": "Остаток закрыт в БУ",
+        "stop_line": "Сделка закрыта по Stop",
+        "be_line": "После TP1 остаток позиции закрыт в безубыток",
+        "cancel": "Сетап аннулирован. Не входите повторно.",
+        "wait": "Дождитесь нового сигнала — он придёт отдельным сообщением.",
+        "be_level": "Цена БУ",
     },
     "en": {
         "trade": "Trade",
@@ -210,6 +217,13 @@ _COPY = {
         "move": "Move the Stop on the remaining position to break-even",
         "be": "Break-even from the signal entry",
         "actual": "If your actual fill price differed, use your own entry for break-even.",
+        "stop_title": "Stop reached",
+        "be_title": "Remainder closed at break-even",
+        "stop_line": "The trade was closed at Stop",
+        "be_line": "After TP1, the remaining position closed at break-even",
+        "cancel": "The setup is cancelled. Do not re-enter it.",
+        "wait": "Wait for a new signal; it will arrive in a separate message.",
+        "be_level": "Break-even price",
     },
     "de": {
         "trade": "Trade",
@@ -220,6 +234,13 @@ _COPY = {
         "move": "Stop der Restposition auf Einstand setzen",
         "be": "Einstand ab Signal-Einstieg",
         "actual": "Wenn dein tatsächlicher Einstieg abwich, nutze deinen eigenen Einstieg.",
+        "stop_title": "Stop erreicht",
+        "be_title": "Restposition am Einstand geschlossen",
+        "stop_line": "Der Trade wurde am Stop geschlossen",
+        "be_line": "Nach TP1 wurde die Restposition am Einstand geschlossen",
+        "cancel": "Das Setup ist aufgehoben. Nicht erneut einsteigen.",
+        "wait": "Warte auf ein neues Signal; es kommt als eigene Nachricht.",
+        "be_level": "Einstandspreis",
     },
     "fr": {
         "trade": "Trade",
@@ -230,6 +251,13 @@ _COPY = {
         "move": "Déplacez le Stop du solde au seuil de rentabilité",
         "be": "Seuil calculé depuis l'entrée du signal",
         "actual": "Si votre prix exécuté diffère, utilisez votre prix d'entrée réel.",
+        "stop_title": "Stop atteint",
+        "be_title": "Solde clôturé au seuil de rentabilité",
+        "stop_line": "Le trade a été clôturé au Stop",
+        "be_line": "Après TP1, le solde a été clôturé au seuil de rentabilité",
+        "cancel": "Le setup est annulé. Ne rentrez pas à nouveau.",
+        "wait": "Attendez un nouveau signal; il arrivera séparément.",
+        "be_level": "Prix d'équilibre",
     },
     "es": {
         "trade": "Operación",
@@ -240,6 +268,13 @@ _COPY = {
         "move": "Mueve el Stop del resto al punto de equilibrio",
         "be": "Equilibrio desde la entrada de la señal",
         "actual": "Si tu entrada real fue distinta, usa tu propio precio de entrada.",
+        "stop_title": "Stop alcanzado",
+        "be_title": "Resto cerrado en equilibrio",
+        "stop_line": "La operación se cerró por Stop",
+        "be_line": "Después de TP1, el resto se cerró en el punto de equilibrio",
+        "cancel": "El setup queda anulado. No vuelvas a entrar.",
+        "wait": "Espera una nueva señal; llegará en otro mensaje.",
+        "be_level": "Precio de equilibrio",
     },
 }
 
@@ -289,4 +324,31 @@ def render_tp1_update(signal: dict, *, lang: str) -> str:
         f"• {html.escape(words['move'])}\n"
         f"• {html.escape(words['be'])}: <code>{html.escape(entry)}</code>\n\n"
         f"<i>{html.escape(words['actual'])}</i>"
+    )
+
+
+def render_stop_update(signal: dict, *, lang: str) -> str:
+    words = _copy(lang)
+    at_break_even = bool(signal.get("tp1_hit_at"))
+    level = _format_price(
+        signal.get("entry") if at_break_even else signal.get("stop"),
+        signal.get("price_unit"),
+    )
+    footer = signal_identity_footer(
+        int(signal["id"]),
+        str(signal.get("symbol") or "").upper(),
+        str(signal.get("side") or "").upper(),
+        lang=lang,
+        created_at=signal.get("created_at"),
+    )
+    title = words["be_title"] if at_break_even else words["stop_title"]
+    result = words["be_line"] if at_break_even else words["stop_line"]
+    level_label = words["be_level"] if at_break_even else "Stop"
+    return (
+        f"🛑 <b>{html.escape(title)}</b>\n\n"
+        f"{footer}\n\n"
+        f"{html.escape(result)}: <code>{html.escape(level)}</code>\n\n"
+        f"• {html.escape(words['cancel'])}\n"
+        f"• {html.escape(words['wait'])}\n\n"
+        f"<i>{html.escape(level_label)}: {html.escape(level)}</i>"
     )

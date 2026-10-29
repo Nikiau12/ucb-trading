@@ -92,7 +92,7 @@ button,select,input{font:inherit}button{cursor:pointer}.sr-only{position:absolut
 .plan-identity h1{margin:0;font-size:28px;letter-spacing:-.03em}
 .plan-price{font:700 40px/1 var(--mono);letter-spacing:-.04em}
 .plan-confidence{margin:0;color:var(--muted);font-size:15px;line-height:1.45}
-.plan-reference{margin:0;color:var(--muted);font-size:12px}.trade-action{margin:0 0 22px;padding:18px;border:1px solid rgba(23,200,155,.25);border-radius:14px;background:rgba(23,200,155,.08)}.trade-action>p{margin:0 0 7px;color:var(--green);font-size:11px;font-weight:800;letter-spacing:.12em}.trade-action h2{margin:0 0 12px;font-size:20px}.trade-action ol{margin:0;padding-left:20px}.trade-action li{margin:7px 0}.trade-action small{display:block;margin-top:12px;color:var(--muted);line-height:1.5}
+.plan-reference{margin:0;color:var(--muted);font-size:12px}.trade-action{margin:0 0 22px;padding:18px;border:1px solid rgba(23,200,155,.25);border-radius:14px;background:rgba(23,200,155,.08)}.trade-action.cancelled{border-color:rgba(240,93,111,.28);background:rgba(240,93,111,.08)}.trade-action>p{margin:0 0 7px;color:var(--green);font-size:11px;font-weight:800;letter-spacing:.12em}.trade-action.cancelled>p{color:var(--red)}.trade-action h2{margin:0 0 12px;font-size:20px}.trade-action ol{margin:0;padding-left:20px}.trade-action li{margin:7px 0}.trade-action small{display:block;margin-top:12px;color:var(--muted);line-height:1.5}
 .plan-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
 .plan-numbers .detail-metric strong{font-size:16px}
 .plan-reason,.plan-disclaimer{margin:8px 0 0;color:var(--muted);font-size:15px;line-height:1.45}

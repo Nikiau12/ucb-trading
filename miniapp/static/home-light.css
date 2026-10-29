@@ -23,7 +23,7 @@ body.home-light{
 .home-light .plan-price{font:600 clamp(27px,7.7vw,42px)/1.15 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.045em;overflow-wrap:anywhere}
 .home-light .plan-confidence{max-width:440px;font-size:12px;line-height:1.65;color:var(--muted)}
 .home-light .plan-reference{font-size:12px;color:var(--muted)}
-.home-light .trade-action{margin:0 0 26px;padding:20px;border:1px solid #cde9de;border-radius:18px;background:#eaf8f2}.home-light .trade-action>p{color:var(--green);font-size:10px;font-weight:600}.home-light .trade-action h2{font-size:22px;font-weight:600;letter-spacing:-.03em}.home-light .trade-action li{font-size:13px}.home-light .trade-action small{font-size:11px}
+.home-light .trade-action{margin:0 0 26px;padding:20px;border:1px solid #cde9de;border-radius:18px;background:#eaf8f2}.home-light .trade-action.cancelled{border-color:#f0cbd2;background:#fff1f3}.home-light .trade-action>p{color:var(--green);font-size:10px;font-weight:600}.home-light .trade-action.cancelled>p{color:var(--red)}.home-light .trade-action h2{font-size:22px;font-weight:600;letter-spacing:-.03em}.home-light .trade-action li{font-size:13px}.home-light .trade-action small{font-size:11px}
 .home-light .chart-section{border:1px solid #e7ebf2;box-shadow:0 6px 20px #25396004;border-radius:20px;margin-bottom:26px}
 .home-light .home-btc-chart{margin-top:4px}
 .home-light .section-toolbar{padding:16px;border:0;gap:16px}

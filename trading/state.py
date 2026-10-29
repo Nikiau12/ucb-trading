@@ -492,6 +492,18 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
                 """,
                 (signal_id, user_id, signal_id),
             )
+            connection.execute(
+                """
+                INSERT INTO signal_update_deliveries (
+                    signal_id, telegram_user_id, event_type
+                )
+                SELECT %s, %s, 'stop_reached'
+                FROM signal_lifecycle
+                WHERE signal_id = %s AND status = 'stopped'
+                ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                """,
+                (signal_id, user_id, signal_id),
+            )
             connection.commit()
     except Exception as exc:
         logger.warning("signal access write failed: %s", type(exc).__name__)
@@ -624,6 +636,19 @@ def update_signal_lifecycle(
                     """,
                     (int(signal_id),),
                 )
+            if outcome["status"] == "stopped" and "stop_reached" in events:
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'stop_reached'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
             connection.commit()
             return {**signal, "status": outcome["status"], "events": list(outcome["events"])}
     except Exception as exc:
@@ -716,9 +741,11 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
             rows = connection.execute(
                 """
                 SELECT d.signal_id, d.telegram_user_id, d.event_type, d.attempts,
-                       s.symbol, s.side, s.entry, s.tp1, s.created_at, s.price_unit
+                       s.symbol, s.side, s.entry, s.stop, s.tp1, s.created_at,
+                       s.price_unit, l.tp1_hit_at
                 FROM signal_update_deliveries d
                 JOIN signals s ON s.id = d.signal_id
+                JOIN signal_lifecycle l ON l.signal_id = d.signal_id
                 WHERE d.status IN ('pending', 'failed')
                   AND d.attempts < 5
                   AND d.next_attempt_at <= NOW()
@@ -729,7 +756,8 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
             ).fetchall()
         keys = (
             "id", "telegram_user_id", "event_type", "attempts", "symbol",
-            "side", "entry", "tp1", "created_at", "price_unit",
+            "side", "entry", "stop", "tp1", "created_at", "price_unit",
+            "tp1_hit_at",
         )
         return [dict(zip(keys, row)) for row in rows]
     except Exception as exc:

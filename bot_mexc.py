@@ -73,7 +73,7 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
-from signal_updates import render_tp1_update, signal_identity_footer
+from signal_updates import render_stop_update, render_tp1_update, signal_identity_footer
 from setup_text import no_setup_query, render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
@@ -1824,7 +1824,11 @@ async def signal_lifecycle_loop():
             for update in deliveries:
                 user_id = int(update["telegram_user_id"])
                 lang = get_lang(user_id)
-                text = render_tp1_update(update, lang=lang)
+                text = (
+                    render_stop_update(update, lang=lang)
+                    if update.get("event_type") == "stop_reached"
+                    else render_tp1_update(update, lang=lang)
+                )
                 sent = await notifier.send_message_to_user(
                     str(user_id),
                     text,

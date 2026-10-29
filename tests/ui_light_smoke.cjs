@@ -15,13 +15,18 @@ fs.mkdirSync(out,{recursive:true});
  const profile={first_name:'Demo',language:'ru',deposit:400,risk_pct:1,leverage:10,margin:'cross',trial_left:3,trial_total:5,has_paid_access:false,payment_wallet:'DEMO-NOT-A-PAYMENT-ADDRESS-1234567890',payment_network:'TRC20',payment_amount_usdt:'29.99',subscription_price_usdt:'29.99',subscription_days:30};
  const states=['tp1_reached','active','waiting_entry'];
  const signals=['BTC','SOL','ETH'].map((coin,i)=>({id:i+1,symbol:coin+'_USDT',side:i===1?'SHORT':'LONG',confidence:.78,price:64120,entry:64000,stop:i===1?65200:62800,tp1:i===1?62500:65500,tp2:i===1?61000:67000,created_at:new Date(Date.now()-(i+1)*3600000).toISOString(),source:'scanner',timeframe:'4h',trade_status:states[i],regime:'1d=up;4h=up;regime=trend',sizing:{position_usdt:213.33,margin_usdt:21.33,risk_usdt:4,effective_leverage:10}}));
- const historicalSignal={...signals[0],id:13988,symbol:'HBAR_USDT',side:'SHORT',entry:.194,stop:.202,tp1:.186,tp2:.178,trade_status:'tp1_reached',created_at:new Date(Date.now()-48*3600000).toISOString()};
+ const historicalSignal={...signals[0],id:13988,symbol:'HBAR_USDT',side:'SHORT',entry:.194,stop:.202,tp1:.186,tp2:.178,trade_status:'stopped',created_at:new Date(Date.now()-48*3600000).toISOString()};
+ const replacementSignal={...historicalSignal,id:14099,entry:.188,stop:.196,tp1:.18,tp2:.172,trade_status:'active',created_at:new Date().toISOString()};
  let paymentCalls=0;
+ let deepLinkLoaded=false;
  const marketRequests=[];
  await page.route('**/api/**',async route=>{
   const url=new URL(route.request().url());
   if(url.pathname==='/api/me')return route.fulfill({json:profile});
-  if(url.pathname==='/api/signals')return route.fulfill({json:url.searchParams.get('signal_id')==='13988'?[historicalSignal,...signals]:signals});
+  if(url.pathname==='/api/signals'){
+   if(url.searchParams.get('signal_id')==='13988'){deepLinkLoaded=true;return route.fulfill({json:[historicalSignal,...signals]});}
+   return route.fulfill({json:deepLinkLoaded?[replacementSignal,...signals]:signals});
+  }
   if(url.pathname==='/api/settings'){Object.assign(profile,route.request().postDataJSON());return route.fulfill({json:profile});}
   if(url.pathname.startsWith('/api/asset-icon/'))return route.fulfill({status:404,body:''});
   if(url.pathname==='/api/payment'){
@@ -97,7 +102,15 @@ fs.mkdirSync(out,{recursive:true});
  await page.goto(origin+'?signal_id=13988');
  await page.waitForFunction(()=>document.querySelector('#chart-title').textContent==='HBAR / USDT');
  assert.match(await page.locator('#plan-reference').textContent(),/#13988/);
+ assert.equal(await page.locator('#plan-action').isVisible(),true);
+ assert.match(await page.locator('#plan-action').textContent(),/аннулирован|annul|cancel|aufgehoben|anulad/i);
+ assert.equal(await page.evaluate(()=>overviewChart.lines.length),0);
  assert.ok(marketRequests.some(value=>value.startsWith('/api/market/HBAR_USDT?timeframe=4h')));
+ await shot('stopped-hbar-no-levels');
+ await page.evaluate(()=>refreshLiveData());
+ await page.waitForFunction(()=>document.querySelector('#plan-reference').textContent.includes('#14099'));
+ assert.equal(await page.evaluate(()=>overviewChart.lines.length),4);
+ await shot('replacement-hbar-new-levels');
  assert.equal(paymentCalls,2);assert.deepEqual(errors,[]);
  console.log('PASS filters, settings, payment retry/success, focus, 4 widths, short viewport, 5 languages; only mocked API writes');
  await browser.close();

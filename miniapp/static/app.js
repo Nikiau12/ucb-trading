@@ -14,6 +14,11 @@ Object.assign(translations.ru,{tradeNumber:'Сделка',signalFrom:'Сигна
 Object.assign(translations.de,{tradeNumber:'Trade',signalFrom:'Signal vom',statusReplaying:'Verlauf wird rekonstruiert',statusWaiting:'Wartet auf Einstieg',statusActive:'Trade aktiv',statusTp1:'TP1 erreicht',statusTp2:'TP2 erreicht',statusStopped:'Am Stop beendet',statusExpired:'Abgelaufen',actionNow:'JETZT HANDELN',takeHalf:'50% der Position sichern',moveBreakeven:'Stop der Restposition auf Einstand setzen',beReference:'Einstand-Referenz',actualEntryNote:'Bei abweichender Ausführung den eigenen Einstieg verwenden.'});
 Object.assign(translations.fr,{tradeNumber:'Trade',signalFrom:'Signal du',statusReplaying:'Historique en cours',statusWaiting:'En attente d’entrée',statusActive:'Trade actif',statusTp1:'TP1 atteint',statusTp2:'TP2 atteint',statusStopped:'Clôturé au Stop',statusExpired:'Expiré',actionNow:'ACTION MAINTENANT',takeHalf:'Prenez vos bénéfices sur 50% de la position',moveBreakeven:'Déplacez le Stop du solde au seuil de rentabilité',beReference:'Référence du seuil',actualEntryNote:'Si votre exécution diffère, utilisez votre prix d’entrée réel.'});
 Object.assign(translations.es,{tradeNumber:'Operación',signalFrom:'Señal del',statusReplaying:'Restaurando historial',statusWaiting:'Esperando entrada',statusActive:'Operación activa',statusTp1:'TP1 alcanzado',statusTp2:'TP2 alcanzado',statusStopped:'Cerrada por Stop',statusExpired:'Expirada',actionNow:'ACCIÓN AHORA',takeHalf:'Asegura el 50% de la posición',moveBreakeven:'Mueve el Stop del resto al punto de equilibrio',beReference:'Referencia de equilibrio',actualEntryNote:'Si tu ejecución fue distinta, usa tu precio de entrada real.'});
+Object.assign(translations.en,{tradeClosed:'TRADE CLOSED',tradeCancelled:'The setup is cancelled. Do not re-enter it.',waitNewSignal:'Wait for a new signal. Its new entry, Stop, TP1 and TP2 will appear here.'});
+Object.assign(translations.ru,{tradeClosed:'СДЕЛКА ЗАКРЫТА',tradeCancelled:'Сетап аннулирован. Не входите повторно.',waitNewSignal:'Дождитесь нового сигнала. Здесь появятся его новые вход, Stop, TP1 и TP2.'});
+Object.assign(translations.de,{tradeClosed:'TRADE GESCHLOSSEN',tradeCancelled:'Das Setup ist aufgehoben. Nicht erneut einsteigen.',waitNewSignal:'Warte auf ein neues Signal. Der neue Einstieg, Stop, TP1 und TP2 erscheinen hier.'});
+Object.assign(translations.fr,{tradeClosed:'TRADE CLÔTURÉ',tradeCancelled:'Le setup est annulé. Ne rentrez pas à nouveau.',waitNewSignal:'Attendez un nouveau signal. Sa nouvelle entrée, son Stop, TP1 et TP2 apparaîtront ici.'});
+Object.assign(translations.es,{tradeClosed:'OPERACIÓN CERRADA',tradeCancelled:'El setup queda anulado. No vuelvas a entrar.',waitNewSignal:'Espera una nueva señal. Aquí aparecerán su nueva entrada, Stop, TP1 y TP2.'});
 
 const taglines={
   en:'Setups, risk and execution — one screen.',
@@ -184,6 +189,7 @@ function latestMajorSignal(symbol,{activeOnly=false}={}){
   return signals.find(signal=>{
     if(!isSetup(signal)||String(signal.symbol||'').toUpperCase()!==symbol)return false;
     if(!activeOnly)return true;
+    if(!isOpenSetup(signal))return false;
     const createdAt=new Date(signal.created_at).valueOf();
     return Number.isFinite(createdAt)&&Date.now()-createdAt<=ACTIVE_SETUP_MAX_AGE_MS;
   })||null;
@@ -194,12 +200,12 @@ function preferredSignal(){
     const signal=latestMajorSignal(symbol,{activeOnly:true});
     if(signal)return signal;
   }
-  return signals.find(isSetup)||null;
+  return signals.find(isOpenSetup)||null;
 }
 
 function chartContext(){
   if(chartFollowsSelectedSignal&&selectedSignal&&isSetup(selectedSignal)){
-    return{symbol:String(selectedSignal.symbol).toUpperCase(),signal:selectedSignal};
+    return{symbol:String(selectedSignal.symbol).toUpperCase(),signal:isOpenSetup(selectedSignal)?selectedSignal:null};
   }
   return{symbol:HOME_CHART_SYMBOL,signal:latestMajorSignal(HOME_CHART_SYMBOL,{activeOnly:true})};
 }
@@ -319,8 +325,12 @@ async function api(path,options={}){
 }
 
 const ALERT_SOURCES=new Set(['spike','smc','listing']);
+const TERMINAL_TRADE_STATUSES=new Set(['stopped','tp2_reached','expired']);
 function isSetup(signal){
   return !ALERT_SOURCES.has(String(signal?.source||'').toLowerCase());
+}
+function isOpenSetup(signal){
+  return isSetup(signal)&&!TERMINAL_TRADE_STATUSES.has(String(signal?.trade_status||'untracked'));
 }
 function homeSignal(){
   if(selectedSignal&&isSetup(selectedSignal))return selectedSignal;
@@ -431,13 +441,19 @@ function renderHome(){
   const action=$('#plan-action');
   const state=signalStatus(signal);
   if(action){
-    action.hidden=state.status!=='tp1_reached';
+    const stopped=state.status==='stopped';
+    action.hidden=state.status!=='tp1_reached'&&!stopped;
+    action.classList.toggle('cancelled',stopped);
+    const kicker=action.querySelector(':scope>p');
     const status=$('#plan-action-status');
     const steps=$('#plan-action-steps');
     const note=$('#plan-action-note');
+    if(kicker)kicker.textContent=stopped?tr('tradeClosed'):tr('actionNow');
     if(status)status.textContent=state.label;
-    if(steps)steps.innerHTML=`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`;
-    if(note)note.textContent=tr('actualEntryNote');
+    if(steps)steps.innerHTML=stopped
+      ?`<li>${escapeHtml(tr('tradeCancelled'))}</li><li>${escapeHtml(tr('waitNewSignal'))}</li>`
+      :`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`;
+    if(note){note.hidden=stopped;note.textContent=stopped?'':tr('actualEntryNote');}
   }
 }
 async function loadHomeChart(){
@@ -524,7 +540,20 @@ async function refreshLiveData(){
   try{
     [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
     signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
-    if(selectedSignal){selectedSignal=signals.find(signal=>String(signal.id)===String(selectedSignal.id))||null;if(chartFollowsSelectedSignal&&!selectedSignal)chartFollowsSelectedSignal=false;}
+    if(selectedSignal){
+      const previous=selectedSignal;
+      const refreshed=signals.find(signal=>String(signal.id)===String(previous.id))||null;
+      if(refreshed)selectedSignal=refreshed;
+      else if(chartFollowsSelectedSignal){
+        const previousSymbol=String(previous.symbol||'').toUpperCase();
+        selectedSignal=signals.find(signal=>String(signal.symbol||'').toUpperCase()===previousSymbol&&isOpenSetup(signal))||previous;
+      }else selectedSignal=null;
+    }
+    if(chartFollowsSelectedSignal&&selectedSignal&&!isOpenSetup(selectedSignal)){
+      const stoppedSymbol=String(selectedSignal.symbol||'').toUpperCase();
+      const replacement=signals.find(signal=>String(signal.symbol||'').toUpperCase()===stoppedSymbol&&isOpenSetup(signal));
+      if(replacement){selectedSignal=replacement;selectTimeframe(replacement.timeframe||'4h');}
+    }
     if(!selectedSignal&&!pinnedNoSetup)selectedSignal=preferredSignal();
     renderProfile();
     renderSignals();
