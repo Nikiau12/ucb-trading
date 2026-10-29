@@ -107,7 +107,7 @@ runtime.
 
 ## Technology
 
-- **Backend:** Python 3.9, FastAPI, aiogram, Pydantic
+- **Backend:** Python 3.12, FastAPI, aiogram, Pydantic
 - **Data and analysis:** BingX APIs, ccxt, pandas, NumPy
 - **Persistence:** PostgreSQL via psycopg
 - **Mini App:** HTML, CSS, JavaScript, Telegram Web App SDK
