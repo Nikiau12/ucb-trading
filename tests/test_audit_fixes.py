@@ -270,6 +270,10 @@ def test_setup_deep_link_opens_the_signal_id():
     assert "signal_query" in source
     assert 'query.pop("symbol", None)' in source
     assert "open_setup" in source
+    miniapp_script = (ROOT / "miniapp" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "`/api/signals?signal_id=${encodeURIComponent(requested)}`" in miniapp_script
+    assert "tg?.initDataUnsafe?.start_param" in miniapp_script
+    assert "user_signal_access" in miniapp.REQUESTED_SIGNAL_SQL
 
 
 def test_russian_setup_uses_panel_words_without_english_tokens():

@@ -427,6 +427,20 @@ ORDER BY s.created_at DESC
 LIMIT %s
 """
 
+REQUESTED_SIGNAL_SQL = f"""
+SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
+       s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
+       s.min_vol, s.max_vol, s.max_leverage, s.min_notional, s.created_at, s.source,
+       s.reason, s.regime, s.timeframe
+FROM signals s
+JOIN user_signal_access a ON a.signal_id = s.id
+WHERE a.telegram_user_id = %s
+  AND s.id = %s
+  AND s.{_SETUP_ONLY}
+  AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
+LIMIT 1
+"""
+
 
 def demo_profile(user: dict) -> dict:
     return {
@@ -750,7 +764,10 @@ def claim_payment(payload: PaymentClaim, x_telegram_init_data: str = Header(defa
 
 
 @app.get("/api/signals")
-def signals(x_telegram_init_data: str = Header(default="")):
+def signals(
+    signal_id: Optional[int] = None,
+    x_telegram_init_data: str = Header(default=""),
+):
     user = get_user(x_telegram_init_data)
     require_database(x_telegram_init_data)
     if not DATABASE_URL:
@@ -783,7 +800,15 @@ def signals(x_telegram_init_data: str = Header(default="")):
             cursor.execute(PAID_SIGNALS_SQL, (user_id,))
         else:
             cursor.execute(TRIAL_SIGNALS_SQL, (user_id, FREE_TRIAL_SIGNALS))
-        rows = cursor.fetchall()
+        rows = list(cursor.fetchall())
+        if signal_id and all(int(row[0]) != int(signal_id) for row in rows):
+            # A notification can point to a valid signal older than the normal
+            # 30-item history. Return it only when this user originally
+            # received that signal; never expose arbitrary IDs.
+            cursor.execute(REQUESTED_SIGNAL_SQL, (user_id, int(signal_id)))
+            requested_row = cursor.fetchone()
+            if requested_row:
+                rows.insert(0, requested_row)
         lifecycle_by_id = {}
         signal_ids = [int(row[0]) for row in rows]
         if signal_ids:

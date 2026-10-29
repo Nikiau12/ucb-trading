@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
@@ -61,6 +62,75 @@ def test_demo_profile_and_signal_history_are_available(demo_client):
         "SOL_USDT",
     }
     assert all(item["sizing"]["risk_usdt"] == pytest.approx(4.0) for item in signals.json())
+
+
+def test_requested_old_signal_is_added_only_through_user_access(monkeypatch):
+    now = datetime.now(timezone.utc)
+    recent = (
+        14050, "BTC_USDT", "LONG", 0.8, 65000, 64800, 63800, 66200, 67500,
+        0.1, 1, 1, 1, 1000, 50, 5, now, "scanner", "", "", "4h",
+    )
+    requested = (
+        13988, "HBAR_USDT", "SHORT", 0.82, 0.19, 0.194, 0.202, 0.186, 0.178,
+        0.0001, 1, 1, 1, 1000, 20, 5, now, "scanner", "", "", "4h",
+    )
+
+    class Cursor:
+        def __init__(self):
+            self.one = None
+            self.many = []
+            self.requested_params = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def execute(self, query, params=None):
+            self.one, self.many = None, []
+            if "SELECT paid_until" in query:
+                self.one = None
+            elif "SELECT deposit, risk_pct, leverage" in query:
+                self.one = (400, 1, 10)
+            elif query == miniapp.TRIAL_SIGNALS_SQL:
+                self.many = [recent]
+            elif query == miniapp.REQUESTED_SIGNAL_SQL:
+                self.requested_params = params
+                self.one = requested
+            elif "FROM signal_lifecycle" in query:
+                self.many = [(13988, "tp1_reached", now, now, None, None, None, 0.185)]
+            return self
+
+        def fetchone(self):
+            return self.one
+
+        def fetchall(self):
+            return self.many
+
+    cursor = Cursor()
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def cursor(self):
+            return cursor
+
+    monkeypatch.setattr(miniapp, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(miniapp, "get_user", lambda _data: {"id": 42})
+    monkeypatch.setattr(miniapp, "require_database", lambda _data: None)
+    monkeypatch.setattr(miniapp, "db", lambda: Connection())
+
+    result = miniapp.signals(signal_id=13988, x_telegram_init_data="signed")
+
+    assert [item["id"] for item in result] == [13988, 14050]
+    assert result[0]["symbol"] == "HBAR_USDT"
+    assert result[0]["trade_status"] == "tp1_reached"
+    assert cursor.requested_params == (42, 13988)
 
 
 def test_asset_icon_proxy_uses_bingx_cdn_and_browser_cache(demo_client, monkeypatch):

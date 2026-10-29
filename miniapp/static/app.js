@@ -488,15 +488,28 @@ function showToast(text){
   setTimeout(()=>toast.classList.remove('show'),2600);
 }
 function signalIdFromLocation(){
-  const id=Number(new URLSearchParams(window.location.search).get('signal_id')||'');
-  return Number.isSafeInteger(id)&&id>0?id:0;
+  const params=new URLSearchParams(window.location.search);
+  const hashParams=new URLSearchParams(window.location.hash.replace(/^#/,''));
+  const candidates=[
+    params.get('signal_id'),
+    params.get('tgWebAppStartParam'),
+    tg?.initDataUnsafe?.start_param,
+    hashParams.get('signal_id')
+  ];
+  for(const candidate of candidates){
+    const match=String(candidate||'').match(/^(?:signal(?:_id)?[_=-]?)?(\d+)$/i);
+    const id=Number(match?.[1]||'');
+    if(Number.isSafeInteger(id)&&id>0)return id;
+  }
+  return 0;
 }
 async function load(){
   try{
-    [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
+    const requested=pinnedNoSetup?0:signalIdFromLocation();
+    const signalsUrl=requested?`/api/signals?signal_id=${encodeURIComponent(requested)}`:'/api/signals';
+    [profile,signals]=await Promise.all([api('/api/me'),api(signalsUrl)]);
     signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
     language=profile.language||'en';
-    const requested=pinnedNoSetup?0:signalIdFromLocation();
     selectedSignal=requested?signals.find(signal=>Number(signal.id)===requested)||null:null;
     chartFollowsSelectedSignal=Boolean(requested&&selectedSignal);
     if(!selectedSignal&&!pinnedNoSetup)selectedSignal=preferredSignal();
