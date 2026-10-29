@@ -33,7 +33,7 @@ fs.mkdirSync(out,{recursive:true});
  await page.waitForSelector('#plan-heading-coin .loaded');
  await page.waitForSelector('#chart-coin .loaded');
  assert.equal(await page.locator('#major-market-list .major-market-card').count(),3);
- assert.equal(await page.locator('#overview-timeframe button').count(),2);
+ assert.deepEqual(await page.locator('#overview-timeframe button').allTextContents(),['15m','1h','4h','1d']);
  assert.ok(marketRequests.some(value=>value.startsWith('/api/market/BTC_USDT?timeframe=4h')));
  await page.evaluate(()=>{const label=document.createElement('div');label.textContent='ДЕМО · тестовые данные';label.style.cssText='background:#eaf0ff;color:#526482;text-align:center;padding:8px;font:11px sans-serif';document.querySelector('.topbar').before(label);});
  const shot=async name=>{await page.mouse.move(0,0);await page.waitForTimeout(200);return page.screenshot({path:path.join(out,name+'.png'),fullPage:false});};

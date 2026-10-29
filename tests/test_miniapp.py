@@ -369,8 +369,8 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert 'class="chart-section home-btc-chart"' in html
     assert 'id="major-market-list"' in html
     assert html.index('class="chart-section home-btc-chart"') < html.index('id="plan-empty"')
-    assert 'data-timeframe="4h"' in html and 'data-timeframe="1d"' in html
-    assert 'data-timeframe="1h"' not in html and 'data-timeframe="15m"' not in html
+    for timeframe in ("15m", "1h", "4h", "1d"):
+        assert f'data-timeframe="{timeframe}"' in html
     assert 'id="payment-sheet"' in html
     assert 'data-i18n="sizeDisclaimer"' in html
     assert 'data-i18n="hello"' not in html

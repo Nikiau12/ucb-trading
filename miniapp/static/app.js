@@ -330,7 +330,7 @@ function reasonLine(signal){
 }
 function selectTimeframe(value){
   const next=String(value||'4h').toLowerCase();
-  if(['4h','1d'].includes(next))overviewTimeframe=next;
+  if(['15m','1h','4h','1d'].includes(next))overviewTimeframe=next;
   document.querySelectorAll('#overview-timeframe button').forEach(button=>button.classList.toggle('selected',button.dataset.timeframe===overviewTimeframe));
 }
 function renderHome(){
