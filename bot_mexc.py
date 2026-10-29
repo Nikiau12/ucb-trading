@@ -105,6 +105,9 @@ MAJOR_SCAN_MIN_CONFIDENCE = float(os.getenv("MAJOR_SCAN_MIN_CONFIDENCE", "0.50")
 SIGNAL_TRACKER_INTERVAL_SECONDS = max(
     5, int(os.getenv("SIGNAL_TRACKER_INTERVAL_SECONDS", "15"))
 )
+SIGNAL_REPLAY_BATCH_SIZE = max(
+    1, min(200, int(os.getenv("SIGNAL_REPLAY_BATCH_SIZE", "100")))
+)
 
 
 class DepositSetup(StatesGroup):
@@ -1748,7 +1751,7 @@ async def signal_lifecycle_loop():
             replay_pending = [
                 signal for signal in trackable
                 if signal.get("status") == "replay_pending"
-            ][:40]
+            ][:SIGNAL_REPLAY_BATCH_SIZE]
             live = [
                 signal for signal in trackable
                 if signal.get("status") != "replay_pending"
