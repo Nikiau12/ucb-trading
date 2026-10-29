@@ -7,6 +7,13 @@
   --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Roboto Mono",Menlo,monospace;
 }
 *{box-sizing:border-box}
+.instrument-identity{display:flex;align-items:center;gap:10px;min-width:0}
+.instrument-identity strong{overflow-wrap:anywhere}
+.asset-icon{position:relative;display:grid;place-items:center;width:100%;height:100%;background:#edf1f7;color:#526482;border-radius:50%;overflow:hidden}
+.asset-icon img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;opacity:0}
+.asset-icon.loaded img{opacity:1}.asset-icon.loaded .coin-fallback{visibility:hidden}
+.asset-icon img[src*="/stock-"]{padding:7px}
+.plan-identity .coin-dot{width:38px;height:38px}
 html{background:var(--bg);color-scheme:dark}
 body{min-height:100vh;margin:0;background:var(--bg);color:var(--text);font:16px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
 button,select,input{font:inherit}button{cursor:pointer}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}

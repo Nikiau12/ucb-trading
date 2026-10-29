@@ -34,6 +34,12 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Validate Mini App JavaScript and icon catalog
+        run: |
+          node --check miniapp/static/app.js
+          node --check miniapp/static/asset-icons.js
+          node --test tests/asset_icons.test.cjs
+
       - name: Static security scan
         run: bandit -q -r bot.py bot_mexc.py bingx core evaluation mexc miniapp trading -x tests -ll -iii
 

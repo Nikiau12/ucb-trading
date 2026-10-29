@@ -30,12 +30,21 @@ const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;'
 const clamp=(value,min,max)=>Math.min(Math.max(Number(value)||0,min),max);
 const displaySymbol=symbol=>String(symbol||'').replace('_',' / ');
 const isUsdtPair=symbol=>String(symbol||'').toUpperCase().split(':',1)[0].replace(/[/-]/g,'_').endsWith('_USDT');
-const coinBase=symbol=>String(symbol||'').toUpperCase().split('_',1)[0].replace(/[^A-Z0-9]/g,'').slice(0,16);
-function coinIconMarkup(symbol){
-  return `<span class="coin-fallback">${escapeHtml(coinBase(symbol).slice(0,2))}</span>`;
+const coinBase=symbol=>AssetIcons.base(symbol).replace(/[^A-Z0-9]/g,'').slice(0,40);
+function coinIconMarkup(symbol,assetType='crypto'){
+  const path=AssetIcons.resolve(symbol,assetType);
+  return `<span class="asset-icon"><span class="coin-fallback">${escapeHtml(coinBase(symbol).slice(0,2)||'?')}</span>${path?`<img data-asset-src="${escapeHtml(path)}" alt="" width="36" height="36" decoding="async">`:''}</span>`;
 }
 
-function hydrateCoinIcons(){}
+function hydrateCoinIcons(root=document){
+  root.querySelectorAll('img[data-asset-src]').forEach(img=>{
+    const path=img.dataset.assetSrc;
+    delete img.dataset.assetSrc;
+    img.addEventListener('load',()=>img.parentElement.classList.add('loaded'),{once:true});
+    img.addEventListener('error',()=>img.remove(),{once:true});
+    img.src=path;
+  });
+}
 
 function applyLanguage(){
   document.documentElement.lang=language;
@@ -136,7 +145,7 @@ function signalCard(signal){
   const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
   const symbol=escapeHtml(displaySymbol(signal.symbol));
-  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><strong>${symbol}</strong><span class="side ${side.toLowerCase()}">${side}</span><b>${escapeHtml(rewardRisk(signal))}</b><small>${escapeHtml(signalAge(signal))}</small></button>`;
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><strong>${symbol}</strong></span><span class="side ${side.toLowerCase()}">${side}</span><b>${escapeHtml(rewardRisk(signal))}</b><small>${escapeHtml(signalAge(signal))}</small></button>`;
 }
 
 function emptySignals(filterOnly){
@@ -181,6 +190,11 @@ function chartBundle(container,height){
   const resolvedHeight=container.clientHeight||height;
   const chart=LightweightCharts.createChart(container,{width:container.clientWidth,height:resolvedHeight,layout:{background:{type:'solid',color:'#0d1118'},textColor:'#c5ceda',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:13},grid:{vertLines:{color:'#171d27'},horzLines:{color:'#171d27'}},rightPriceScale:{borderColor:'#252d3b',scaleMargins:{top:.08,bottom:.25}},timeScale:{borderColor:'#252d3b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'},horzLine:{color:'#53627a',width:1,style:2,labelBackgroundColor:'#273247'}},handleScale:{axisPressedMouseMove:true},handleScroll:{vertTouchDrag:false}});
   const candles=chart.addCandlestickSeries({upColor:'#17c89b',downColor:'#f05d6f',borderVisible:false,wickUpColor:'#17c89b',wickDownColor:'#f05d6f',priceLineVisible:true,lastValueVisible:true});
+  // The overview preview uses a light canvas, independently of other views.
+  if(container.id==='chart'){
+    chart.applyOptions({layout:{background:{type:'solid',color:'#ffffff'},textColor:'#65738a',fontSize:11},grid:{vertLines:{visible:false},horzLines:{color:'#f0f3f8'}},rightPriceScale:{borderVisible:false},timeScale:{borderColor:'#edf0f5'},crosshair:{vertLine:{color:'#aab6cb',labelBackgroundColor:'#526482'},horzLine:{color:'#aab6cb',labelBackgroundColor:'#526482'}}});
+    candles.applyOptions({upColor:'#15977b',downColor:'#d65c70',wickUpColor:'#15977b',wickDownColor:'#d65c70'});
+  }
   const volume=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'volume',lastValueVisible:false,priceLineVisible:false});
   const ema20=chart.addLineSeries({color:'#2f8cff',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   const ema50=chart.addLineSeries({color:'#f2b84b',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
@@ -320,6 +334,8 @@ function renderHome(){
   if(frameLabel)frameLabel.textContent=String(signal.timeframe||overviewTimeframe||'4h').toUpperCase();
   const coin=$('#plan-coin');
   if(coin){coin.innerHTML=coinIconMarkup(signal.symbol);hydrateCoinIcons(coin);}
+  const headingCoin=$('#plan-heading-coin');
+  if(headingCoin){headingCoin.innerHTML=coinIconMarkup(signal.symbol,signal.asset_type);hydrateCoinIcons(headingCoin);}
   const chartSymbol=$('#chart-symbol');
   if(chartSymbol)chartSymbol.textContent=displaySymbol(signal.symbol);
   const sizing=signal.sizing||{};
@@ -331,6 +347,13 @@ function renderHome(){
   const caveat=$('#plan-caveat');
   if(caveat){caveat.hidden=!notes.length;caveat.textContent=notes.join(' ');}
   const metrics=signalMetrics(signal);
+  const levels=$('#plan-levels');
+  if(levels)levels.innerHTML=[
+    detailMetric(tr('entry'),fmt(signal.entry),'entry'),
+    detailMetric(tr('stop'),fmt(signal.stop),'risk'),
+    detailMetric(tr('tp1'),fmt(signal.tp1),'target'),
+    detailMetric(tr('tp2'),fmt(signal.tp2),'target'),
+  ].join('');
   const numbers=$('#plan-numbers');
   if(numbers){
     numbers.innerHTML=[
@@ -449,6 +472,8 @@ function paintPaymentState(){
   if(node?.dataset.state)setPaymentState(node.dataset.state, node.dataset.until||'');
 }
 function showPaymentForm(){
+  $('#payment-details').hidden=false;
+  $('#payment-title').hidden=false;
   $('#payment-form').hidden=false;
   $('#payment-error').hidden=true;
   $('#payment-retry').hidden=true;
@@ -464,6 +489,8 @@ function showPaymentError(message){
   setPaymentState('mismatch');
 }
 function showPaymentSuccess(until){
+  $('#payment-details').hidden=true;
+  $('#payment-title').hidden=true;
   $('#payment-form').hidden=true;
   $('#payment-error').hidden=true;
   $('#payment-retry').hidden=true;
@@ -482,10 +509,23 @@ function requestPlan(){
   }
   showToast(tr('requestPlan'));
 }
+let paymentReturnFocus=null;
+function closePayment(){
+  $('#payment-sheet').hidden=true;
+  document.body.classList.remove('payment-open');
+  document.querySelectorAll('.topbar,main,.bottom-nav').forEach(node=>node.inert=false);
+  if(paymentReturnFocus?.getClientRects().length)paymentReturnFocus.focus();
+  else document.querySelector('.bottom-nav button.active')?.focus();
+}
 async function openPayment(){
   const sheet=$('#payment-sheet');
   if(!sheet)return;
+  paymentReturnFocus=document.activeElement;
   sheet.hidden=false;
+  document.body.classList.add('payment-open');
+  document.querySelectorAll('.topbar,main,.bottom-nav').forEach(node=>node.inert=true);
+  $('#payment-close').setAttribute('aria-label',({ru:'Закрыть',en:'Close',de:'Schließen',fr:'Fermer',es:'Cerrar'})[language]||'Close');
+  $('#payment-close').focus();
   showPaymentForm();
   try{
     profile=await api('/api/me');
@@ -551,6 +591,10 @@ async function onMainButton(){
 }
 async function submitPayment(event){
   event.preventDefault();
+  const submit=$('#payment-form button[type=submit]');
+  if(submit.disabled)return;
+  submit.disabled=true;
+  $('#payment-form').setAttribute('aria-busy','true');
   const tx_hash=$('#payment-hash').value.trim();
   setPaymentState('waiting');
   try{
@@ -567,6 +611,9 @@ async function submitPayment(event){
     syncMainButton();
   }catch(error){
     showPaymentError(tr('paymentFailed'));
+  }finally{
+    submit.disabled=false;
+    $('#payment-form').removeAttribute('aria-busy');
   }
 }
 $('#payment-button').addEventListener('click',openPayment);
@@ -574,11 +621,21 @@ document.querySelectorAll('.paywall-button').forEach(button=>button.addEventList
 $('#payment-copy').addEventListener('click',copyPaymentAddress);
 $('#payment-form').addEventListener('submit',submitPayment);
 $('#payment-retry').addEventListener('click',()=>{showPaymentForm();$('#payment-hash').focus()});
-$('#payment-sheet').addEventListener('click',event=>{if(event.target.id==='payment-sheet')event.currentTarget.hidden=true});
+$('#payment-close').addEventListener('click',closePayment);
+$('#payment-sheet').addEventListener('click',event=>{if(event.target.id==='payment-sheet')closePayment()});
+document.addEventListener('keydown',event=>{
+  if($('#payment-sheet').hidden)return;
+  if(event.key==='Escape'){event.preventDefault();closePayment();return;}
+  if(event.key!=='Tab')return;
+  const controls=[...$('#payment-panel').querySelectorAll('button:not(:disabled),input:not(:disabled)')].filter(el=>el.getClientRects().length);
+  const first=controls[0],last=controls[controls.length-1];
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+  else if(!event.shiftKey&&(document.activeElement===last||!controls.includes(document.activeElement))){event.preventDefault();first?.focus();}
+});
 $('#refresh').addEventListener('click',async()=>{await load()});
 window.addEventListener('resize',()=>{if(overviewChart)overviewChart.chart.applyOptions({width:overviewChart.container.clientWidth,height:overviewChart.container.clientHeight})});
-tg?.setHeaderColor?.('#090b10');
-tg?.setBackgroundColor?.('#090b10');
+tg?.setHeaderColor?.('#f5f7fb');
+tg?.setBackgroundColor?.('#f5f7fb');
 tg?.MainButton?.onClick(onMainButton);
 load();
 setInterval(refreshLiveData,60000);
