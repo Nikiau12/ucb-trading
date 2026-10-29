@@ -24,6 +24,30 @@
 
     <main>
       <section class="view active" id="overview-view" data-view="overview">
+        <section class="chart-section home-btc-chart" aria-labelledby="btc-chart-title">
+          <div class="section-toolbar">
+            <div class="symbol-title"><span class="coin-dot" id="chart-coin" aria-hidden="true"></span><div><strong id="btc-chart-title" data-i18n="btcChart">BITCOIN MARKET</strong><span id="chart-price">—</span></div></div>
+            <div class="chart-options">
+              <div class="segmented chart-controls" id="overview-timeframe" aria-label="Timeframe">
+                <button class="selected" data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-frame loading" id="chart-frame">
+            <div class="chart-skeleton" id="chart-skeleton" aria-hidden="true"></div>
+            <div id="chart" aria-label="Bitcoin price chart"></div>
+          </div>
+          <div class="chart-readout" aria-label="Chart context">
+            <div><span data-i18n="marketView">MARKET VIEW</span><strong id="chart-regime">BingX · BTC/USDT</strong></div>
+            <div><span data-i18n="timeframeLabel">TIMEFRAME</span><strong id="chart-timeframe">4H</strong></div>
+          </div>
+        </section>
+
+        <section class="major-markets" aria-labelledby="major-markets-title">
+          <h2 class="home-section-title" id="major-markets-title" data-i18n="majorTrades">BTC, ETH AND SOL TRADES</h2>
+          <div class="major-market-list" id="major-market-list"></div>
+        </section>
+
         <div id="plan-empty" class="empty-state" hidden>
           <p data-i18n="noSignals">No signals yet</p>
           <button type="button" class="primary-button empty-action" data-empty-action="plan" data-i18n="requestPlan">Request a plan</button>
@@ -35,24 +59,6 @@
             <b id="plan-price" class="plan-price">—</b>
             <p id="plan-confidence" class="plan-confidence"></p>
           </div>
-          <section class="chart-section">
-            <div class="section-toolbar">
-              <div class="symbol-title"><span class="coin-dot" id="plan-coin"></span><div><strong id="chart-symbol">—</strong><span id="chart-price">—</span></div></div>
-              <div class="chart-options">
-                <div class="segmented chart-controls" id="overview-timeframe" aria-label="Timeframe">
-                  <button data-timeframe="15m">15m</button><button data-timeframe="1h">1h</button><button class="selected" data-timeframe="4h">4h</button><button data-timeframe="1d">1d</button>
-                </div>
-              </div>
-            </div>
-            <div class="chart-frame loading" id="chart-frame">
-              <div class="chart-skeleton" id="chart-skeleton" aria-hidden="true"></div>
-              <div id="chart" aria-label="Price chart"></div>
-            </div>
-            <div class="chart-readout" aria-label="Chart context">
-              <div><span data-i18n="regimeLabel">REGIME</span><strong id="chart-regime">—</strong></div>
-              <div><span data-i18n="timeframeLabel">TIMEFRAME</span><strong id="chart-timeframe">4H</strong></div>
-            </div>
-          </section>
           <p class="sizing-caveat" id="plan-caveat" hidden></p>
           <h2 class="home-section-title" data-i18n="signalLevels">SIGNAL LEVELS</h2>
           <div class="plan-levels" id="plan-levels"></div>
@@ -116,6 +122,6 @@
   </div>
   <div class="toast" id="toast" role="status"></div>
   <script src="/static/asset-icons.js?v=20261029-2"></script>
-  <script src="/static/app.js?v=20261029-light-5"></script>
+  <script src="/static/app.js?v=20261029-major-1"></script>
 </body>
 </html>

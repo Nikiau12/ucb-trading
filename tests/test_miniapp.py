@@ -366,6 +366,11 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert 'id="subscription-title"' in html
     assert 'id="chart-skeleton"' in html
     assert 'id="chart-frame"' in html
+    assert 'class="chart-section home-btc-chart"' in html
+    assert 'id="major-market-list"' in html
+    assert html.index('class="chart-section home-btc-chart"') < html.index('id="plan-empty"')
+    assert 'data-timeframe="4h"' in html and 'data-timeframe="1d"' in html
+    assert 'data-timeframe="1h"' not in html and 'data-timeframe="15m"' not in html
     assert 'id="payment-sheet"' in html
     assert 'data-i18n="sizeDisclaimer"' in html
     assert 'data-i18n="hello"' not in html
@@ -399,6 +404,10 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "saveFailed" in script
     assert "const previous=language" in script
     assert "position_below_min_contract" in script
+    assert "const HOME_CHART_SYMBOL='BTC_USDT'" in script
+    assert "const BASE_OVERVIEW_SYMBOLS=['BTC_USDT','ETH_USDT','SOL_USDT']" in script
+    assert "renderMajorMarkets" in script
+    assert "waitingSetup" in script
     assert "settingsAccessCopy" in script
     assert "pay.hidden=paid" in script
 
