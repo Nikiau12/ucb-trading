@@ -19,7 +19,7 @@ from urllib.parse import parse_qsl
 import psycopg
 import requests
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -48,6 +48,16 @@ FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
 SCANNER_HEALTH_MAX_AGE_SECONDS = int(os.getenv("SCANNER_HEALTH_MAX_AGE_SECONDS", "5400"))
 SUPPORTED_LANGUAGES = {"en", "ru", "de", "fr", "es"}
 APP_STARTED_AT = time.monotonic()
+BINGX_ICON_CDN = "https://static-app.bb-os.com/icon"
+BINGX_ICON_ALIASES = {
+    "10000NEX": "NEX",
+    "10000SATS": "SATS",
+    "1000BONK": "BONK",
+    "1000SHIB": "SHIB",
+    "AERO": "aero",
+    "PLAYSOUT": "PlaysOut",
+}
+MAX_ASSET_ICON_BYTES = 512 * 1024
 
 
 def normalize_usdt_symbol(symbol: str) -> Optional[str]:
@@ -137,6 +147,8 @@ class HttpMetrics:
     def normalize_path(path: str) -> str:
         if path.startswith("/api/market/"):
             return "/api/market/:symbol"
+        if path.startswith("/api/asset-icon/"):
+            return "/api/asset-icon/:symbol"
         known = {
             "/", "/health", "/metrics", "/api/me", "/api/settings", "/api/signals",
             "/api/payment-instructions", "/api/payment",
@@ -188,7 +200,9 @@ async def security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
-    if request.url.path.startswith("/api/"):
+    if request.url.path.startswith("/api/asset-icon/"):
+        response.headers["Cache-Control"] = "public, max-age=86400, stale-if-error=604800"
+    elif request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     if request.url.scheme == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -479,6 +493,52 @@ def bot_username() -> str:
 @app.get("/")
 def index():
     return FileResponse(BASE_DIR / "static" / "index.html")
+
+
+def _asset_icon_name(symbol: str) -> str:
+    key = str(symbol or "").strip().upper()
+    if not key or len(key) > 40 or not key.isalnum():
+        raise HTTPException(422, "Invalid asset symbol")
+    return BINGX_ICON_ALIASES.get(key, key)
+
+
+@lru_cache(maxsize=1024)
+def _download_bingx_icon(symbol: str) -> bytes:
+    icon_name = _asset_icon_name(symbol)
+    response = requests.get(
+        f"{BINGX_ICON_CDN}/{icon_name}.png",
+        timeout=8,
+        headers={"User-Agent": "ucb-miniapp/1.0", "Accept": "image/png"},
+    )
+    response.raise_for_status()
+    content = bytes(response.content)
+    content_type = str(response.headers.get("Content-Type") or "").lower()
+    if (
+        not content_type.startswith("image/png")
+        or not content.startswith(b"\x89PNG\r\n\x1a\n")
+        or len(content) > MAX_ASSET_ICON_BYTES
+    ):
+        raise ValueError("Unexpected BingX icon response")
+    return content
+
+
+@app.get("/api/asset-icon/{symbol}")
+def asset_icon(symbol: str, request: Request):
+    client = request.client.host if request.client else "unknown"
+    rate_limiter.check("asset_icon", client, limit=120, window_seconds=60)
+    icon_name = _asset_icon_name(symbol)
+    try:
+        content = _download_bingx_icon(icon_name)
+    except requests.HTTPError as exc:
+        status = getattr(exc.response, "status_code", 502)
+        raise HTTPException(404 if status == 404 else 502, "Asset icon unavailable") from exc
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        raise HTTPException(502, "Asset icon unavailable") from exc
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400, stale-if-error=604800"},
+    )
 
 
 @app.get("/health")

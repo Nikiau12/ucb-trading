@@ -333,7 +333,7 @@ function renderHome(){
   const frameLabel=$('#chart-timeframe');
   if(frameLabel)frameLabel.textContent=String(signal.timeframe||overviewTimeframe||'4h').toUpperCase();
   const coin=$('#plan-coin');
-  if(coin){coin.innerHTML=coinIconMarkup(signal.symbol);hydrateCoinIcons(coin);}
+  if(coin){coin.innerHTML=coinIconMarkup(signal.symbol,signal.asset_type);hydrateCoinIcons(coin);}
   const headingCoin=$('#plan-heading-coin');
   if(headingCoin){headingCoin.innerHTML=coinIconMarkup(signal.symbol,signal.asset_type);hydrateCoinIcons(headingCoin);}
   const chartSymbol=$('#chart-symbol');

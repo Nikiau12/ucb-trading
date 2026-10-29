@@ -13,13 +13,18 @@ test('exchange symbol formats resolve to the same local icon',()=>{
   assert.equal(icons.resolve('SOL_USDT'),'/static/icons/sol.svg');
 });
 test('stock identities are explicit, not guessed from crypto tickers',()=>{
-  assert.equal(icons.resolve('META_USDT'),null);
+  assert.equal(icons.resolve('META_USDT'),'/api/asset-icon/META');
   assert.equal(icons.resolve('META','stock'),'/static/icons/stock-meta.svg');
   assert.equal(icons.resolve('NCSKNVDA2USD_USDT'),'/static/icons/stock-nvidia.svg');
   assert.equal(icons.resolve('BTC','stock'),null);
 });
-test('unknown and hostile symbols fall back without external requests',()=>{
-  for(const value of ['UNKNOWN_USDT','1000BTC_USDT','../../btc','<img src=x>','https://example.com','__proto__',''])assert.equal(icons.resolve(value),null);
+test('valid crypto symbols use the same-origin BingX icon proxy',()=>{
+  assert.equal(icons.resolve('SUI_USDT'),'/api/asset-icon/SUI');
+  assert.equal(icons.resolve('1000BONK_USDT'),'/api/asset-icon/1000BONK');
+  assert.equal(icons.resolve('UNKNOWN_USDT'),'/api/asset-icon/UNKNOWN');
+});
+test('hostile symbols fall back without creating an image request',()=>{
+  for(const value of ['../../btc','<img src=x>','https://example.com','__proto__',''])assert.equal(icons.resolve(value),null);
 });
 test('all catalog paths exist',()=>{
   for(const symbol of 'BTC ETH SOL XRP DOGE ADA BNB LTC LINK AVAX DOT TRX BCH ZEC UNI AAVE ATOM ETC XLM FIL ALGO VET ICP USDT USDC'.split(' '))assert.ok(fs.existsSync(path.join(root,'miniapp',icons.resolve(symbol))));
