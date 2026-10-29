@@ -434,6 +434,9 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "width:390px" not in css
     assert "right:24px" not in css
     assert 'id="subscription-title"' in html
+    assert 'src="/static/ucb-logo.png?v=20261029-1"' in html
+    assert (root / "ucb-logo.png").exists()
+    assert "brand-mark span" not in css
     assert 'id="chart-skeleton"' in html
     assert 'id="chart-frame"' in html
     assert 'class="chart-section home-btc-chart"' in html

@@ -8,8 +8,7 @@ body.home-light{
   --radius:20px;color-scheme:light;background:var(--bg);
 }
 .home-light .topbar{height:76px;padding-inline:24px;background:rgba(245,247,251,.96);border:0}
-.home-light .brand-mark{width:38px;height:38px;border:0;border-radius:13px;background:#315fe9}
-.home-light .brand-mark span{background:#fff}
+.home-light .brand-mark{width:42px;height:42px;border:0;background:transparent}
 .home-light .brand-lockup strong{font-size:18px;letter-spacing:-.04em}
 .home-light .brand-lockup small{color:var(--muted);font-size:9px;letter-spacing:.16em;font-weight:600}
 .home-light .icon-button{height:44px;width:44px;border:1px solid var(--line);border-radius:14px;background:#fff;color:#65738a}
