@@ -23,6 +23,7 @@ body.home-light{
 .home-light .plan-price{font:600 clamp(27px,7.7vw,42px)/1.15 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.045em;overflow-wrap:anywhere}
 .home-light .plan-confidence{max-width:440px;font-size:12px;line-height:1.65;color:var(--muted)}
 .home-light .chart-section{border:1px solid #e7ebf2;box-shadow:0 6px 20px #25396004;border-radius:20px;margin-bottom:26px}
+.home-light .home-btc-chart{margin-top:4px}
 .home-light .section-toolbar{padding:16px;border:0;gap:16px}
 .home-light .symbol-title{min-width:0;gap:9px}
 .home-light .symbol-title strong{font-size:12px;font-weight:600}
@@ -40,6 +41,10 @@ body.home-light{
 .home-light .chart-readout span{margin:0;color:var(--muted);font:500 11px var(--sans);letter-spacing:0;text-transform:none}
 .home-light .chart-readout strong{font:600 12px var(--sans)}
 .home-section-title{margin:24px 0 12px;font:600 11px var(--sans);letter-spacing:.12em;color:var(--muted)}
+.major-markets{margin-bottom:28px}
+.major-market-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.major-market-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:78px;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff;color:var(--text);text-align:left}
+.major-market-card .instrument-identity{min-width:0;gap:9px}.major-market-card .coin-dot{width:36px;height:36px;flex:0 0 36px}.major-market-card strong{font:600 13px var(--sans);white-space:nowrap}.major-market-card .side{justify-self:end}.major-market-card b,.major-market-card small{font-variant-numeric:tabular-nums}.major-market-card b{font:600 12px var(--sans)}.major-market-card small{font-size:11px;color:var(--muted);justify-self:end}.major-market-card .major-waiting{grid-column:1/-1;color:var(--muted);font-size:11px;line-height:1.45}.major-market-card.waiting{opacity:1;cursor:default}.major-market-card.active-setup{border-color:#d7e1f8;box-shadow:0 4px 14px #25396006}
 .plan-levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .home-light .detail-metric{border:0;border-radius:14px;background:#fff;padding:16px;min-width:0}
 .home-light .detail-metric span{font-size:12px;margin-bottom:8px;color:var(--muted)}
@@ -67,9 +72,11 @@ body.home-light{
   .home-light .view{padding:12px 20px 30px}.home-light .topbar{padding-inline:20px}
   .home-light .section-toolbar{flex-wrap:wrap;padding:14px}
   .home-light .symbol-title{display:none}
+  .home-light .home-btc-chart .symbol-title{display:flex;width:100%}
   .home-light .chart-options,.home-light .chart-controls{width:100%;margin:0}
   .home-light .chart-controls button{flex:1}
   .plan-levels{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .major-market-list{grid-template-columns:1fr}.major-market-card{min-height:68px;grid-template-columns:minmax(0,1fr) auto auto auto}.major-market-card .major-waiting{grid-column:auto;justify-self:end;text-align:right;max-width:150px}
   .home-light .plan-numbers{grid-template-columns:1fr;padding:0}
   .home-light .plan-numbers .detail-metric{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .home-light .plan-numbers .detail-metric+.detail-metric{border-left:0;border-top:1px solid #f0f3f8}

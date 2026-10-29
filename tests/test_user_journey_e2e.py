@@ -80,6 +80,16 @@ def _actionable_plan():
     }
 
 
+def test_major_markets_are_always_first_in_the_plan_scan():
+    assert bot._scan_symbols(["XRP_USDT", "BTC_USDT", "DOGE_USDT"])[:5] == [
+        "BTC_USDT",
+        "ETH_USDT",
+        "SOL_USDT",
+        "XRP_USDT",
+        "DOGE_USDT",
+    ]
+
+
 def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     settings = {"language": "en", "deposit": None, "risk_pct": 1.0, "lev": 10.0, "margin": "cross"}
     granted_signals = []
