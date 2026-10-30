@@ -19,6 +19,11 @@ Object.assign(translations.ru,{tradeClosed:'СДЕЛКА ЗАКРЫТА',tradeCa
 Object.assign(translations.de,{tradeClosed:'TRADE GESCHLOSSEN',tradeCancelled:'Das Setup ist aufgehoben. Nicht erneut einsteigen.',waitNewSignal:'Warte auf ein neues Signal. Der neue Einstieg, Stop, TP1 und TP2 erscheinen hier.'});
 Object.assign(translations.fr,{tradeClosed:'TRADE CLÔTURÉ',tradeCancelled:'Le setup est annulé. Ne rentrez pas à nouveau.',waitNewSignal:'Attendez un nouveau signal. Sa nouvelle entrée, son Stop, TP1 et TP2 apparaîtront ici.'});
 Object.assign(translations.es,{tradeClosed:'OPERACIÓN CERRADA',tradeCancelled:'El setup queda anulado. No vuelvas a entrar.',waitNewSignal:'Espera una nueva señal. Aquí aparecerán su nueva entrada, Stop, TP1 y TP2.'});
+Object.assign(translations.en,{referralOffer:'BINGX REFERRAL OFFER',referralTitle:'Access for 10 USDT',referralCopy:'Register through our BingX link, then submit your numeric UID for verification.',registerBingx:'Register on BingX',bingxUid:'BingX UID',submitReferral:'Send for verification',referralNone:'The discount is activated after an admin checks your UID in Partner Hub.',referralPending:'UID submitted. Verification is pending.',referralVerified:'Referral verified. The 10 USDT price is active.',referralRejected:'UID was not found. Check it and submit again.',referralUidUsed:'This BingX UID is already linked to another Telegram account.',referralInvalid:'Enter a BingX UID containing 6–20 digits.',referralFailed:'Could not submit the UID. Try again.'});
+Object.assign(translations.ru,{referralOffer:'ПРЕДЛОЖЕНИЕ ДЛЯ РЕФЕРАЛОВ BINGX',referralTitle:'Доступ за 10 USDT',referralCopy:'Зарегистрируйтесь по нашей ссылке BingX, затем отправьте цифровой UID на проверку.',registerBingx:'Регистрация на BingX',bingxUid:'BingX UID',submitReferral:'Отправить на проверку',referralNone:'Скидка включится после проверки UID администратором в Partner Hub.',referralPending:'UID отправлен. Ожидается проверка.',referralVerified:'Реферал подтверждён. Цена 10 USDT активна.',referralRejected:'UID не найден. Проверьте его и отправьте ещё раз.',referralUidUsed:'Этот BingX UID уже привязан к другому Telegram-аккаунту.',referralInvalid:'Введите BingX UID из 6–20 цифр.',referralFailed:'Не удалось отправить UID. Попробуйте ещё раз.'});
+Object.assign(translations.de,{referralOffer:'BINGX-EMPFEHLUNG',referralTitle:'Zugang für 10 USDT',referralCopy:'Registriere dich über unseren BingX-Link und sende dann deine numerische UID zur Prüfung.',registerBingx:'Bei BingX registrieren',bingxUid:'BingX UID',submitReferral:'Zur Prüfung senden',referralNone:'Der Rabatt wird nach der Prüfung im Partner Hub aktiviert.',referralPending:'UID gesendet. Prüfung ausstehend.',referralVerified:'Empfehlung bestätigt. Der Preis von 10 USDT ist aktiv.',referralRejected:'UID nicht gefunden. Prüfe sie und sende sie erneut.',referralUidUsed:'Diese BingX UID ist bereits mit einem anderen Telegram-Konto verknüpft.',referralInvalid:'Gib eine BingX UID mit 6–20 Ziffern ein.',referralFailed:'UID konnte nicht gesendet werden.'});
+Object.assign(translations.fr,{referralOffer:'OFFRE DE PARRAINAGE BINGX',referralTitle:'Accès pour 10 USDT',referralCopy:'Inscris-toi via notre lien BingX, puis envoie ton UID numérique pour vérification.',registerBingx:'S’inscrire sur BingX',bingxUid:'UID BingX',submitReferral:'Envoyer pour vérification',referralNone:'La remise sera activée après vérification dans Partner Hub.',referralPending:'UID envoyé. Vérification en attente.',referralVerified:'Parrainage vérifié. Le tarif de 10 USDT est actif.',referralRejected:'UID introuvable. Vérifie-le et renvoie-le.',referralUidUsed:'Cet UID BingX est déjà lié à un autre compte Telegram.',referralInvalid:'Saisis un UID BingX de 6 à 20 chiffres.',referralFailed:'Impossible d’envoyer l’UID.'});
+Object.assign(translations.es,{referralOffer:'OFERTA PARA REFERIDOS DE BINGX',referralTitle:'Acceso por 10 USDT',referralCopy:'Regístrate mediante nuestro enlace de BingX y envía tu UID numérico para verificarlo.',registerBingx:'Registrarse en BingX',bingxUid:'UID de BingX',submitReferral:'Enviar para verificar',referralNone:'El descuento se activará tras la revisión en Partner Hub.',referralPending:'UID enviado. Verificación pendiente.',referralVerified:'Referido verificado. El precio de 10 USDT está activo.',referralRejected:'UID no encontrado. Revísalo y envíalo de nuevo.',referralUidUsed:'Este UID de BingX ya está vinculado a otra cuenta de Telegram.',referralInvalid:'Introduce un UID de BingX de 6–20 dígitos.',referralFailed:'No se pudo enviar el UID.'});
 
 const taglines={
   en:'Setups, risk and execution — one screen.',
@@ -112,12 +117,52 @@ function renderProfile(){
   const copy=$('#subscription-copy');
   const pay=$('#payment-button');
   const priceBlock=$('#subscription-price-block');
+  const referralStatus=profile.bingx_referral_status||'none';
+  const referralPending=referralStatus==='pending';
   if(title&&copy&&pay&&priceBlock){
     title.textContent=paid?tr('accessOpen'):tr('monthlyAccess');
-    copy.textContent=paid?tr('settingsAccessCopy'):tr('subscriptionCopy');
-    pay.hidden=paid;
-    priceBlock.hidden=paid;
+    copy.textContent=paid?tr('settingsAccessCopy'):referralPending?tr('referralPending'):tr('subscriptionCopy');
+    pay.hidden=paid||referralPending;
+    priceBlock.hidden=paid||referralPending;
   }
+  const referralForm=$('#referral-form');
+  const referralNote=$('#referral-status');
+  const referralInput=$('#bingx-uid');
+  if(referralInput&&profile.bingx_referral_uid&&!referralInput.value)referralInput.value=profile.bingx_referral_uid;
+  if(referralForm)referralForm.hidden=referralStatus==='pending'||referralStatus==='verified';
+  if(referralNote){
+    const key={pending:'referralPending',verified:'referralVerified',rejected:'referralRejected'}[referralStatus]||'referralNone';
+    referralNote.textContent=tr(key);
+    referralNote.dataset.status=referralStatus;
+  }
+}
+
+function openBingxReferral(){
+  const raw=String(profile?.bingx_referral_url||'');
+  try{
+    const url=new URL(raw);
+    if(url.protocol!=='https:'||!(url.hostname==='bingx.com'||url.hostname.endsWith('.bingx.com')))throw new Error('unsafe referral URL');
+    if(tg?.openLink)tg.openLink(url.toString());
+    else window.open(url.toString(),'_blank','noopener');
+  }catch(error){showToast(tr('referralFailed'))}
+}
+
+async function submitReferral(event){
+  event.preventDefault();
+  const input=$('#bingx-uid');
+  const button=$('#referral-form button[type=submit]');
+  const bingx_uid=input.value.trim();
+  if(!/^\d{6,20}$/.test(bingx_uid)){showToast(tr('referralInvalid'));input.focus();return;}
+  button.disabled=true;
+  try{
+    const response=await fetch('/api/bingx-referral',{method:'POST',headers,body:JSON.stringify({bingx_uid})});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok){showToast(tr(body.reason==='uid_used'?'referralUidUsed':'referralFailed'));return;}
+    profile={...profile,bingx_referral_uid:bingx_uid,bingx_referral_status:body.status||'pending'};
+    renderProfile();
+    showToast(tr('referralPending'));
+  }catch(error){showToast(tr('referralFailed'))}
+  finally{button.disabled=false;}
 }
 
 function signalMetrics(signal){
@@ -582,6 +627,8 @@ const signalBack=$('#signal-back');
 if(signalBack)signalBack.addEventListener('click',()=>showView('signals'));
 $('#language').addEventListener('change',async event=>{const previous=language;const next=event.target.value;language=next;applyLanguage();try{await api('/api/settings',{method:'PATCH',body:JSON.stringify({language:next})})}catch(error){language=previous;applyLanguage();showToast(tr('saveFailed'))}});
 $('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));selectedSignal=pinnedNoSetup&&!selectedId?null:(selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||(pinnedNoSetup?null:preferredSignal()):preferredSignal());renderProfile();renderSignals();renderMajorMarkets();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
+$('#bingx-referral-link').addEventListener('click',openBingxReferral);
+$('#referral-form').addEventListener('submit',submitReferral);
 function setPaymentState(state, until=''){
   const node=$('#payment-state');
   if(!node)return;

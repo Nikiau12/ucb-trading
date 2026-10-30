@@ -16,6 +16,8 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+import psycopg
+
 # Keep aiohttp's pure-Python parser as defense in depth for untrusted exchange
 # responses, even though the pinned aiohttp release includes the parser fixes.
 os.environ.setdefault("AIOHTTP_NO_EXTENSIONS", "1")
@@ -52,6 +54,7 @@ from core.config import (
     BINGX_LISTING_CHECK_INTERVAL, BINGX_NEW_LISTINGS_URL,
     FREE_TRIAL_SIGNALS, FREE_TRIAL_COOLDOWN_MINUTES, PAID_ACCESS_HOURS,
     USDT_PAYMENT_ADDRESS, USDT_PAYMENT_AMOUNT, USDT_PAYMENT_NETWORK,
+    BINGX_REFERRAL_CODE, BINGX_REFERRAL_URL, REFERRAL_SUBSCRIPTION_PRICE_USDT,
     ACCESS_STATE_FILE, USER_REGISTRY_FILE, TRONGRID_API_KEY, MINI_APP_URL,
 )
 from core.tron_payment import TronPaymentVerifier
@@ -84,6 +87,11 @@ from user_input import (
     parse_setting,
 )
 from miniapp.schema import apply_migrations
+from miniapp.referrals import (
+    pending_referral_claims,
+    review_referral_claim,
+    submit_referral_claim,
+)
 
 logger = logging.getLogger("ucb.bot")
 
@@ -822,6 +830,154 @@ async def cmd_help(message: types.Message):
 @router.message(Command("subscribe"))
 async def cmd_subscribe(message: types.Message):
     await message.reply(_payment_paywall(_user_id(message)), parse_mode="HTML")
+
+
+@router.message(Command("referral"))
+async def cmd_referral(message: types.Message):
+    lang = get_lang(message.from_user.id)
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.reply(
+            _t(
+                lang,
+                "referral_intro",
+                price=html.escape(str(REFERRAL_SUBSCRIPTION_PRICE_USDT)),
+                url=html.escape(BINGX_REFERRAL_URL, quote=True),
+            ),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        return
+    bingx_uid = parts[1].strip()
+    if not bingx_uid.isdigit() or not 6 <= len(bingx_uid) <= 20:
+        await message.reply(_t(lang, "referral_invalid_uid"), parse_mode="HTML")
+        return
+    if not st.DATABASE_URL:
+        await message.reply(_t(lang, "referral_save_failed"), parse_mode="HTML")
+        return
+    try:
+        with psycopg.connect(st.DATABASE_URL) as connection:
+            result = submit_referral_claim(
+                connection,
+                user_id=message.from_user.id,
+                bingx_uid=bingx_uid,
+                referral_code=BINGX_REFERRAL_CODE,
+            )
+    except Exception:
+        logger.warning("referral claim save failed user_id=%s", message.from_user.id)
+        await message.reply(_t(lang, "referral_save_failed"), parse_mode="HTML")
+        return
+    if not result.get("ok"):
+        key = "referral_uid_used" if result.get("reason") == "uid_used" else "referral_save_failed"
+        await message.reply(_t(lang, key), parse_mode="HTML")
+        return
+    if result.get("status") == "verified":
+        await message.reply(
+            _t(lang, "referral_verified", price=REFERRAL_SUBSCRIPTION_PRICE_USDT),
+            parse_mode="HTML",
+        )
+        return
+    await message.reply(
+        _t(
+            lang,
+            "referral_pending",
+            uid=html.escape(result["bingx_uid"]),
+            price=html.escape(str(REFERRAL_SUBSCRIPTION_PRICE_USDT)),
+        ),
+        parse_mode="HTML",
+    )
+    admin_text = (
+        "🤝 <b>Новая заявка BingX-реферала</b>\n\n"
+        f"Telegram: <code>{message.from_user.id}</code>\n"
+        f"BingX UID: <code>{html.escape(result['bingx_uid'])}</code>\n"
+        f"Код: <code>{html.escape(BINGX_REFERRAL_CODE)}</code>\n\n"
+        "Проверь UID в Partner Hub → Users, затем отправь:\n"
+        f"<code>/approve_referral {message.from_user.id}</code>\n"
+        "или\n"
+        f"<code>/reject_referral {message.from_user.id}</code>"
+    )
+    for admin_id in ADMIN_CHAT_IDS:
+        try:
+            await bot_instance.send_message(admin_id, admin_text, parse_mode="HTML")
+        except Exception:
+            logger.warning("referral admin notify failed admin_id=%s", admin_id)
+
+
+@router.message(Command("referrals"))
+async def cmd_referrals(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.reply("⛔️ Admin only.")
+        return
+    try:
+        with psycopg.connect(st.DATABASE_URL) as connection:
+            claims = pending_referral_claims(connection)
+    except Exception:
+        logger.warning("pending referrals read failed")
+        await message.reply("⚠️ Не удалось получить список заявок.")
+        return
+    if not claims:
+        await message.reply("✅ Новых заявок BingX-рефералов нет.")
+        return
+    lines = ["🤝 <b>Заявки BingX-рефералов</b>"]
+    for claim in claims:
+        lines.append(
+            f"\nTelegram: <code>{claim['telegram_user_id']}</code>"
+            f"\nBingX UID: <code>{html.escape(claim['bingx_uid'])}</code>"
+            f"\n<code>/approve_referral {claim['telegram_user_id']}</code>"
+        )
+    await message.reply("\n".join(lines), parse_mode="HTML")
+
+
+async def _review_referral(message: types.Message, status: str) -> None:
+    if not is_admin(message.from_user.id):
+        await message.reply("⛔️ Admin only.")
+        return
+    parts = (message.text or "").split()
+    if len(parts) != 2 or not parts[1].isdigit():
+        command = "approve_referral" if status == "verified" else "reject_referral"
+        await message.reply(f"Usage: <code>/{command} USER_ID</code>", parse_mode="HTML")
+        return
+    target = int(parts[1])
+    try:
+        with psycopg.connect(st.DATABASE_URL) as connection:
+            reviewed = review_referral_claim(
+                connection,
+                user_id=target,
+                status=status,
+                reviewed_by=message.from_user.id,
+            )
+    except Exception:
+        logger.warning("referral review failed target=%s status=%s", target, status)
+        await message.reply("⚠️ Не удалось сохранить решение.")
+        return
+    if not reviewed:
+        await message.reply("❌ Заявка этого пользователя не найдена.")
+        return
+    await message.reply(
+        f"✅ Заявка <code>{target}</code>: <b>{html.escape(status)}</b>.",
+        parse_mode="HTML",
+    )
+    user_lang = get_lang(target)
+    key = "referral_verified" if status == "verified" else "referral_rejected"
+    kwargs = (
+        {"price": REFERRAL_SUBSCRIPTION_PRICE_USDT}
+        if status == "verified"
+        else {"code": BINGX_REFERRAL_CODE}
+    )
+    try:
+        await bot_instance.send_message(target, _t(user_lang, key, **kwargs), parse_mode="HTML")
+    except Exception:
+        logger.warning("referral review notice failed target=%s", target)
+
+
+@router.message(Command("approve_referral"))
+async def cmd_approve_referral(message: types.Message):
+    await _review_referral(message, "verified")
+
+
+@router.message(Command("reject_referral"))
+async def cmd_reject_referral(message: types.Message):
+    await _review_referral(message, "rejected")
 
 
 @router.message(Command("status"))

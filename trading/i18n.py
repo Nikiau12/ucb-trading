@@ -784,6 +784,13 @@ STRINGS["ru"].update({
     "status_inactive": "⏳ Активной подписки нет",
     "status_payment": "Последняя оплата:\nTX: <code>{tx}</code>\nСтатус: <b>{status}</b>",
     "status_summary": "👤 <b>Статус доступа</b>\n\n{access}\nБесплатных сигналов: <b>{left}</b> из {total}{claim}",
+    "referral_intro": "🤝 <b>Цена для рефералов BingX — {price} USDT</b>\n\n1. Зарегистрируйся по <a href=\"{url}\">официальной ссылке BingX</a>.\n2. Найди свой цифровой BingX UID.\n3. Отправь: <code>/referral ВАШ_UID</code>\n\nПосле проверки UID администратором бот откроет специальную цену.",
+    "referral_pending": "⏳ Заявка принята. BingX UID <code>{uid}</code> будет проверен в Partner Hub. После подтверждения цена подписки станет <b>{price} USDT</b>.",
+    "referral_verified": "✅ BingX UID подтверждён. Твоя цена доступа — <b>{price} USDT</b>. Получить счёт: /subscribe",
+    "referral_rejected": "❌ BingX UID не найден среди рефералов по коду {code}. Проверь UID и отправь /referral ещё раз.",
+    "referral_uid_used": "❌ Этот BingX UID уже привязан к другому Telegram-аккаунту.",
+    "referral_invalid_uid": "❌ BingX UID должен состоять из 6–20 цифр.",
+    "referral_save_failed": "⚠️ Не удалось сохранить заявку. Попробуй ещё раз позже.",
 })
 
 STRINGS["en"].update({
@@ -816,6 +823,13 @@ STRINGS["en"].update({
     "status_inactive": "⏳ No active subscription",
     "status_payment": "Latest payment:\nTX: <code>{tx}</code>\nStatus: <b>{status}</b>",
     "status_summary": "👤 <b>Access status</b>\n\n{access}\nFree signals: <b>{left}</b> of {total}{claim}",
+    "referral_intro": "🤝 <b>BingX referral price — {price} USDT</b>\n\n1. Register through the <a href=\"{url}\">official BingX link</a>.\n2. Find your numeric BingX UID.\n3. Send: <code>/referral YOUR_UID</code>\n\nAfter an admin verifies the UID, the bot will unlock the special price.",
+    "referral_pending": "⏳ Request received. BingX UID <code>{uid}</code> will be checked in Partner Hub. After approval, your price will be <b>{price} USDT</b>.",
+    "referral_verified": "✅ BingX UID verified. Your access price is <b>{price} USDT</b>. Get an invoice: /subscribe",
+    "referral_rejected": "❌ BingX UID was not found among referrals for code {code}. Check it and send /referral again.",
+    "referral_uid_used": "❌ This BingX UID is already linked to another Telegram account.",
+    "referral_invalid_uid": "❌ BingX UID must contain 6–20 digits.",
+    "referral_save_failed": "⚠️ The request could not be saved. Try again later.",
 })
 
 STRINGS["de"].update({
@@ -842,6 +856,13 @@ STRINGS["de"].update({
     "status_inactive": "⏳ Kein aktives Abonnement",
     "status_payment": "Letzte Zahlung:\nTX: <code>{tx}</code>\nStatus: <b>{status}</b>",
     "status_summary": "👤 <b>Zugangsstatus</b>\n\n{access}\nKostenlose Signale: <b>{left}</b> von {total}{claim}",
+    "referral_intro": "🤝 <b>BingX-Empfehlungspreis — {price} USDT</b>\n\nRegistriere dich über den <a href=\"{url}\">offiziellen BingX-Link</a>, finde deine numerische UID und sende: <code>/referral DEINE_UID</code>.",
+    "referral_pending": "⏳ Anfrage erhalten. BingX UID <code>{uid}</code> wird im Partner Hub geprüft. Danach beträgt dein Preis <b>{price} USDT</b>.",
+    "referral_verified": "✅ BingX UID bestätigt. Dein Zugang kostet <b>{price} USDT</b>. Rechnung: /subscribe",
+    "referral_rejected": "❌ BingX UID wurde nicht unter den Empfehlungen für Code {code} gefunden.",
+    "referral_uid_used": "❌ Diese BingX UID ist bereits mit einem anderen Telegram-Konto verknüpft.",
+    "referral_invalid_uid": "❌ Die BingX UID muss aus 6–20 Ziffern bestehen.",
+    "referral_save_failed": "⚠️ Anfrage konnte nicht gespeichert werden. Versuche es später erneut.",
 })
 
 STRINGS["fr"].update({
@@ -868,6 +889,13 @@ STRINGS["fr"].update({
     "status_inactive": "⏳ Aucun abonnement actif",
     "status_payment": "Dernier paiement :\nTX : <code>{tx}</code>\nStatut : <b>{status}</b>",
     "status_summary": "👤 <b>Statut d'accès</b>\n\n{access}\nSignaux gratuits : <b>{left}</b> sur {total}{claim}",
+    "referral_intro": "🤝 <b>Tarif parrainé BingX — {price} USDT</b>\n\nInscris-toi via le <a href=\"{url}\">lien BingX officiel</a>, trouve ton UID numérique et envoie : <code>/referral TON_UID</code>.",
+    "referral_pending": "⏳ Demande reçue. L'UID BingX <code>{uid}</code> sera vérifié dans Partner Hub. Le tarif sera ensuite de <b>{price} USDT</b>.",
+    "referral_verified": "✅ UID BingX vérifié. Ton accès coûte <b>{price} USDT</b>. Facture : /subscribe",
+    "referral_rejected": "❌ UID BingX introuvable parmi les filleuls du code {code}.",
+    "referral_uid_used": "❌ Cet UID BingX est déjà lié à un autre compte Telegram.",
+    "referral_invalid_uid": "❌ L'UID BingX doit contenir 6 à 20 chiffres.",
+    "referral_save_failed": "⚠️ La demande n'a pas pu être enregistrée. Réessaie plus tard.",
 })
 
 STRINGS["es"].update({
@@ -894,6 +922,13 @@ STRINGS["es"].update({
     "status_inactive": "⏳ Sin suscripción activa",
     "status_payment": "Último pago:\nTX: <code>{tx}</code>\nEstado: <b>{status}</b>",
     "status_summary": "👤 <b>Estado de acceso</b>\n\n{access}\nSeñales gratuitas: <b>{left}</b> de {total}{claim}",
+    "referral_intro": "🤝 <b>Precio para referidos de BingX — {price} USDT</b>\n\nRegístrate mediante el <a href=\"{url}\">enlace oficial de BingX</a>, busca tu UID numérico y envía: <code>/referral TU_UID</code>.",
+    "referral_pending": "⏳ Solicitud recibida. El UID de BingX <code>{uid}</code> se comprobará en Partner Hub. Después, el precio será de <b>{price} USDT</b>.",
+    "referral_verified": "✅ UID de BingX verificado. Tu acceso cuesta <b>{price} USDT</b>. Factura: /subscribe",
+    "referral_rejected": "❌ El UID de BingX no aparece entre los referidos del código {code}.",
+    "referral_uid_used": "❌ Este UID de BingX ya está vinculado a otra cuenta de Telegram.",
+    "referral_invalid_uid": "❌ El UID de BingX debe contener entre 6 y 20 dígitos.",
+    "referral_save_failed": "⚠️ No se pudo guardar la solicitud. Inténtalo más tarde.",
 })
 
 

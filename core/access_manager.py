@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from typing import Dict, Tuple
@@ -63,8 +64,8 @@ class AccessManager:
         self.paid_access_seconds = paid_access_hours * 60 * 60
         self.payment_address = payment_address
         self.payment_amount = payment_amount
+        self.referral_payment_amount = os.getenv("REFERRAL_SUBSCRIPTION_PRICE_USDT", "10.00")
         self.payment_network = payment_network
-        import os
 
         self.database_url = os.getenv("DATABASE_URL", "")
         self.trial_cooldown_seconds = int(os.getenv("FREE_TRIAL_COOLDOWN_MINUTES", "30")) * 60
@@ -216,9 +217,16 @@ class AccessManager:
             return None
         try:
             from miniapp.billing import ensure_open_invoice
+            from miniapp.referrals import effective_subscription_price
 
             with psycopg.connect(self.database_url) as connection:
-                return ensure_open_invoice(connection, user_id, self.payment_amount)
+                base_amount = effective_subscription_price(
+                    connection,
+                    user_id,
+                    self.payment_amount,
+                    self.referral_payment_amount,
+                )
+                return ensure_open_invoice(connection, user_id, base_amount)
         except Exception as exc:
             logger.warning("open invoice failed: %s", type(exc).__name__)
             return None

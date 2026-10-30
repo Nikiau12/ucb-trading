@@ -26,10 +26,16 @@ from pydantic import BaseModel, Field
 try:
     from .sizing import position_size_for_contract
     from .schema import apply_migrations
+    from .referrals import (
+        effective_subscription_price,
+        referral_snapshot,
+        submit_referral_claim,
+    )
 except ImportError:
     # Railway deploys miniapp/ as the service root, so app.py is a top-level module.
     from sizing import position_size_for_contract
     from schema import apply_migrations
+    from referrals import effective_subscription_price, referral_snapshot, submit_referral_claim
 
 logger = logging.getLogger("ucb.miniapp")
 
@@ -44,6 +50,16 @@ PAYMENT_AMOUNT = os.getenv("SUBSCRIPTION_PRICE_USDT", "29.99")
 PAYMENT_DAYS = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
 PAYMENT_NETWORK = os.getenv("USDT_PAYMENT_NETWORK", "TRC20 (Tron)")
 PAYMENT_WALLET = os.getenv("USDT_PAYMENT_ADDRESS", "")
+REFERRAL_PRICE = os.getenv("REFERRAL_SUBSCRIPTION_PRICE_USDT", "10.00")
+REFERRAL_CODE = os.getenv("BINGX_REFERRAL_CODE", "D8PYH62T").strip().upper()
+REFERRAL_URL = os.getenv(
+    "BINGX_REFERRAL_URL", f"https://bingx.com/invite/{REFERRAL_CODE}/"
+).strip()
+ADMIN_CHAT_IDS = tuple(
+    item.strip()
+    for item in os.getenv("ADMIN_CHAT_IDS", os.getenv("TELEGRAM_CHAT_ID", "")).split(",")
+    if item.strip()
+)
 FREE_TRIAL_SIGNALS = int(os.getenv("FREE_TRIAL_SIGNALS", "5"))
 SCANNER_HEALTH_MAX_AGE_SECONDS = int(os.getenv("SCANNER_HEALTH_MAX_AGE_SECONDS", "5400"))
 SUPPORTED_LANGUAGES = {"en", "ru", "de", "fr", "es"}
@@ -151,7 +167,7 @@ class HttpMetrics:
             return "/api/asset-icon/:symbol"
         known = {
             "/", "/health", "/metrics", "/api/me", "/api/settings", "/api/signals",
-            "/api/payment-instructions", "/api/payment",
+            "/api/payment-instructions", "/api/payment", "/api/bingx-referral",
         }
         return path if path in known else "/other"
 
@@ -219,6 +235,10 @@ class SettingsUpdate(BaseModel):
 
 class PaymentClaim(BaseModel):
     tx_hash: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
+
+
+class BingxReferralClaim(BaseModel):
+    bingx_uid: str = Field(pattern=r"^[0-9]{6,20}$")
 
 
 @contextmanager
@@ -293,7 +313,13 @@ def _open_invoice_amount(user_id: int) -> str:
         from billing import ensure_open_invoice
 
     with db() as connection:
-        invoice = ensure_open_invoice(connection, user_id, PAYMENT_AMOUNT)
+        base_amount = effective_subscription_price(
+            connection,
+            user_id,
+            PAYMENT_AMOUNT,
+            REFERRAL_PRICE,
+        )
+        invoice = ensure_open_invoice(connection, user_id, base_amount)
     if not invoice:
         raise HTTPException(503, "Payment invoice could not be created")
     return str(invoice["expected_amount"])
@@ -373,13 +399,33 @@ def _settle_tx(user_id: int, tx_hash: str, verification: dict, expected_amount: 
 
 
 def subscription_fields(user_id: int | None = None, *, exact: bool = False) -> dict:
-    amount = str(PAYMENT_AMOUNT)
-    if exact and DATABASE_URL and user_id is not None:
-        amount = _open_invoice_amount(user_id)
+    base_amount = str(PAYMENT_AMOUNT)
+    referral = {
+        "bingx_uid": None,
+        "status": "none",
+    }
+    if DATABASE_URL and user_id is not None:
+        with db() as connection:
+            referral = referral_snapshot(connection, user_id)
+            base_amount = str(
+                effective_subscription_price(
+                    connection,
+                    user_id,
+                    PAYMENT_AMOUNT,
+                    REFERRAL_PRICE,
+                )
+            )
+    amount = _open_invoice_amount(user_id) if exact and DATABASE_URL and user_id is not None else base_amount
     return {
-        "subscription_price_usdt": str(PAYMENT_AMOUNT),
+        "subscription_price_usdt": base_amount,
         "subscription_days": PAYMENT_DAYS,
         "payment_amount_usdt": amount,
+        "bingx_referral_price_usdt": str(REFERRAL_PRICE),
+        "bingx_referral_code": REFERRAL_CODE,
+        "bingx_referral_url": REFERRAL_URL,
+        "bingx_referral_uid": referral.get("bingx_uid"),
+        "bingx_referral_status": referral.get("status", "none"),
+        "bingx_referral_verified": referral.get("status") == "verified",
     }
 
 
@@ -673,6 +719,65 @@ def update_settings(payload: SettingsUpdate, x_telegram_init_data: str = Header(
         )
         connection.commit()
     return {"ok": True}
+
+
+def _notify_referral_admins(user: dict, bingx_uid: str) -> None:
+    if not BOT_TOKEN or not ADMIN_CHAT_IDS:
+        return
+    user_id = int(user["id"])
+    name = html.escape(str(user.get("first_name") or "Trader"))
+    text = (
+        "🤝 <b>Новая заявка BingX-реферала</b>\n\n"
+        f"Telegram: <b>{name}</b> · <code>{user_id}</code>\n"
+        f"BingX UID: <code>{html.escape(bingx_uid)}</code>\n"
+        f"Код: <code>{html.escape(REFERRAL_CODE)}</code>\n\n"
+        "Проверь UID в Partner Hub → Users, затем отправь:\n"
+        f"<code>/approve_referral {user_id}</code>\n"
+        "или\n"
+        f"<code>/reject_referral {user_id}</code>"
+    )
+    for admin_id in ADMIN_CHAT_IDS:
+        try:
+            response = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": admin_id, "text": text, "parse_mode": "HTML"},
+                timeout=8,
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            logger.warning("referral admin notification failed admin_id=%s", admin_id)
+
+
+@app.post("/api/bingx-referral")
+def claim_bingx_referral(
+    payload: BingxReferralClaim,
+    x_telegram_init_data: str = Header(default=""),
+):
+    user = get_user(x_telegram_init_data)
+    require_database(x_telegram_init_data)
+    if not DATABASE_URL:
+        raise HTTPException(503, "Database is not configured")
+    user_id = int(user["id"])
+    rate_limiter.check("bingx-referral", str(user_id), limit=5, window_seconds=3600)
+    try:
+        with db() as connection:
+            result = submit_referral_claim(
+                connection,
+                user_id=user_id,
+                bingx_uid=payload.bingx_uid,
+                referral_code=REFERRAL_CODE,
+            )
+    except psycopg.errors.UniqueViolation:
+        result = {"ok": False, "reason": "uid_used"}
+    if not result.get("ok"):
+        return JSONResponse(status_code=409, content=result)
+    if result.get("status") == "pending":
+        _notify_referral_admins(user, result["bingx_uid"])
+    return {
+        **result,
+        "referral_price_usdt": str(REFERRAL_PRICE),
+        "referral_code": REFERRAL_CODE,
+    }
 
 
 @app.post("/api/payment-instructions")

@@ -31,7 +31,7 @@ def ensure_open_invoice(connection, user_id: int, base_amount) -> dict | None:
             with connection.transaction():
                 existing = connection.execute(
                     """
-                    SELECT id, expected_amount::text
+                    SELECT id, expected_amount::text, base_amount::text
                     FROM payment_invoices
                     WHERE telegram_user_id = %s AND status = 'open'
                     FOR UPDATE
@@ -39,10 +39,15 @@ def ensure_open_invoice(connection, user_id: int, base_amount) -> dict | None:
                     (int(user_id),),
                 ).fetchone()
                 if existing:
-                    return {
-                        "id": existing[0],
-                        "expected_amount": format_usdt(existing[1]),
-                    }
+                    if quantize_usdt(existing[2]) == quantize_usdt(base_amount):
+                        return {
+                            "id": existing[0],
+                            "expected_amount": format_usdt(existing[1]),
+                        }
+                    connection.execute(
+                        "UPDATE payment_invoices SET status = 'cancelled' WHERE id = %s",
+                        (existing[0],),
+                    )
                 used = connection.execute(
                     """
                     SELECT expected_amount::text

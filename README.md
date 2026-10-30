@@ -199,6 +199,9 @@ The most important environment variables are:
 | `FREE_TRIAL_SIGNALS` | Signals available before the paywall |
 | `FREE_TRIAL_COOLDOWN_MINUTES` | Delay between trial signals |
 | `SUBSCRIPTION_PRICE_USDT` | Subscription price |
+| `REFERRAL_SUBSCRIPTION_PRICE_USDT` | Price for a BingX referral verified by an admin |
+| `BINGX_REFERRAL_CODE` | Referral code checked in the BingX Partner Hub |
+| `BINGX_REFERRAL_URL` | Official registration link shown to prospective referrals |
 | `SUBSCRIPTION_DAYS` | Paid-access duration |
 | `USDT_PAYMENT_ADDRESS` | Receiving TRON wallet |
 | `TRONGRID_API_KEY` | TronGrid API access for payment verification |
@@ -207,6 +210,14 @@ The most important environment variables are:
 | `BINGX_MAX_ATTEMPTS` | Retry count for BingX throttling and transient failures |
 | `BINGX_SNAPSHOT_MAX_STALE_SECONDS` | Maximum BingX cache age accepted for diagnostics; stale data is never signalled |
 | `BINGX_CONTRACT_CACHE_TTL_SECONDS` | Cache lifetime for BingX symbol and quantity rules |
+
+### BingX referral price
+
+Users submit a public numeric BingX UID in the Mini App or with
+`/referral BINGX_UID`. The bot notifies the configured admins, who verify the
+UID in BingX Partner Hub → Users. `/approve_referral TELEGRAM_USER_ID` enables
+the referral price and `/reject_referral TELEGRAM_USER_ID` rejects the claim.
+`/referrals` lists pending claims. Approval never requires a user's API keys.
 
 See [`.env.example`](.env.example) for the complete documented template.
 

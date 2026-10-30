@@ -106,7 +106,7 @@ body.home-light{
 /* Settings: natural input sizes, one consistent focus treatment. */
 .home-light .settings-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 20px;padding:24px;border:0;border-radius:20px;background:#fff}
 .home-light .settings-form label>span,.home-light .settings-form legend{font-size:12px;font-weight:500;color:var(--muted);margin-bottom:10px}
-.home-light .settings-form input[type=number],.home-light .settings-form .language-select,.home-light #payment-hash{height:52px;border:1px solid #dce3ed;border-radius:12px;background:#f8faff;color:var(--text);font:500 16px var(--sans);font-variant-numeric:tabular-nums;padding:0 14px;min-width:0}
+.home-light .settings-form input[type=number],.home-light .settings-form .language-select,.home-light #payment-hash,.home-light #bingx-uid{height:52px;border:1px solid #dce3ed;border-radius:12px;background:#f8faff;color:var(--text);font:500 16px var(--sans);font-variant-numeric:tabular-nums;padding:0 14px;min-width:0}
 .home-light .settings-form input:focus-visible,.home-light .settings-form select:focus-visible,.home-light #payment-hash:focus-visible{outline:2px solid var(--blue);outline-offset:2px;box-shadow:none}
 .home-light .settings-form fieldset{grid-column:1/-1;min-width:0}
 .home-light .segmented.wide{background:#f0f3f8;border-radius:13px;height:54px;padding:4px}
@@ -123,6 +123,11 @@ body.home-light{
 .home-light .price strong{font:600 28px var(--sans);letter-spacing:-.04em}
 .home-light .price>span{font-size:11px}.home-light .price .subscription-days{display:inline;font:inherit}
 .home-light .secondary-button{height:auto;min-height:48px;padding:12px 16px;border:1px solid #d5def1;border-radius:12px;background:#fff;color:var(--blue);font-size:13px;font-weight:600}
+.home-light .referral-panel{margin-top:20px;padding:24px;gap:18px;border:1px solid #cfe9df;border-radius:20px;background:#edf8f3}
+.home-light .referral-copy h2{font-size:20px;font-weight:600;letter-spacing:-.03em}.home-light .referral-copy p:not(.eyebrow){font-size:12px;line-height:1.7;max-width:430px}
+.home-light .referral-panel>.secondary-button{border-color:#c9e6da;color:var(--green)}
+.home-light .referral-form{padding-top:18px;border-top:1px solid #d8ece4}.home-light .referral-form label>span{font-size:12px;margin-bottom:10px}.home-light .referral-form .primary-button{height:52px;background:var(--green)}
+.home-light .referral-status{font-size:12px;line-height:1.6}.home-light .referral-status[data-status=pending]{color:#84620b}.home-light .referral-status[data-status=verified]{color:var(--green);font-weight:600}
 .home-light .toast{background:var(--text);color:white;max-width:calc(100% - 32px);box-shadow:0 8px 28px #18253b20}
 
 /* Payment: visible network/address, scrollable sheet, explicit states. */
