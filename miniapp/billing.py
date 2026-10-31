@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
-from decimal import Decimal
 
 from psycopg.types.json import Json
 
 try:
-    from .invoice_amount import format_usdt, quantize_usdt, unique_invoice_amount
+    from .invoice_amount import format_usdt, quantize_usdt
 except ImportError:
-    from invoice_amount import format_usdt, quantize_usdt, unique_invoice_amount
+    from invoice_amount import format_usdt, quantize_usdt
 
 logger = logging.getLogger("ucb.billing")
 
@@ -25,10 +24,11 @@ class PaymentRejected(Exception):
 
 
 def ensure_open_invoice(connection, user_id: int, base_amount) -> dict | None:
-    """Return the user's open invoice, creating one with a unique amount."""
+    """Return the user's open invoice using the exact advertised price."""
     for _attempt in range(5):
         try:
             with connection.transaction():
+                amount = quantize_usdt(base_amount)
                 existing = connection.execute(
                     """
                     SELECT id, expected_amount::text, base_amount::text
@@ -40,27 +40,19 @@ def ensure_open_invoice(connection, user_id: int, base_amount) -> dict | None:
                 ).fetchone()
                 if existing:
                     if quantize_usdt(existing[2]) == quantize_usdt(base_amount):
+                        if quantize_usdt(existing[1]) != amount:
+                            connection.execute(
+                                "UPDATE payment_invoices SET expected_amount = %s WHERE id = %s",
+                                (amount, existing[0]),
+                            )
                         return {
                             "id": existing[0],
-                            "expected_amount": format_usdt(existing[1]),
+                            "expected_amount": format_usdt(amount),
                         }
                     connection.execute(
                         "UPDATE payment_invoices SET status = 'cancelled' WHERE id = %s",
                         (existing[0],),
                     )
-                used = connection.execute(
-                    """
-                    SELECT expected_amount::text
-                    FROM payment_invoices
-                    WHERE status = 'open'
-                       OR created_at > NOW() - INTERVAL '72 hours'
-                    """
-                ).fetchall()
-                amount = unique_invoice_amount(
-                    base_amount,
-                    int(user_id),
-                    {Decimal(row[0]) for row in used},
-                )
                 created = connection.execute(
                     """
                     INSERT INTO payment_invoices (

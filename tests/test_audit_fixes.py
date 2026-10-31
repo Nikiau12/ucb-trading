@@ -2,7 +2,6 @@ import asyncio
 import inspect
 import json
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +18,7 @@ from core.notifier import Notifier
 from core.payment_reasons import payment_reason_key
 from core.worker_lock import hold_worker_lock
 from miniapp import app as miniapp
-from miniapp.invoice_amount import unique_invoice_amount
+from miniapp.invoice_amount import format_usdt, quantize_usdt
 from trading import state
 from trading.auto_alert import render_auto_alert
 from trading.setup_text import render_scan_card, render_setup
@@ -28,13 +27,10 @@ from trading.telegram_render import render_telegram_plan
 from trading.user_input import parse_setting
 
 
-def test_invoice_amounts_are_unique_and_stay_near_the_base_price():
-    first = unique_invoice_amount("29.99", 1, set())
-    second = unique_invoice_amount("29.99", 2, {first})
-
-    assert first != second
-    assert Decimal("29.99") < first < Decimal("30")
-    assert Decimal("29.99") < second < Decimal("30")
+def test_invoice_amounts_keep_the_exact_advertised_price():
+    assert quantize_usdt("29.99") == quantize_usdt("29.990000")
+    assert format_usdt("29.990000") == "29.99"
+    assert format_usdt("10") == "10.00"
 
 
 def test_settle_failure_rolls_back_and_is_not_success(monkeypatch, tmp_path):

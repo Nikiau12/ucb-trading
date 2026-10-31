@@ -495,7 +495,7 @@ def test_unverified_payment_hash_does_not_open_access(monkeypatch):
     monkeypatch.setattr(miniapp, "DATABASE_URL", "postgresql://test")
     monkeypatch.setattr(miniapp, "DEMO_MODE", False)
     monkeypatch.setattr(miniapp, "PAYMENT_WALLET", "TWallet")
-    monkeypatch.setattr(miniapp, "_open_invoice_amount", lambda _user_id: "29.990001")
+    monkeypatch.setattr(miniapp, "_open_invoice_amount", lambda _user_id: "29.99")
     monkeypatch.setattr(
         miniapp,
         "_verify_tx",
@@ -524,11 +524,11 @@ def test_verified_payment_opens_access_on_the_same_contract(monkeypatch):
     monkeypatch.setattr(miniapp, "DATABASE_URL", "postgresql://test")
     monkeypatch.setattr(miniapp, "DEMO_MODE", False)
     monkeypatch.setattr(miniapp, "PAYMENT_WALLET", "TWallet")
-    monkeypatch.setattr(miniapp, "_open_invoice_amount", lambda _user_id: "29.990001")
+    monkeypatch.setattr(miniapp, "_open_invoice_amount", lambda _user_id: "29.99")
     monkeypatch.setattr(
         miniapp,
         "_verify_tx",
-        lambda *_args, **_kwargs: {"ok": True, "paid_amount": "29.990001"},
+        lambda *_args, **_kwargs: {"ok": True, "paid_amount": "29.99"},
     )
     monkeypatch.setattr(
         miniapp,

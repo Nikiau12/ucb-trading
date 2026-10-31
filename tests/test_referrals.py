@@ -152,11 +152,11 @@ def test_access_manager_builds_the_invoice_from_the_verified_price(monkeypatch, 
 
     def fake_invoice(_connection, user_id, base_amount):
         seen.update(user_id=user_id, base_amount=base_amount)
-        return {"id": 1, "expected_amount": "10.000001"}
+        return {"id": 1, "expected_amount": "10.00"}
 
     monkeypatch.setattr("miniapp.billing.ensure_open_invoice", fake_invoice)
     invoice = manager.ensure_open_invoice("42")
-    assert invoice["expected_amount"] == "10.000001"
+    assert invoice["expected_amount"] == "10.00"
     assert seen == {"user_id": 42, "base_amount": Decimal("10.00")}
 
 
@@ -171,17 +171,41 @@ def test_wrong_price_open_invoice_is_cancelled_before_a_new_one_is_created():
             queries.append((query, params))
             if "SELECT id, expected_amount::text, base_amount::text" in query:
                 return Result((7, "29.990001", "29.99"))
-            if "SELECT expected_amount::text" in query:
-                return Result(rows=[])
             if "INSERT INTO payment_invoices" in query:
-                return Result((8, "10.000042"))
+                return Result((8, "10.000000"))
             return Result()
 
     invoice = ensure_open_invoice(Connection(), 42, "10.00")
-    assert invoice == {"id": 8, "expected_amount": "10.000042"}
+    assert invoice == {"id": 8, "expected_amount": "10.00"}
     assert any("SET status = 'cancelled'" in query for query, _ in queries)
     insert_params = next(params for query, params in queries if "INSERT INTO payment_invoices" in query)
+    assert insert_params[1] == Decimal("10.000000")
     assert insert_params[2] == Decimal("10.000000")
+
+
+def test_legacy_invoice_suffix_is_normalized_to_the_exact_price():
+    queries = []
+
+    class Connection:
+        def transaction(self):
+            return nullcontext()
+
+        def execute(self, query, params=None):
+            queries.append((query, params))
+            if "SELECT id, expected_amount::text, base_amount::text" in query:
+                return Result((7, "29.990001", "29.99"))
+            return Result()
+
+    invoice = ensure_open_invoice(Connection(), 42, "29.99")
+
+    assert invoice == {"id": 7, "expected_amount": "29.99"}
+    assert any("SET expected_amount = %s" in query for query, _ in queries)
+
+
+def test_exact_invoice_migration_removes_the_amount_uniqueness_constraint():
+    migration = (ROOT / "miniapp" / "migrations" / "008_exact_invoice_amounts.sql").read_text()
+    assert "DROP INDEX IF EXISTS payment_invoices_open_amount" in migration
+    assert "SET expected_amount = base_amount" in migration
 
 
 def test_mini_app_contains_the_referral_claim_flow():

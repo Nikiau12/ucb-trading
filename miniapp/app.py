@@ -92,35 +92,35 @@ def normalize_usdt_symbol(symbol: str) -> Optional[str]:
 PAYMENT_MESSAGES = {
     "en": (
         "🔒 <b>Monthly access</b>\n\nAccess for <b>{days} days</b>: <b>{amount} USDT</b>.\n"
-        "Send this exact amount. It is unique to your invoice.\n"
+        "Send exactly {amount} USDT.\n"
         "Network: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
         "After payment, send:\n<code>/paid TX_HASH</code>\n\n"
         "The bot will verify the transaction and activate access automatically."
     ),
     "ru": (
         "🔒 <b>Месячный доступ</b>\n\nДоступ на <b>{days} дней</b>: <b>{amount} USDT</b>.\n"
-        "Переведи ровно эту сумму. Она уникальна для твоего счёта.\n"
+        "Переведи ровно {amount} USDT.\n"
         "Сеть: <b>{network}</b>\nКошелёк:\n<code>{wallet}</code>\n\n"
         "После перевода отправь:\n<code>/paid TX_HASH</code>\n\n"
         "Бот проверит транзакцию и автоматически активирует доступ."
     ),
     "de": (
         "🔒 <b>Monatlicher Zugang</b>\n\nZugang für <b>{days} Tage</b>: <b>{amount} USDT</b>.\n"
-        "Sende genau diesen Betrag. Er gilt nur für deine Rechnung.\n"
+        "Sende genau {amount} USDT.\n"
         "Netzwerk: <b>{network}</b>\nWallet:\n<code>{wallet}</code>\n\n"
         "Sende nach der Zahlung:\n<code>/paid TX_HASH</code>\n\n"
         "Der Bot prüft die Transaktion und aktiviert den Zugang automatisch."
     ),
     "fr": (
         "🔒 <b>Accès mensuel</b>\n\nAccès pendant <b>{days} jours</b> : <b>{amount} USDT</b>.\n"
-        "Envoie exactement ce montant. Il est unique pour ta facture.\n"
+        "Envoie exactement {amount} USDT.\n"
         "Réseau : <b>{network}</b>\nPortefeuille :\n<code>{wallet}</code>\n\n"
         "Après le paiement, envoie :\n<code>/paid TX_HASH</code>\n\n"
         "Le bot vérifiera la transaction et activera automatiquement l'accès."
     ),
     "es": (
         "🔒 <b>Acceso mensual</b>\n\nAcceso durante <b>{days} días</b>: <b>{amount} USDT</b>.\n"
-        "Envía exactamente este importe. Es único para tu factura.\n"
+        "Envía exactamente {amount} USDT.\n"
         "Red: <b>{network}</b>\nBilletera:\n<code>{wallet}</code>\n\n"
         "Después del pago, envía:\n<code>/paid TX_HASH</code>\n\n"
         "El bot verificará la transacción y activará el acceso automáticamente."
