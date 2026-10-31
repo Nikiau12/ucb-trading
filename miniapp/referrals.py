@@ -18,9 +18,22 @@ def normalize_bingx_uid(value: str) -> str:
 def referral_snapshot(connection, user_id: int) -> dict:
     row = connection.execute(
         """
-        SELECT bingx_uid, referral_code, status, submitted_at, reviewed_at
-        FROM bingx_referrals
-        WHERE telegram_user_id = %s
+        SELECT
+            r.bingx_uid,
+            r.referral_code,
+            r.status,
+            r.submitted_at,
+            r.reviewed_at,
+            CASE
+                WHEN r.status <> 'verified' THEN TRUE
+                WHEN s.paid_until IS NULL THEN TRUE
+                WHEN s.paid_until > NOW() THEN TRUE
+                WHEN r.reviewed_at > s.paid_until THEN TRUE
+                ELSE FALSE
+            END AS verification_current
+        FROM bingx_referrals r
+        LEFT JOIN subscriptions s ON s.telegram_user_id = r.telegram_user_id
+        WHERE r.telegram_user_id = %s
         """,
         (int(user_id),),
     ).fetchone()
@@ -31,13 +44,16 @@ def referral_snapshot(connection, user_id: int) -> dict:
             "status": "none",
             "submitted_at": None,
             "reviewed_at": None,
+            "requires_reverification": False,
         }
+    status = "expired" if row[2] == "verified" and not bool(row[5]) else row[2]
     return {
         "bingx_uid": row[0],
         "referral_code": row[1],
-        "status": row[2],
+        "status": status,
         "submitted_at": row[3],
         "reviewed_at": row[4],
+        "requires_reverification": status == "expired",
     }
 
 
@@ -47,11 +63,8 @@ def effective_subscription_price(
     standard_price,
     referral_price,
 ) -> Decimal:
-    status = connection.execute(
-        "SELECT status FROM bingx_referrals WHERE telegram_user_id = %s",
-        (int(user_id),),
-    ).fetchone()
-    return Decimal(str(referral_price if status and status[0] == "verified" else standard_price))
+    status = referral_snapshot(connection, user_id)["status"]
+    return Decimal(str(referral_price if status == "verified" else standard_price))
 
 
 def submit_referral_claim(connection, *, user_id: int, bingx_uid: str, referral_code: str) -> dict:
@@ -70,14 +83,23 @@ def submit_referral_claim(connection, *, user_id: int, bingx_uid: str, referral_
 
     current = connection.execute(
         """
-        SELECT bingx_uid, status
-        FROM bingx_referrals
-        WHERE telegram_user_id = %s
-        FOR UPDATE
+        SELECT
+            r.bingx_uid,
+            r.status,
+            CASE
+                WHEN s.paid_until IS NULL THEN TRUE
+                WHEN s.paid_until > NOW() THEN TRUE
+                WHEN r.reviewed_at > s.paid_until THEN TRUE
+                ELSE FALSE
+            END AS verification_current
+        FROM bingx_referrals r
+        LEFT JOIN subscriptions s ON s.telegram_user_id = r.telegram_user_id
+        WHERE r.telegram_user_id = %s
+        FOR UPDATE OF r
         """,
         (int(user_id),),
     ).fetchone()
-    if current and current[1] == "verified":
+    if current and current[1] == "verified" and bool(current[2]):
         return {
             "ok": current[0] == uid,
             "reason": None if current[0] == uid else "already_verified",

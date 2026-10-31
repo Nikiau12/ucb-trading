@@ -127,7 +127,7 @@ body.home-light{
 .home-light .referral-copy h2{font-size:20px;font-weight:600;letter-spacing:-.03em}.home-light .referral-copy p:not(.eyebrow){font-size:12px;line-height:1.7;max-width:430px}
 .home-light .referral-panel>.secondary-button{border-color:#c9e6da;color:var(--green)}
 .home-light .referral-form{padding-top:18px;border-top:1px solid #d8ece4}.home-light .referral-form label>span{font-size:12px;margin-bottom:10px}.home-light .referral-form .primary-button{height:52px;background:var(--green)}
-.home-light .referral-status{font-size:12px;line-height:1.6}.home-light .referral-status[data-status=pending]{color:#84620b}.home-light .referral-status[data-status=verified]{color:var(--green);font-weight:600}
+.home-light .referral-status{font-size:12px;line-height:1.6}.home-light .referral-status[data-status=pending],.home-light .referral-status[data-status=expired]{color:#84620b}.home-light .referral-status[data-status=verified]{color:var(--green);font-weight:600}
 .home-light .toast{background:var(--text);color:white;max-width:calc(100% - 32px);box-shadow:0 8px 28px #18253b20}
 
 /* Payment: visible network/address, scrollable sheet, explicit states. */

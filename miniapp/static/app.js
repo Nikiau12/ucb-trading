@@ -24,6 +24,11 @@ Object.assign(translations.ru,{referralOffer:'ПРЕДЛОЖЕНИЕ ДЛЯ РЕ
 Object.assign(translations.de,{referralOffer:'BINGX-EMPFEHLUNG',referralTitle:'Zugang für 10 USDT',referralCopy:'Registriere dich über unseren BingX-Link und sende deine numerische UID. BingX prüft sie automatisch.',registerBingx:'Bei BingX registrieren',bingxUid:'BingX UID',submitReferral:'UID prüfen',referralNone:'Der Rabatt wird nach der automatischen BingX-Prüfung aktiviert.',referralPending:'BingX ist vorübergehend nicht verfügbar. Die UID wartet auf manuelle Prüfung.',referralVerified:'Empfehlung bestätigt. Der Preis von 10 USDT ist aktiv.',referralRejected:'Die UID wurde nicht unter den direkten Empfehlungen unseres Teams gefunden.',referralUidUsed:'Diese BingX UID ist bereits mit einem anderen Telegram-Konto verknüpft.',referralInvalid:'Gib eine BingX UID mit 6–20 Ziffern ein.',referralFailed:'UID konnte nicht gesendet werden.'});
 Object.assign(translations.fr,{referralOffer:'OFFRE DE PARRAINAGE BINGX',referralTitle:'Accès pour 10 USDT',referralCopy:'Inscris-toi via notre lien BingX et envoie ton UID numérique. BingX le vérifiera automatiquement.',registerBingx:'S’inscrire sur BingX',bingxUid:'UID BingX',submitReferral:'Vérifier l’UID',referralNone:'La remise sera activée après vérification automatique par BingX.',referralPending:'BingX est temporairement indisponible. L’UID attend une vérification manuelle.',referralVerified:'Parrainage vérifié. Le tarif de 10 USDT est actif.',referralRejected:'L’UID ne figure pas parmi les filleuls directs de notre équipe.',referralUidUsed:'Cet UID BingX est déjà lié à un autre compte Telegram.',referralInvalid:'Saisis un UID BingX de 6 à 20 chiffres.',referralFailed:'Impossible d’envoyer l’UID.'});
 Object.assign(translations.es,{referralOffer:'OFERTA PARA REFERIDOS DE BINGX',referralTitle:'Acceso por 10 USDT',referralCopy:'Regístrate mediante nuestro enlace de BingX y envía tu UID numérico. BingX lo verificará automáticamente.',registerBingx:'Registrarse en BingX',bingxUid:'UID de BingX',submitReferral:'Verificar UID',referralNone:'El descuento se activará tras la verificación automática de BingX.',referralPending:'BingX no está disponible temporalmente. El UID espera una revisión manual.',referralVerified:'Referido verificado. El precio de 10 USDT está activo.',referralRejected:'El UID no aparece entre los referidos directos de nuestro equipo.',referralUidUsed:'Este UID de BingX ya está vinculado a otra cuenta de Telegram.',referralInvalid:'Introduce un UID de BingX de 6–20 dígitos.',referralFailed:'No se pudo enviar el UID.'});
+Object.assign(translations.en,{referralExpired:'Your previous referral verification expired with the subscription. Enter your BingX UID again to recheck eligibility for the 10 USDT price.'});
+Object.assign(translations.ru,{referralExpired:'Срок предыдущей проверки реферала закончился вместе с подпиской. Введите BingX UID заново, чтобы снова проверить право на цену 10 USDT.'});
+Object.assign(translations.de,{referralExpired:'Die vorherige Empfehlungsprüfung ist mit dem Abonnement abgelaufen. Gib deine BingX UID erneut ein, um den Preis von 10 USDT neu zu prüfen.'});
+Object.assign(translations.fr,{referralExpired:'La vérification précédente a expiré avec l’abonnement. Saisis à nouveau ton UID BingX pour revérifier le tarif de 10 USDT.'});
+Object.assign(translations.es,{referralExpired:'La verificación anterior caducó con la suscripción. Introduce de nuevo tu UID de BingX para volver a comprobar el precio de 10 USDT.'});
 
 const taglines={
   en:'Setups, risk and execution — one screen.',
@@ -121,7 +126,7 @@ function renderProfile(){
   const referralPending=referralStatus==='pending';
   if(title&&copy&&pay&&priceBlock){
     title.textContent=paid?tr('accessOpen'):tr('monthlyAccess');
-    copy.textContent=paid?tr('settingsAccessCopy'):referralPending?tr('referralPending'):tr('subscriptionCopy');
+    copy.textContent=paid?tr('settingsAccessCopy'):referralPending?tr('referralPending'):referralStatus==='expired'?tr('referralExpired'):tr('subscriptionCopy');
     pay.hidden=paid||referralPending;
     priceBlock.hidden=paid||referralPending;
   }
@@ -131,7 +136,7 @@ function renderProfile(){
   if(referralInput&&profile.bingx_referral_uid&&!referralInput.value)referralInput.value=profile.bingx_referral_uid;
   if(referralForm)referralForm.hidden=referralStatus==='pending'||referralStatus==='verified';
   if(referralNote){
-    const key={pending:'referralPending',verified:'referralVerified',rejected:'referralRejected'}[referralStatus]||'referralNone';
+    const key={pending:'referralPending',verified:'referralVerified',rejected:'referralRejected',expired:'referralExpired'}[referralStatus]||'referralNone';
     referralNote.textContent=tr(key);
     referralNote.dataset.status=referralStatus;
   }

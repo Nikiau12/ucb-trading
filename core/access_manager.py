@@ -217,16 +217,19 @@ class AccessManager:
             return None
         try:
             from miniapp.billing import ensure_open_invoice
-            from miniapp.referrals import effective_subscription_price
+            from miniapp.referrals import referral_snapshot
 
             with psycopg.connect(self.database_url) as connection:
-                base_amount = effective_subscription_price(
-                    connection,
-                    user_id,
-                    self.payment_amount,
-                    self.referral_payment_amount,
+                referral = referral_snapshot(connection, user_id)
+                base_amount = (
+                    self.referral_payment_amount
+                    if referral["status"] == "verified"
+                    else self.payment_amount
                 )
-                return ensure_open_invoice(connection, user_id, base_amount)
+                invoice = ensure_open_invoice(connection, user_id, base_amount)
+                if invoice:
+                    invoice["referral_status"] = referral["status"]
+                return invoice
         except Exception as exc:
             logger.warning("open invoice failed: %s", type(exc).__name__)
             return None

@@ -225,6 +225,12 @@ instructions. `/approve_referral TELEGRAM_USER_ID` and
 `/referrals` lists pending claims. Verification never requires a user's API
 keys and never calls trading, withdrawal, or transfer endpoints.
 
+A verified referral applies only to the current paid subscription cycle. Once
+that subscription expires, the previous verification becomes `expired`, the
+next invoice uses the standard price, and the user must submit the BingX UID
+again. Only a fresh direct-referral response from BingX re-enables the referral
+price; an API outage leaves the claim pending without granting the discount.
+
 See [`.env.example`](.env.example) for the complete documented template.
 
 ## Tests

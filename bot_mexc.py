@@ -173,7 +173,7 @@ def _payment_paywall(user_id) -> str:
     invoice = access_manager.ensure_open_invoice(str(user_id))
     if not invoice:
         return _t(lang, "payment_save_failed")
-    return _t(
+    text = _t(
         lang,
         "payment_paywall",
         free_signals=FREE_TRIAL_SIGNALS,
@@ -182,6 +182,9 @@ def _payment_paywall(user_id) -> str:
         network=html.escape(str(USDT_PAYMENT_NETWORK)),
         wallet=html.escape(str(USDT_PAYMENT_ADDRESS or "")),
     )
+    if invoice.get("referral_status") == "expired":
+        text += "\n\n" + _t(lang, "referral_expired")
+    return text
 
 
 def _trial_notice(chat_id, remaining: int) -> str:
