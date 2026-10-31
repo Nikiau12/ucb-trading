@@ -87,6 +87,7 @@ from user_input import (
     parse_setting,
 )
 from miniapp.schema import apply_migrations
+from miniapp.bingx_agent import verify_direct_referral
 from miniapp.referrals import (
     pending_referral_claims,
     review_referral_claim,
@@ -871,9 +872,47 @@ async def cmd_referral(message: types.Message):
         key = "referral_uid_used" if result.get("reason") == "uid_used" else "referral_save_failed"
         await message.reply(_t(lang, key), parse_mode="HTML")
         return
+    if result.get("status") == "pending":
+        verification = await asyncio.to_thread(
+            verify_direct_referral,
+            result["bingx_uid"],
+        )
+        target_status = {
+            "verified": "verified",
+            "not_eligible": "rejected",
+        }.get(verification["status"])
+        if target_status:
+            try:
+                with psycopg.connect(st.DATABASE_URL) as connection:
+                    reviewed = review_referral_claim(
+                        connection,
+                        user_id=message.from_user.id,
+                        status=target_status,
+                        reviewed_by=0,
+                        expected_bingx_uid=result["bingx_uid"],
+                    )
+                if reviewed:
+                    result["status"] = reviewed["status"]
+            except Exception:
+                logger.exception(
+                    "automatic referral review save failed user_id=%s",
+                    message.from_user.id,
+                )
+        else:
+            logger.warning(
+                "automatic referral review deferred user_id=%s reason=%s",
+                message.from_user.id,
+                verification["reason"],
+            )
     if result.get("status") == "verified":
         await message.reply(
             _t(lang, "referral_verified", price=REFERRAL_SUBSCRIPTION_PRICE_USDT),
+            parse_mode="HTML",
+        )
+        return
+    if result.get("status") == "rejected":
+        await message.reply(
+            _t(lang, "referral_rejected", code=BINGX_REFERRAL_CODE),
             parse_mode="HTML",
         )
         return
@@ -891,6 +930,7 @@ async def cmd_referral(message: types.Message):
         f"Telegram: <code>{message.from_user.id}</code>\n"
         f"BingX UID: <code>{html.escape(result['bingx_uid'])}</code>\n"
         f"Код: <code>{html.escape(BINGX_REFERRAL_CODE)}</code>\n\n"
+        "Автоматическая проверка BingX временно недоступна. "
         "Проверь UID в Partner Hub → Users, затем отправь:\n"
         f"<code>/approve_referral {message.from_user.id}</code>\n"
         "или\n"

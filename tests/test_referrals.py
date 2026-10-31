@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from core.access_manager import AccessManager
+from miniapp import app as miniapp_app
 from miniapp.billing import ensure_open_invoice
 from miniapp.referrals import (
     effective_subscription_price,
@@ -81,6 +82,54 @@ def test_review_cancels_an_open_invoice_so_the_price_is_recalculated():
     )
     assert reviewed["status"] == "verified"
     assert any("UPDATE payment_invoices" in query and "cancelled" in query for query, _ in queries)
+
+
+@pytest.mark.parametrize(
+    ("verification_status", "stored_status"),
+    [("verified", "verified"), ("not_eligible", "rejected")],
+)
+def test_miniapp_automatically_stores_the_agent_api_decision(
+    monkeypatch, verification_status, stored_status
+):
+    queries = []
+
+    class Connection:
+        def execute(self, query, params=None):
+            queries.append((query, params))
+            if "UPDATE bingx_referrals" in query:
+                return Result((42, "12345678", "D8PYH62T", params[0]))
+            return Result()
+
+    monkeypatch.setattr(
+        miniapp_app,
+        "verify_direct_referral",
+        lambda _uid: {"status": verification_status, "reason": "test_reason"},
+    )
+    monkeypatch.setattr(miniapp_app, "db", lambda: nullcontext(Connection()))
+
+    result = miniapp_app._automatic_referral_review(42, "12345678")
+
+    assert result == {"status": stored_status, "verification_reason": "test_reason"}
+    review_params = next(params for query, params in queries if "UPDATE bingx_referrals" in query)
+    assert review_params == (stored_status, 0, 42, "12345678")
+
+
+def test_miniapp_keeps_claim_pending_when_bingx_is_unavailable(monkeypatch):
+    monkeypatch.setattr(
+        miniapp_app,
+        "verify_direct_referral",
+        lambda _uid: {"status": "unavailable", "reason": "request_failed"},
+    )
+    monkeypatch.setattr(
+        miniapp_app,
+        "db",
+        lambda: pytest.fail("database review must not run without a BingX decision"),
+    )
+
+    assert miniapp_app._automatic_referral_review(42, "12345678") == {
+        "status": "pending",
+        "verification_reason": "request_failed",
+    }
 
 
 def test_access_manager_builds_the_invoice_from_the_verified_price(monkeypatch, tmp_path):

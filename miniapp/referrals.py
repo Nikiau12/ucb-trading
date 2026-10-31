@@ -112,6 +112,7 @@ def review_referral_claim(
     user_id: int,
     status: str,
     reviewed_by: int,
+    expected_bingx_uid: str | None = None,
 ) -> dict | None:
     if status not in {"verified", "rejected"}:
         raise ValueError("invalid_referral_status")
@@ -120,9 +121,10 @@ def review_referral_claim(
         UPDATE bingx_referrals
         SET status = %s, reviewed_at = NOW(), reviewed_by = %s
         WHERE telegram_user_id = %s
+          AND bingx_uid = COALESCE(%s, bingx_uid)
         RETURNING telegram_user_id, bingx_uid, referral_code, status
         """,
-        (status, int(reviewed_by), int(user_id)),
+        (status, int(reviewed_by), int(user_id), expected_bingx_uid),
     ).fetchone()
     if not row:
         return None

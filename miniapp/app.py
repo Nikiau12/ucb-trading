@@ -26,16 +26,24 @@ from pydantic import BaseModel, Field
 try:
     from .sizing import position_size_for_contract
     from .schema import apply_migrations
+    from .bingx_agent import verify_direct_referral
     from .referrals import (
         effective_subscription_price,
         referral_snapshot,
+        review_referral_claim,
         submit_referral_claim,
     )
 except ImportError:
     # Railway deploys miniapp/ as the service root, so app.py is a top-level module.
     from sizing import position_size_for_contract
     from schema import apply_migrations
-    from referrals import effective_subscription_price, referral_snapshot, submit_referral_claim
+    from bingx_agent import verify_direct_referral
+    from referrals import (
+        effective_subscription_price,
+        referral_snapshot,
+        review_referral_claim,
+        submit_referral_claim,
+    )
 
 logger = logging.getLogger("ucb.miniapp")
 
@@ -731,6 +739,7 @@ def _notify_referral_admins(user: dict, bingx_uid: str) -> None:
         f"Telegram: <b>{name}</b> · <code>{user_id}</code>\n"
         f"BingX UID: <code>{html.escape(bingx_uid)}</code>\n"
         f"Код: <code>{html.escape(REFERRAL_CODE)}</code>\n\n"
+        "Автоматическая проверка BingX временно недоступна. "
         "Проверь UID в Partner Hub → Users, затем отправь:\n"
         f"<code>/approve_referral {user_id}</code>\n"
         "или\n"
@@ -746,6 +755,39 @@ def _notify_referral_admins(user: dict, bingx_uid: str) -> None:
             response.raise_for_status()
         except requests.RequestException:
             logger.warning("referral admin notification failed admin_id=%s", admin_id)
+
+
+def _automatic_referral_review(user_id: int, bingx_uid: str) -> dict:
+    verification = verify_direct_referral(bingx_uid)
+    target_status = {
+        "verified": "verified",
+        "not_eligible": "rejected",
+    }.get(verification["status"])
+    if not target_status:
+        logger.warning(
+            "automatic referral review deferred user_id=%s reason=%s",
+            user_id,
+            verification["reason"],
+        )
+        return {"status": "pending", "verification_reason": verification["reason"]}
+    try:
+        with db() as connection:
+            reviewed = review_referral_claim(
+                connection,
+                user_id=user_id,
+                status=target_status,
+                reviewed_by=0,
+                expected_bingx_uid=bingx_uid,
+            )
+    except Exception:
+        logger.exception("automatic referral review save failed user_id=%s", user_id)
+        return {"status": "pending", "verification_reason": "save_failed"}
+    if not reviewed:
+        return {"status": "pending", "verification_reason": "claim_changed"}
+    return {
+        "status": reviewed["status"],
+        "verification_reason": verification["reason"],
+    }
 
 
 @app.post("/api/bingx-referral")
@@ -771,6 +813,8 @@ def claim_bingx_referral(
         result = {"ok": False, "reason": "uid_used"}
     if not result.get("ok"):
         return JSONResponse(status_code=409, content=result)
+    if result.get("status") == "pending":
+        result.update(_automatic_referral_review(user_id, result["bingx_uid"]))
     if result.get("status") == "pending":
         _notify_referral_admins(user, result["bingx_uid"])
     return {
