@@ -23,6 +23,14 @@ ADMIN_CHAT_IDS = {
     for chat_id in os.getenv("ADMIN_CHAT_IDS", TELEGRAM_CHAT_ID).split(",")
     if chat_id.strip()
 }
+# Exact user ids listed here keep receiving admin notifications but do not get
+# the admin access bypass. This supports isolated access tests without clearing
+# or rewriting the production administrator list.
+ADMIN_ACCESS_EXCLUDED_IDS = {
+    user_id.strip()
+    for user_id in os.getenv("ADMIN_ACCESS_EXCLUDED_IDS", "").split(",")
+    if user_id.strip()
+}
 
 # Config variables
 TIMEFRAMES = ["15m", "1h", "4h", "1d", "1w"]

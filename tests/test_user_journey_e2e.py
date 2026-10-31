@@ -90,6 +90,15 @@ def test_major_markets_are_always_first_in_the_plan_scan():
     ]
 
 
+def test_admin_access_bypass_can_exclude_one_exact_user(monkeypatch):
+    monkeypatch.setattr(bot, "ADMIN_CHAT_IDS", {"111", "222"})
+    monkeypatch.setattr(bot, "ADMIN_ACCESS_EXCLUDED_IDS", {"111"})
+
+    assert bot.is_admin(111) is False
+    assert bot.is_admin(222) is True
+    assert bot.is_admin(333) is False
+
+
 def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     settings = {"language": "en", "deposit": None, "risk_pct": 1.0, "lev": 10.0, "margin": "cross"}
     granted_signals = []

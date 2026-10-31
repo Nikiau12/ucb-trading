@@ -47,7 +47,7 @@ from core.coin_info_service import CoinInfoService
 from core.listing_watcher import BingxListingWatcher
 from core.access_manager import AccessManager
 from core.config import (
-    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ADMIN_CHAT_IDS,
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ADMIN_CHAT_IDS, ADMIN_ACCESS_EXCLUDED_IDS,
     TOP_COINS_LIMIT, TARGET_COINS,
     SMART_SPIKE_MIN_SCORE, SMART_SPIKE_MIN_QUOTE_VOLUME,
     BINGX_LISTING_SNAPSHOT_FILE, BINGX_ANNOUNCEMENTS_SNAPSHOT_FILE,
@@ -244,7 +244,8 @@ def is_admin(user_id) -> bool:
     ADMIN_CHAT_IDS keeps its name. In a private chat that id equals the chat
     id, so existing private-chat values still work. A group id does not.
     """
-    return str(user_id) in ADMIN_CHAT_IDS
+    normalized = str(user_id)
+    return normalized in ADMIN_CHAT_IDS and normalized not in ADMIN_ACCESS_EXCLUDED_IDS
 
 def format_ts(ts: int) -> str:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else "нет"

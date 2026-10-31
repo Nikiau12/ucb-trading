@@ -193,6 +193,7 @@ The most important environment variables are:
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot API authentication |
 | `TELEGRAM_CHAT_ID` | Default notification/admin chat |
 | `ADMIN_CHAT_IDS` | Comma-separated Telegram user ids. The name is unchanged; in a private chat the user id equals the chat id |
+| `ADMIN_ACCESS_EXCLUDED_IDS` | Optional exact admin ids that temporarily do not bypass access checks while still receiving notifications |
 | `METRICS_TOKEN` | Secret required by `GET /metrics` (`Authorization: Bearer` or `X-Metrics-Token`) |
 | `MINI_APP_URL` | Public HTTPS URL of the Telegram Mini App |
 | `DATABASE_URL` | PostgreSQL connection string |
