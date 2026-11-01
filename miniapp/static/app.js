@@ -29,6 +29,11 @@ Object.assign(translations.ru,{referralExpired:'Срок предыдущей п
 Object.assign(translations.de,{referralExpired:'Die vorherige Empfehlungsprüfung ist mit dem Abonnement abgelaufen. Gib deine BingX UID erneut ein, um den Preis von 10 USDT neu zu prüfen.'});
 Object.assign(translations.fr,{referralExpired:'La vérification précédente a expiré avec l’abonnement. Saisis à nouveau ton UID BingX pour revérifier le tarif de 10 USDT.'});
 Object.assign(translations.es,{referralExpired:'La verificación anterior caducó con la suscripción. Introduce de nuevo tu UID de BingX para volver a comprobar el precio de 10 USDT.'});
+Object.assign(translations.en,{tp1Profit:'TP1 profit · 50%',tp2Profit:'TP2 profit · 50%',totalProfit:'Total at TP2',sizeDisclaimer:'The bot calculates the size. Profit is estimated before fees and slippage. You place the order.'});
+Object.assign(translations.ru,{tp1Profit:'Прибыль TP1 · 50%',tp2Profit:'Прибыль TP2 · 50%',totalProfit:'Итого при TP2',sizeDisclaimer:'Бот считает размер. Прибыль указана до комиссий и проскальзывания. Ордер ставишь ты.'});
+Object.assign(translations.de,{tp1Profit:'TP1-Gewinn · 50%',tp2Profit:'TP2-Gewinn · 50%',totalProfit:'Gesamt bei TP2',sizeDisclaimer:'Der Bot berechnet die Größe. Der Gewinn ist vor Gebühren und Slippage geschätzt. Du setzt die Order.'});
+Object.assign(translations.fr,{tp1Profit:'Gain TP1 · 50 %',tp2Profit:'Gain TP2 · 50 %',totalProfit:'Total à TP2',sizeDisclaimer:'Le bot calcule la taille. Le gain est estimé avant frais et slippage. Tu passes l’ordre.'});
+Object.assign(translations.es,{tp1Profit:'Ganancia TP1 · 50 %',tp2Profit:'Ganancia TP2 · 50 %',totalProfit:'Total en TP2',sizeDisclaimer:'El bot calcula el tamaño. La ganancia se estima antes de comisiones y deslizamiento. Tú colocas la orden.'});
 
 const taglines={
   en:'Setups, risk and execution — one screen.',
@@ -174,7 +179,12 @@ async function submitReferral(event){
 function signalMetrics(signal){
   const server=signal?.sizing;
   if(!server||!Number.isFinite(Number(server.position_usdt)))return null;
-  return{riskUsdt:Number(server.risk_usdt),position:Number(server.position_usdt),margin:Number(server.margin_usdt),leverage:Number(server.effective_leverage)};
+  const optionalNumber=value=>value===null||value===undefined||value===''?null:(Number.isFinite(Number(value))?Number(value):null);
+  return{riskUsdt:Number(server.risk_usdt),position:Number(server.position_usdt),margin:Number(server.margin_usdt),leverage:Number(server.effective_leverage),tp1Profit:optionalNumber(server.tp1_profit_usdt),tp2Profit:optionalNumber(server.tp2_profit_usdt),totalProfit:optionalNumber(server.total_profit_usdt)};
+}
+
+function profitValue(value){
+  return Number.isFinite(value)?`+${fmt(value)} USDT`:'—';
 }
 
 function confidenceLabel(signal){
@@ -485,6 +495,14 @@ function renderHome(){
       detailMetric(tr('positionSize'),metrics?`${fmt(metrics.position)} USDT`:'—'),
       detailMetric(tr('marginRequired'),metrics?`${fmt(metrics.margin)} USDT`:'—'),
       detailMetric(tr('stopRisk'),metrics?`${fmt(metrics.riskUsdt)} USDT`:'—','risk'),
+    ].join('');
+  }
+  const profits=$('#plan-profits');
+  if(profits){
+    profits.innerHTML=[
+      detailMetric(tr('tp1Profit'),profitValue(metrics?.tp1Profit),'profit'),
+      detailMetric(tr('tp2Profit'),profitValue(metrics?.tp2Profit),'profit'),
+      detailMetric(tr('totalProfit'),profitValue(metrics?.totalProfit),'profit'),
     ].join('');
   }
   const reason=$('#plan-reason');

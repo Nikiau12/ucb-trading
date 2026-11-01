@@ -56,6 +56,8 @@ body.home-light{
 .home-light .plan-numbers .detail-metric{padding:0 16px;border-radius:0}
 .home-light .plan-numbers .detail-metric+.detail-metric{border-left:1px solid var(--line)}
 .home-light .plan-numbers .detail-metric strong{font-size:16px}
+.home-light #plan-numbers{margin-bottom:10px}
+.home-light .plan-profits .detail-metric strong{color:var(--green)}
 .home-light .plan-reason{font-size:12px;line-height:1.8;margin:16px 0;color:var(--muted)}
 .home-light .plan-disclaimer{font-size:11px;line-height:1.7;color:var(--muted)}
 .home-light .bottom-nav{height:calc(76px + var(--safe-bottom));padding:10px 16px calc(10px + var(--safe-bottom));background:rgba(255,255,255,.97);border-color:var(--line);gap:8px}

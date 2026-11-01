@@ -5,6 +5,7 @@ import hmac
 import html
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -519,6 +520,35 @@ def demo_profile(user: dict) -> dict:
     }
 
 
+def _target_profit_usdt(
+    *, side: str, entry, target, qty, position_fraction: float
+) -> float | None:
+    try:
+        entry_value = float(entry)
+        target_value = float(target)
+        qty_value = float(qty)
+        fraction_value = float(position_fraction)
+    except (TypeError, ValueError):
+        return None
+    if not all(
+        math.isfinite(value)
+        for value in (entry_value, target_value, qty_value, fraction_value)
+    ):
+        return None
+    if qty_value <= 0 or fraction_value <= 0:
+        return None
+    direction = str(side or "").upper()
+    if direction == "LONG":
+        move = target_value - entry_value
+    elif direction == "SHORT":
+        move = entry_value - target_value
+    else:
+        return None
+    if move <= 0:
+        return None
+    return qty_value * move * fraction_value
+
+
 def attach_personal_sizing(signal: dict, profile: dict) -> dict:
     sizing = position_size_for_contract(
         signal,
@@ -527,6 +557,25 @@ def attach_personal_sizing(signal: dict, profile: dict) -> dict:
         profile.get("deposit") or 0,
         profile.get("risk_pct") or 0,
         profile.get("leverage") or 1,
+    )
+    tp1_profit = _target_profit_usdt(
+        side=signal.get("side"),
+        entry=signal.get("entry"),
+        target=signal.get("tp1"),
+        qty=sizing.get("qty"),
+        position_fraction=0.5,
+    )
+    tp2_profit = _target_profit_usdt(
+        side=signal.get("side"),
+        entry=signal.get("entry"),
+        target=signal.get("tp2"),
+        qty=sizing.get("qty"),
+        position_fraction=0.5,
+    )
+    total_profit = (
+        tp1_profit + tp2_profit
+        if tp1_profit is not None and tp2_profit is not None
+        else None
     )
     return {
         **signal,
@@ -538,7 +587,13 @@ def attach_personal_sizing(signal: dict, profile: dict) -> dict:
                 "max_leverage", "min_notional",
             )
         }
-        | {"tradable": not sizing["errors"], "errors": sizing["errors"]},
+        | {
+            "tp1_profit_usdt": tp1_profit,
+            "tp2_profit_usdt": tp2_profit,
+            "total_profit_usdt": total_profit,
+            "tradable": not sizing["errors"],
+            "errors": sizing["errors"],
+        },
     }
 
 

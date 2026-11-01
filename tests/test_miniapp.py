@@ -176,8 +176,11 @@ def test_asset_icon_proxy_rejects_hostile_symbols(demo_client):
 
 def test_personal_signal_sizing_uses_contract_rules_and_exchange_leverage_limit():
     signal = {
+        "side": "LONG",
         "entry": 100.0,
         "stop": 95.0,
+        "tp1": 110.0,
+        "tp2": 120.0,
         "contract_size": 0.1,
         "vol_unit": 1,
         "min_vol": 1,
@@ -193,7 +196,31 @@ def test_personal_signal_sizing_uses_contract_rules_and_exchange_leverage_limit(
     assert payload["sizing"]["position_usdt"] == pytest.approx(20.0)
     assert payload["sizing"]["effective_leverage"] == 20
     assert payload["sizing"]["margin_usdt"] == pytest.approx(1.0)
+    assert payload["sizing"]["tp1_profit_usdt"] == pytest.approx(1.0)
+    assert payload["sizing"]["tp2_profit_usdt"] == pytest.approx(2.0)
+    assert payload["sizing"]["total_profit_usdt"] == pytest.approx(3.0)
     assert payload["sizing"]["tradable"] is True
+
+
+def test_personal_signal_profit_uses_short_direction_and_target_allocations():
+    signal = {
+        "side": "SHORT",
+        "entry": 100.0,
+        "stop": 105.0,
+        "tp1": 90.0,
+        "tp2": 80.0,
+        "contract_size": 0.1,
+        "vol_unit": 1,
+        "min_vol": 1,
+        "max_vol": 100,
+    }
+    profile = {"deposit": 100.0, "risk_pct": 1.0, "leverage": 10.0}
+
+    payload = miniapp.attach_personal_sizing(signal, profile)
+
+    assert payload["sizing"]["tp1_profit_usdt"] == pytest.approx(1.0)
+    assert payload["sizing"]["tp2_profit_usdt"] == pytest.approx(2.0)
+    assert payload["sizing"]["total_profit_usdt"] == pytest.approx(3.0)
 
 
 def test_personal_signal_sizing_rejects_bingx_minimum_notional():
