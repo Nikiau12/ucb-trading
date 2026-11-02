@@ -605,26 +605,28 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "pay.hidden=paid" in script
 
 
-def test_bingx_chart_supports_navigation_and_expanded_view():
+def test_bingx_chart_restores_lightweight_design_with_touch_navigation():
     root = ROOT_DIR / "miniapp" / "static"
     html = (root / "index.html").read_text()
     script = (root / "app.js").read_text()
     css = (root / "home-light.css").read_text()
 
-    assert "echarts@5.6.0" in html
-    assert "lightweight-charts" not in html
-    assert 'id="chart-expand"' in html
+    assert "lightweight-charts@4.2.2" in html
+    assert "echarts" not in html
+    assert 'id="chart-expand"' not in html
     assert 'id="chart-zoom-in"' not in html
     assert 'id="chart-zoom-out"' not in html
-    assert "function chartPriceRange(" in script
+    assert "function resizeChart(" in script
     assert "function chartDataMatchesSignal(" in script
     assert "function historicalChartTime(" in script
-    assert "function toggleChartExpanded(" in script
     assert "if(request!==chartRequest)return" in script
-    assert "dataZoom:[{type:'inside'" in script
-    assert "LightweightCharts" not in script
+    assert "LightweightCharts.createChart" in script
+    assert "pinch:true" in script
+    assert "horzTouchDrag:true" in script
+    assert "getVisibleLogicalRange()" in script
+    assert "setVisibleLogicalRange(visible)" in script
     assert "touch-action:none" in css
-    assert ".chart-section.chart-expanded" in css
+    assert ".chart-section.chart-expanded" not in css
 
 
 def test_unverified_payment_hash_does_not_open_access(monkeypatch):
