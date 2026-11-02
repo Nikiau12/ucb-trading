@@ -301,9 +301,11 @@ def test_settings_validation_rejects_unsupported_values(demo_client):
 def test_market_endpoint_validates_input_before_external_request(demo_client):
     bad_symbol = demo_client.get("/api/market/BTC-EUR")
     bad_timeframe = demo_client.get("/api/market/BTC_USDT?timeframe=5m")
+    bad_time = demo_client.get(f"/api/market/BTC_USDT?timeframe=4h&at={int(time.time()) + 3600}")
 
     assert bad_symbol.status_code == 422
     assert bad_timeframe.status_code == 422
+    assert bad_time.status_code == 422
 
 
 def test_market_endpoint_normalizes_bingx_candles(demo_client, monkeypatch):
@@ -355,6 +357,34 @@ def test_market_endpoint_accepts_bingx_array_candles(demo_client, monkeypatch):
         "time": 8, "open": 2.0, "high": 3.0, "low": 1.0,
         "close": 2.5, "volume": 5.0,
     }
+
+
+def test_market_endpoint_fetches_historical_window_separately(demo_client, monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"code": 0, "data": [[8_000, "2", "3", "1", "2.5", "5"]]}
+
+    calls = []
+
+    def fake_get(_url, *, params, **_kwargs):
+        calls.append(params)
+        return Response()
+
+    monkeypatch.setattr(miniapp.requests, "get", fake_get)
+    with miniapp.market_cache_lock:
+        miniapp.market_cache.clear()
+    at = int(time.time()) - 200 * 14400
+    latest = demo_client.get("/api/market/SOL_USDT?timeframe=4h")
+    historical = demo_client.get(f"/api/market/SOL_USDT?timeframe=4h&at={at}")
+    repeat = demo_client.get(f"/api/market/SOL_USDT?timeframe=4h&at={at}")
+
+    assert latest.status_code == historical.status_code == repeat.status_code == 200
+    assert len(calls) == 2
+    assert "endTime" not in calls[0]
+    assert calls[1]["endTime"] == (at // 14400 + 60) * 14400 * 1000
 
 
 def test_bingx_timeout_returns_502_without_blocking_another_market(
@@ -573,6 +603,28 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "waitingSetup" in script
     assert "settingsAccessCopy" in script
     assert "pay.hidden=paid" in script
+
+
+def test_bingx_chart_supports_navigation_and_expanded_view():
+    root = ROOT_DIR / "miniapp" / "static"
+    html = (root / "index.html").read_text()
+    script = (root / "app.js").read_text()
+    css = (root / "home-light.css").read_text()
+
+    assert "echarts@5.6.0" in html
+    assert "lightweight-charts" not in html
+    assert 'id="chart-expand"' in html
+    assert 'id="chart-zoom-in"' not in html
+    assert 'id="chart-zoom-out"' not in html
+    assert "function chartPriceRange(" in script
+    assert "function chartDataMatchesSignal(" in script
+    assert "function historicalChartTime(" in script
+    assert "function toggleChartExpanded(" in script
+    assert "if(request!==chartRequest)return" in script
+    assert "dataZoom:[{type:'inside'" in script
+    assert "LightweightCharts" not in script
+    assert "touch-action:none" in css
+    assert ".chart-section.chart-expanded" in css
 
 
 def test_unverified_payment_hash_does_not_open_access(monkeypatch):
