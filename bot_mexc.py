@@ -77,11 +77,9 @@ from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
 from signal_updates import (
-    render_cancelled_before_entry_update,
-    render_stop_update,
-    render_tp1_update,
     signal_identity_footer,
 )
+from trading.notification_delivery import deliver_pending_signal_updates
 from setup_text import no_setup_query, render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
@@ -1964,37 +1962,10 @@ def _public_signal_candles(
 
 async def _deliver_pending_signal_updates(loop) -> tuple[int, int]:
     """Deliver lifecycle messages after refreshing the trade states."""
-    deliveries = await loop.run_in_executor(None, st.load_pending_signal_updates)
-    delivered = 0
-    for update in deliveries:
-        user_id = int(update["telegram_user_id"])
-        lang = get_lang(user_id)
-        if update.get("event_type") == "stop_reached":
-            text = render_stop_update(update, lang=lang)
-        elif update.get("event_type") == "cancelled_before_entry":
-            text = render_cancelled_before_entry_update(update, lang=lang)
-        else:
-            text = render_tp1_update(update, lang=lang)
-        sent = await notifier.send_message_to_user(
-            str(user_id),
-            text,
-            gated=False,
-            reply_markup=_open_setup_keyboard(update["id"], lang),
-        )
-        retry_seconds = min(900, 30 * (2 ** int(update.get("attempts") or 0)))
-        await loop.run_in_executor(
-            None,
-            lambda item=update, ok=sent, delay=retry_seconds: st.mark_signal_update_delivery(
-                item["id"],
-                item["telegram_user_id"],
-                item["event_type"],
-                sent=ok,
-                error="telegram_delivery_failed" if not ok else "",
-                retry_seconds=delay,
-            ),
-        )
-        delivered += int(bool(sent))
-    return len(deliveries), delivered
+    return await deliver_pending_signal_updates(
+        loop, state=st, notifier=notifier, language_for_user=get_lang,
+        open_setup_keyboard=_open_setup_keyboard,
+    )
 
 
 async def signal_lifecycle_loop():
