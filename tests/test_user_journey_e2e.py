@@ -424,6 +424,34 @@ def test_extracted_access_routes_reject_non_admin_through_dispatcher(monkeypatch
     assert replies == ["⛔️ Admin only."] * 3
 
 
+def test_extracted_trading_routes_keep_deposit_gate_through_dispatcher(monkeypatch):
+    gated = []
+
+    async def require_deposit(message):
+        gated.append(message.text)
+        return False
+
+    monkeypatch.setattr(bot, "require_deposit", require_deposit)
+
+    async def run():
+        for text in ("/setup BTC_USDT", "/spikes", "/plan BTC_USDT", "/scan", "/digest"):
+            message = bot.types.Message(
+                message_id=len(text), date=datetime.now(timezone.utc),
+                chat=bot.types.Chat(id=4242, type="private"),
+                from_user=bot.types.User(id=4242, is_bot=False, first_name="Tester"),
+                text=text,
+            )
+            await bot.router.propagate_event(
+                "message", message, raw_state=None,
+                state=FakeState(), bot=bot.bot_instance,
+            )
+
+    asyncio.run(run())
+    assert gated == [
+        "/setup BTC_USDT", "/spikes", "/plan BTC_USDT", "/scan", "/digest",
+    ]
+
+
 def test_free_text_uses_the_ticker_not_the_request_word(monkeypatch):
     setup_symbols = []
     analyzed_symbols = []
