@@ -305,6 +305,31 @@ def test_free_text_routing_stays_inside_deposit_dialog(monkeypatch):
     assert scanned == ["/scan"]
 
 
+def test_onboarding_deposit_handler_runs_through_router_in_fsm(monkeypatch):
+    saved = []
+    monkeypatch.setattr(bot.st, "set_user_setting", lambda user_id, key, value: saved.append((user_id, key, value)))
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"risk_pct": 1.0})
+    monkeypatch.setattr(bot.access_manager, "ensure_user", lambda _user_id: None)
+
+    async def run():
+        message = FakeMessage("300")
+        message.chat.type = "private"
+        state = FakeState()
+        await bot.router.propagate_event(
+            "message", message,
+            raw_state=bot.DepositSetup.waiting_for_amount.state,
+            state=state,
+            bot=bot.bot_instance,
+        )
+        return message, state
+
+    message, state = asyncio.run(run())
+    assert saved == [(4242, "deposit", 300.0)]
+    assert state.value is None
+    assert len(message.replies) == 1
+    assert "300" in message.replies[0].text
+
+
 def test_free_text_handler_is_only_registered_for_idle_state():
     handler = next(
         item for item in bot.free_text_router.message.handlers

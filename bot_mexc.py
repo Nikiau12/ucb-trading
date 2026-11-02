@@ -59,6 +59,7 @@ from core.config import (
 )
 from core.tron_payment import TronPaymentVerifier
 from core.chat_policy import is_private_chat, language_for_start
+from core.onboarding_handlers import bind_onboarding_handlers
 from core.bot_commands import menu_commands
 from core.payment_reasons import payment_reason_key
 from core.worker_lock import hold_worker_lock
@@ -655,187 +656,18 @@ def _access_status_text(chat_id: str, lang: str) -> str:
 # КОМАНДЫ — ОБЩИЕ
 # ═══════════════════════════════════════════
 
-@onboarding_router.message(Command("start"))
-async def cmd_start(message: types.Message, state: FSMContext):
-    user_id = _user_id(message)
-    access_manager.ensure_user(user_id)
-    logger.info("command.start user_id=%s", user_id)
-
-    start_payload = (message.text or "").split(maxsplit=1)
-    payload = start_payload[1].strip().lower() if len(start_payload) > 1 else ""
-    lang, persist = language_for_start(get_lang(message.from_user.id), payload)
-    if persist:
-        st.set_user_lang(message.from_user.id, lang)
-    chat_id = getattr(getattr(message, "chat", None), "id", None) or message.from_user.id
-    await _set_user_commands(chat_id, lang)
-    if payload.startswith("subscribe_"):
-        await state.clear()
-        await message.reply(_payment_paywall(user_id), parse_mode="HTML")
-        return
-
-    await _set_panel_menu(message.from_user.id, lang)
-    if payload == "plan":
-        await state.clear()
-        await cmd_plan(_CommandView(message, message.from_user, "/plan BTC_USDT"))
-        return
-    if not st.language_is_chosen(message.from_user.id):
-        await state.clear()
-        await message.reply(_t("en", "choose_lang"), parse_mode="HTML", reply_markup=_language_only_keyboard())
-        return
-    if not _has_saved_deposit(message.from_user.id):
-        notifier.active_users.discard(user_id)
-        await state.set_state(DepositSetup.waiting_for_amount)
-        await message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
-        return
-
-    notifier.active_users.add(user_id)
-    await state.clear()
-    settings = st.get_user_settings(message.from_user.id)
-    await message.reply(
-        _ready_text(lang, settings.get("deposit"), settings.get("risk_pct")),
-        parse_mode="HTML",
-        reply_markup=_ready_keyboard(lang),
-    )
-
-
-async def _continue_after_language(callback: types.CallbackQuery, text: str, markup: InlineKeyboardMarkup) -> None:
-    """Show the one next step. A failed edit must not leave the language screen in place."""
-    message = callback.message
-    if message is not None:
-        try:
-            await message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-        except Exception:
-            logger.warning("language step edit failed")
-            try:
-                await message.reply(text, parse_mode="HTML", reply_markup=markup)
-            except Exception:
-                logger.warning("language step reply failed")
-    try:
-        await callback.answer()
-    except Exception:
-        logger.warning("callback answer failed")
-
-
-@onboarding_router.callback_query(lambda c: c.data and c.data.startswith("lang_"))
-async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext):
-    lang = callback.data.split("_", 1)[1]
-    st.set_user_lang(callback.from_user.id, lang)
-    settings = st.get_user_settings(callback.from_user.id)
-    if not settings.get("deposit"):
-        await state.set_state(DepositSetup.waiting_for_amount)
-        text = _t(lang, "deposit_prompt")
-        markup = InlineKeyboardMarkup(inline_keyboard=[])
-    else:
-        notifier.active_users.add(str(callback.from_user.id))
-        await state.clear()
-        text = _ready_text(lang, settings.get("deposit"), settings.get("risk_pct"))
-        markup = _ready_keyboard(lang)
-    await _continue_after_language(callback, text, markup)
-    await _set_user_commands(callback.from_user.id, lang)
-    await _set_panel_menu(callback.from_user.id, lang)
-
-
-@onboarding_router.callback_query(F.data == "set_deposit")
-async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMContext):
-    lang = get_lang(callback.from_user.id)
-    await state.set_state(DepositSetup.waiting_for_amount)
-    try:
-        await callback.message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
-    except Exception:
-        logger.warning("deposit prompt failed")
-    await _finish_callback(callback)
-
-
-@onboarding_router.callback_query(F.data == "request_plan")
-async def handle_request_plan(callback: types.CallbackQuery):
-    await _finish_callback(callback)
-    if callback.message is None:
-        return
-    await cmd_plan(_CommandView(callback.message, callback.from_user, "/plan BTC_USDT"))
-
-
-@onboarding_router.callback_query(F.data.startswith("retry_setup:"))
-async def handle_retry_setup(callback: types.CallbackQuery):
-    await _finish_callback(callback)
-    if callback.message is None:
-        return
-    coin = _callback_symbol(callback.data.split(":", 1)[1])
-    if not coin:
-        return
-    await _handle_setup(_CommandView(callback.message, callback.from_user, f"/setup {coin}"), coin)
-
-
-@onboarding_router.callback_query(F.data == "run_scan")
-async def handle_run_scan(callback: types.CallbackQuery):
-    await _finish_callback(callback)
-    if callback.message is None:
-        return
-    await cmd_scan(_CommandView(callback.message, callback.from_user, "/scan"))
-
-
-@onboarding_router.callback_query(F.data == "alert_later")
-async def handle_alert_later(callback: types.CallbackQuery):
-    try:
-        if callback.message is not None:
-            await callback.message.edit_reply_markup(reply_markup=None)
-    except Exception:
-        logger.warning("later dismiss failed")
-    await _finish_callback(callback)
-
-
-@onboarding_router.callback_query(F.data == "another_symbol")
-async def handle_another_symbol(callback: types.CallbackQuery):
-    lang = get_lang(callback.from_user.id)
-    try:
-        if callback.message is not None:
-            await callback.message.reply(_t(lang, "another_symbol_prompt"), parse_mode="HTML")
-    except Exception:
-        logger.warning("another symbol prompt failed")
-    await _finish_callback(callback)
-
-
-@onboarding_router.callback_query(F.data.startswith("plan_for:"))
-async def handle_plan_for(callback: types.CallbackQuery):
-    await _finish_callback(callback)
-    if callback.message is None:
-        return
-    coin = _callback_symbol(callback.data.split(":", 1)[1])
-    if not coin:
-        return
-    await cmd_plan(_CommandView(callback.message, callback.from_user, f"/plan {coin}_USDT"))
-
-
-@onboarding_router.callback_query(F.data == "retry_spikes")
-async def handle_retry_spikes(callback: types.CallbackQuery):
-    await _finish_callback(callback)
-    if callback.message is None:
-        return
-    await _handle_spikes(_CommandView(callback.message, callback.from_user, "/spikes"))
-
-
-@onboarding_router.message(
-    DepositSetup.waiting_for_amount,
-    lambda message: is_deposit_input(message.text),
-)
-async def handle_deposit_amount(message: types.Message, state: FSMContext):
-    lang = get_lang(message.from_user.id)
-    try:
-        deposit = parse_deposit_amount(message.text)
-    except (TypeError, ValueError):
-        text, markup = _deposit_prompt_reply(lang)
-        await message.reply(text, parse_mode="HTML", reply_markup=markup)
-        return
-
-    st.set_user_setting(message.from_user.id, "deposit", deposit)
-    access_manager.ensure_user(_user_id(message))
-    notifier.active_users.add(_user_id(message))
-    await state.clear()
-    settings = st.get_user_settings(message.from_user.id)
-    await message.reply(
-        _ready_text(lang, deposit, settings.get("risk_pct")),
-        parse_mode="HTML",
-        reply_markup=_ready_keyboard(lang),
-    )
+_onboarding_handlers = bind_onboarding_handlers(onboarding_router, sys.modules[__name__])
+cmd_start = _onboarding_handlers.cmd_start
+handle_lang_callback = _onboarding_handlers.handle_lang_callback
+handle_deposit_callback = _onboarding_handlers.handle_deposit_callback
+handle_request_plan = _onboarding_handlers.handle_request_plan
+handle_retry_setup = _onboarding_handlers.handle_retry_setup
+handle_run_scan = _onboarding_handlers.handle_run_scan
+handle_alert_later = _onboarding_handlers.handle_alert_later
+handle_another_symbol = _onboarding_handlers.handle_another_symbol
+handle_plan_for = _onboarding_handlers.handle_plan_for
+handle_retry_spikes = _onboarding_handlers.handle_retry_spikes
+handle_deposit_amount = _onboarding_handlers.handle_deposit_amount
 
 
 @access_router.message(Command("help"))
