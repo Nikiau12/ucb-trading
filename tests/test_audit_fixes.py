@@ -297,9 +297,10 @@ def test_russian_setup_uses_panel_words_without_english_tokens():
     assert "entry" not in plan_text.lower()
     assert "midrange" not in plan_text.lower()
     assert "━━━━" not in plan_text
-    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
-    assert "render_setup(" in source
-    assert 'callback_data="alert_later"' in source
+    trading_source = (ROOT / "core" / "trading_handlers.py").read_text(encoding="utf-8")
+    bot_source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    assert "render_setup(" in trading_source
+    assert 'callback_data="alert_later"' in bot_source
 
 
 def test_skip_plan_does_not_show_raw_filters():
@@ -327,7 +328,7 @@ def test_skip_plan_does_not_show_raw_filters():
     assert "<b>BTC_USDT</b>" in text
     eth = render_telegram_plan(dict(plan, symbol="ETH_USDT"), deposit=1000, risk_pct=1, lang="ru")
     assert eth.replace("ETH_USDT", "BTC_USDT") == text
-    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    source = (ROOT / "core" / "trading_handlers.py").read_text(encoding="utf-8")
     plan_fn = source.split("async def cmd_plan", 1)[1].split("async def cmd_set", 1)[0]
     skip_branch = plan_fn.split('if side == "SKIP":', 1)[1].split("else:", 1)[0]
     assert "_no_setup_keyboard(lang, symbol)" in skip_branch
@@ -394,7 +395,7 @@ def test_plan_message_is_a_trade_ticket():
     assert "━━━━" not in btc
     assert "🟩" not in btc
     assert "entry" not in btc.lower()
-    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    source = (ROOT / "core" / "trading_handlers.py").read_text(encoding="utf-8")
     plan_fn = source.split("async def cmd_plan", 1)[1].split("async def cmd_set", 1)[0]
     assert "render_setup(" in plan_fn
     assert "_open_setup_keyboard" in plan_fn
@@ -425,10 +426,11 @@ def test_scan_card_is_six_lines_and_opens_one_signal():
     assert "━━━━" not in text
     assert "🟩" not in text
     assert "Бот считает размер" not in text
-    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
-    assert "render_scan_card(" in source
-    scan = source.split("async def cmd_scan", 1)[1].split("async def cmd_digest", 1)[0]
-    digest = source.split("async def _run_digest", 1)[1].split("async def _fetch_mtf", 1)[0]
+    bot_source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    trading_source = (ROOT / "core" / "trading_handlers.py").read_text(encoding="utf-8")
+    assert "render_scan_card(" in bot_source
+    scan = trading_source.split("async def cmd_scan", 1)[1].split("async def cmd_digest", 1)[0]
+    digest = bot_source.split("async def _run_digest", 1)[1].split("async def _fetch_mtf", 1)[0]
     assert "render_scan_card(" in scan or "_send_plan_and_record" in scan
     assert "render_scan_card(" in digest
     assert "_open_setup_keyboard" in digest
@@ -497,11 +499,12 @@ def test_public_menu_omits_admin_commands():
     assert "spikes" not in russian
     assert russian["plan"] != english["plan"]
     assert "План" in russian["plan"]
-    source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
-    assert 'Command("setup")' in source
-    assert 'Command("spikes")' in source
-    assert "BotCommandScopeChat" in source
-    assert "language_code=code" in source
+    trading_source = (ROOT / "core" / "trading_handlers.py").read_text(encoding="utf-8")
+    bot_source = (ROOT / "bot_mexc.py").read_text(encoding="utf-8")
+    assert 'Command("setup")' in trading_source
+    assert 'Command("spikes")' in trading_source
+    assert "BotCommandScopeChat" in bot_source
+    assert "language_code=code" in bot_source
 
 
 def test_payment_reasons_stay_distinct():
