@@ -928,6 +928,14 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
                 WHERE d.status IN ('pending', 'failed')
                   AND d.attempts < 5
                   AND d.next_attempt_at <= NOW()
+                  AND (
+                    (d.event_type = 'tp1_reached' AND l.status = 'tp1_reached')
+                    OR (d.event_type = 'stop_reached' AND l.status = 'stopped')
+                    OR (
+                        d.event_type = 'cancelled_before_entry'
+                        AND l.status = 'cancelled_before_entry'
+                    )
+                  )
                 ORDER BY d.created_at ASC
                 LIMIT %s
                 """,
@@ -968,6 +976,7 @@ def mark_signal_update_delivery(
                         ELSE NOW() + (%s * INTERVAL '1 second')
                     END
                 WHERE signal_id = %s AND telegram_user_id = %s AND event_type = %s
+                  AND status IN ('pending', 'failed')
                 """,
                 (
                     "sent" if sent else "failed", sent,

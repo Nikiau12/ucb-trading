@@ -2,6 +2,7 @@ import asyncio
 import os
 from types import SimpleNamespace
 
+from aiogram.filters import StateFilter
 from fastapi.testclient import TestClient
 
 
@@ -267,6 +268,112 @@ def test_scanner_word_runs_the_plan_scan_not_spikes(monkeypatch):
     asyncio.run(run())
     assert called.get("scan") == "/scan"
     assert "spikes" not in called
+
+
+def test_free_text_routing_stays_inside_deposit_dialog(monkeypatch):
+    scanned = []
+
+    async def scan(message):
+        scanned.append(message.text)
+
+    monkeypatch.setattr(bot, "cmd_scan", scan)
+
+    async def run():
+        for text in ("сканер", "сетап BTC"):
+            message = FakeMessage(text)
+            message.chat.type = "private"
+            await bot.router.message.trigger(
+                message,
+                raw_state=bot.DepositSetup.waiting_for_amount.state,
+                state=FakeState(),
+                bot=bot.bot_instance,
+            )
+            assert len(message.replies) == 1
+            assert "5000" in message.replies[0].text
+
+        idle_message = FakeMessage("сканер")
+        idle_message.chat.type = "private"
+        await bot.router.message.trigger(
+            idle_message,
+            raw_state=None,
+            state=FakeState(),
+            bot=bot.bot_instance,
+        )
+
+    asyncio.run(run())
+    assert scanned == ["/scan"]
+
+
+def test_free_text_handler_is_only_registered_for_idle_state():
+    handler = next(
+        item for item in bot.router.message.handlers
+        if item.callback is bot.handle_text
+    )
+    assert any(
+        isinstance(item.callback, StateFilter) and item.callback.states == (None,)
+        for item in handler.filters
+    )
+
+
+def test_free_text_uses_the_ticker_not_the_request_word(monkeypatch):
+    setup_symbols = []
+    analyzed_symbols = []
+
+    async def setup(_message, symbol):
+        setup_symbols.append(symbol)
+
+    async def access(_message):
+        return "paid"
+
+    async def validate(symbol):
+        analyzed_symbols.append(symbol)
+        return None
+
+    monkeypatch.setattr(bot, "_handle_setup", setup)
+    monkeypatch.setattr(bot, "gate_access", access)
+    monkeypatch.setattr(bot.exchange, "validate_symbol", validate)
+
+    async def run():
+        await bot.handle_text(FakeMessage("сигнал по ASTER"))
+        await bot.handle_text(FakeMessage("анализ BTC"))
+        missing = FakeMessage("сигнал по")
+        await bot.handle_text(missing)
+        assert missing.replies and "ETH" in missing.replies[0].text
+
+    asyncio.run(run())
+    assert setup_symbols == ["ASTER"]
+    assert analyzed_symbols == ["BTC"]
+
+
+def test_trade_state_is_refreshed_before_lifecycle_messages(monkeypatch):
+    calls = []
+
+    def load_signals():
+        return [{"id": 77, "symbol": "BTC_USDT", "status": "active"}]
+
+    def prices():
+        calls.append("prices")
+        return {"BTC_USDT": 100.0}
+
+    def advance(_signal_id, _price):
+        calls.append("advance")
+        return {"events": []}
+
+    async def deliver(_loop):
+        calls.append("deliver")
+        return 0, 0
+
+    def finish_cycle(*_args, **_kwargs):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(bot.st, "load_trackable_signals", load_signals)
+    monkeypatch.setattr(bot, "_public_signal_prices", prices)
+    monkeypatch.setattr(bot.st, "update_signal_lifecycle", advance)
+    monkeypatch.setattr(bot, "_deliver_pending_signal_updates", deliver)
+    monkeypatch.setattr(bot.st, "record_runtime_health", finish_cycle)
+
+    asyncio.run(bot.signal_lifecycle_loop())
+    assert calls == ["prices", "advance", "deliver"]
 
 
 def test_bare_symbol_offers_one_plan_and_a_greeting_asks_for_language(monkeypatch):
