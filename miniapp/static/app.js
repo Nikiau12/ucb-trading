@@ -390,6 +390,14 @@ function chartSignalLevels(signal){
     .filter(level=>Number.isFinite(level.price)&&level.price>0);
 }
 
+function chartPriceFormat(data){
+  const price=Number(data.at(-1)?.close);
+  const precision=Number.isFinite(price)&&price>0
+    ?Math.max(2,Math.min(12,Math.ceil(-Math.log10(price))+3))
+    :2;
+  return{type:'price',precision,minMove:10**-precision};
+}
+
 function chartDataMatchesSignal(data,signal,key){
   if(!signal||!data.length)return true;
   const createdAt=new Date(signal.created_at).valueOf()/1000;
@@ -405,6 +413,12 @@ function chartDataMatchesSignal(data,signal,key){
 function renderChart(bundle,data,signal,key){
   const sameMarket=bundle.key===key;
   const visible=sameMarket?bundle.chart.timeScale().getVisibleLogicalRange():null;
+  if(!sameMarket){
+    // A manually moved price scale must never carry ETH's range into BTC, or vice versa.
+    bundle.chart.priceScale('right').applyOptions({autoScale:true});
+    const priceFormat=chartPriceFormat(data);
+    for(const series of [bundle.candles,bundle.ema20,bundle.ema50])series.applyOptions({priceFormat});
+  }
   bundle.key=key;
   bundle.data=data;
   const matches=chartDataMatchesSignal(data,signal,key);

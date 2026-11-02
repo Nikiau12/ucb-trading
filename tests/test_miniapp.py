@@ -621,6 +621,8 @@ def test_bingx_chart_restores_lightweight_design_with_touch_navigation():
     assert "function historicalChartTime(" in script
     assert "if(request!==chartRequest)return" in script
     assert "LightweightCharts.createChart" in script
+    assert "function chartPriceFormat(" in script
+    assert "priceScale('right').applyOptions({autoScale:true})" in script
     assert "pinch:true" in script
     assert "horzTouchDrag:true" in script
     assert "getVisibleLogicalRange()" in script
