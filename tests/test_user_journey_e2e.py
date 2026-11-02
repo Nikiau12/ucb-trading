@@ -390,6 +390,40 @@ def test_route_domains_preserve_order_and_private_chat_gate(monkeypatch):
     ]
 
 
+def test_extracted_access_routes_reject_non_admin_through_dispatcher(monkeypatch):
+    monkeypatch.setattr(bot, "is_admin", lambda _user_id: False)
+    monkeypatch.setattr(
+        bot.access_manager, "grant_access",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("grant called")),
+    )
+    monkeypatch.setattr(
+        bot.access_manager, "revoke_access",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("revoke called")),
+    )
+    replies = []
+
+    async def reply(_message, text, **_kwargs):
+        replies.append(text)
+
+    monkeypatch.setattr(bot.types.Message, "reply", reply)
+
+    async def run():
+        for text in ("/grant 42", "/revoke 42", "/approve_referral 42"):
+            message = bot.types.Message(
+                message_id=len(text), date=datetime.now(timezone.utc),
+                chat=bot.types.Chat(id=4242, type="private"),
+                from_user=bot.types.User(id=4242, is_bot=False, first_name="Tester"),
+                text=text,
+            )
+            await bot.router.propagate_event(
+                "message", message, raw_state=None,
+                state=FakeState(), bot=bot.bot_instance,
+            )
+
+    asyncio.run(run())
+    assert replies == ["⛔️ Admin only."] * 3
+
+
 def test_free_text_uses_the_ticker_not_the_request_word(monkeypatch):
     setup_symbols = []
     analyzed_symbols = []
