@@ -111,6 +111,10 @@ TRADE_CFG = _CFG["trading"]
 # ── инициализация бота ──
 bot_instance = Bot(token=TELEGRAM_BOT_TOKEN)
 router = Router()
+onboarding_router = Router(name="onboarding")
+access_router = Router(name="access")
+trading_router = Router(name="trading")
+free_text_router = Router(name="free_text")
 
 SPIKE_COOLDOWN = 4 * 3600
 SETUP_COOLDOWN = 8 * 3600
@@ -246,8 +250,8 @@ class PrivateChatMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-router.message.middleware(PrivateChatMiddleware())
-router.callback_query.middleware(PrivateChatMiddleware())
+router.message.outer_middleware(PrivateChatMiddleware())
+router.callback_query.outer_middleware(PrivateChatMiddleware())
 
 # ═══════════════════════════════════════════
 # ХЕЛПЕРЫ
@@ -651,7 +655,7 @@ def _access_status_text(chat_id: str, lang: str) -> str:
 # КОМАНДЫ — ОБЩИЕ
 # ═══════════════════════════════════════════
 
-@router.message(Command("start"))
+@onboarding_router.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     user_id = _user_id(message)
     access_manager.ensure_user(user_id)
@@ -712,7 +716,7 @@ async def _continue_after_language(callback: types.CallbackQuery, text: str, mar
         logger.warning("callback answer failed")
 
 
-@router.callback_query(lambda c: c.data and c.data.startswith("lang_"))
+@onboarding_router.callback_query(lambda c: c.data and c.data.startswith("lang_"))
 async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext):
     lang = callback.data.split("_", 1)[1]
     st.set_user_lang(callback.from_user.id, lang)
@@ -731,7 +735,7 @@ async def handle_lang_callback(callback: types.CallbackQuery, state: FSMContext)
     await _set_panel_menu(callback.from_user.id, lang)
 
 
-@router.callback_query(F.data == "set_deposit")
+@onboarding_router.callback_query(F.data == "set_deposit")
 async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMContext):
     lang = get_lang(callback.from_user.id)
     await state.set_state(DepositSetup.waiting_for_amount)
@@ -742,7 +746,7 @@ async def handle_deposit_callback(callback: types.CallbackQuery, state: FSMConte
     await _finish_callback(callback)
 
 
-@router.callback_query(F.data == "request_plan")
+@onboarding_router.callback_query(F.data == "request_plan")
 async def handle_request_plan(callback: types.CallbackQuery):
     await _finish_callback(callback)
     if callback.message is None:
@@ -750,7 +754,7 @@ async def handle_request_plan(callback: types.CallbackQuery):
     await cmd_plan(_CommandView(callback.message, callback.from_user, "/plan BTC_USDT"))
 
 
-@router.callback_query(F.data.startswith("retry_setup:"))
+@onboarding_router.callback_query(F.data.startswith("retry_setup:"))
 async def handle_retry_setup(callback: types.CallbackQuery):
     await _finish_callback(callback)
     if callback.message is None:
@@ -761,7 +765,7 @@ async def handle_retry_setup(callback: types.CallbackQuery):
     await _handle_setup(_CommandView(callback.message, callback.from_user, f"/setup {coin}"), coin)
 
 
-@router.callback_query(F.data == "run_scan")
+@onboarding_router.callback_query(F.data == "run_scan")
 async def handle_run_scan(callback: types.CallbackQuery):
     await _finish_callback(callback)
     if callback.message is None:
@@ -769,7 +773,7 @@ async def handle_run_scan(callback: types.CallbackQuery):
     await cmd_scan(_CommandView(callback.message, callback.from_user, "/scan"))
 
 
-@router.callback_query(F.data == "alert_later")
+@onboarding_router.callback_query(F.data == "alert_later")
 async def handle_alert_later(callback: types.CallbackQuery):
     try:
         if callback.message is not None:
@@ -779,7 +783,7 @@ async def handle_alert_later(callback: types.CallbackQuery):
     await _finish_callback(callback)
 
 
-@router.callback_query(F.data == "another_symbol")
+@onboarding_router.callback_query(F.data == "another_symbol")
 async def handle_another_symbol(callback: types.CallbackQuery):
     lang = get_lang(callback.from_user.id)
     try:
@@ -790,7 +794,7 @@ async def handle_another_symbol(callback: types.CallbackQuery):
     await _finish_callback(callback)
 
 
-@router.callback_query(F.data.startswith("plan_for:"))
+@onboarding_router.callback_query(F.data.startswith("plan_for:"))
 async def handle_plan_for(callback: types.CallbackQuery):
     await _finish_callback(callback)
     if callback.message is None:
@@ -801,7 +805,7 @@ async def handle_plan_for(callback: types.CallbackQuery):
     await cmd_plan(_CommandView(callback.message, callback.from_user, f"/plan {coin}_USDT"))
 
 
-@router.callback_query(F.data == "retry_spikes")
+@onboarding_router.callback_query(F.data == "retry_spikes")
 async def handle_retry_spikes(callback: types.CallbackQuery):
     await _finish_callback(callback)
     if callback.message is None:
@@ -809,7 +813,7 @@ async def handle_retry_spikes(callback: types.CallbackQuery):
     await _handle_spikes(_CommandView(callback.message, callback.from_user, "/spikes"))
 
 
-@router.message(
+@onboarding_router.message(
     DepositSetup.waiting_for_amount,
     lambda message: is_deposit_input(message.text),
 )
@@ -834,7 +838,7 @@ async def handle_deposit_amount(message: types.Message, state: FSMContext):
     )
 
 
-@router.message(Command("help"))
+@access_router.message(Command("help"))
 async def cmd_help(message: types.Message):
     lang = get_lang(message.from_user.id)
     await message.reply(
@@ -844,12 +848,12 @@ async def cmd_help(message: types.Message):
     )
 
 
-@router.message(Command("subscribe"))
+@access_router.message(Command("subscribe"))
 async def cmd_subscribe(message: types.Message):
     await message.reply(_payment_paywall(_user_id(message)), parse_mode="HTML")
 
 
-@router.message(Command("referral"))
+@access_router.message(Command("referral"))
 async def cmd_referral(message: types.Message):
     lang = get_lang(message.from_user.id)
     parts = (message.text or "").split(maxsplit=1)
@@ -959,7 +963,7 @@ async def cmd_referral(message: types.Message):
             logger.warning("referral admin notify failed admin_id=%s", admin_id)
 
 
-@router.message(Command("referrals"))
+@access_router.message(Command("referrals"))
 async def cmd_referrals(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.reply("⛔️ Admin only.")
@@ -1026,23 +1030,23 @@ async def _review_referral(message: types.Message, status: str) -> None:
         logger.warning("referral review notice failed target=%s", target)
 
 
-@router.message(Command("approve_referral"))
+@access_router.message(Command("approve_referral"))
 async def cmd_approve_referral(message: types.Message):
     await _review_referral(message, "verified")
 
 
-@router.message(Command("reject_referral"))
+@access_router.message(Command("reject_referral"))
 async def cmd_reject_referral(message: types.Message):
     await _review_referral(message, "rejected")
 
 
-@router.message(Command("status"))
+@access_router.message(Command("status"))
 async def cmd_status(message: types.Message):
     lang = get_lang(message.from_user.id)
     await message.reply(_access_status_text(_user_id(message), lang), parse_mode="HTML")
 
 
-@router.message(Command("paid"))
+@access_router.message(Command("paid"))
 async def cmd_paid(message: types.Message):
     lang = get_lang(message.from_user.id)
     parts = message.text.split(maxsplit=1)
@@ -1114,7 +1118,7 @@ async def cmd_paid(message: types.Message):
             logger.warning("admin payment notify failed admin_id=%s", admin_id)
 
 
-@router.message(Command("grant"))
+@access_router.message(Command("grant"))
 async def cmd_grant(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.reply("⛔️ Admin only.")
@@ -1144,7 +1148,7 @@ async def cmd_grant(message: types.Message):
         logger.warning("grant notice failed")
 
 
-@router.message(Command("revoke"))
+@access_router.message(Command("revoke"))
 async def cmd_revoke(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.reply("⛔️ Admin only.")
@@ -1163,7 +1167,7 @@ async def cmd_revoke(message: types.Message):
 # КОМАНДЫ — SMC (старый функционал)
 # ═══════════════════════════════════════════
 
-@router.message(Command("setup"))
+@trading_router.message(Command("setup"))
 async def cmd_setup(message: types.Message):
     if not await require_deposit(message):
         return
@@ -1174,7 +1178,7 @@ async def cmd_setup(message: types.Message):
     await _handle_setup(message, parts[1].upper())
 
 
-@router.message(Command("spikes"))
+@trading_router.message(Command("spikes"))
 async def cmd_spikes(message: types.Message):
     if not await require_deposit(message):
         return
@@ -1184,7 +1188,7 @@ async def cmd_spikes(message: types.Message):
 # КОМАНДЫ — ПЛАН (наш функционал)
 # ═══════════════════════════════════════════
 
-@router.message(Command("plan"))
+@trading_router.message(Command("plan"))
 async def cmd_plan(message: types.Message):
     logger.info("command.plan.received message_id=%s", message.message_id)
     if not await require_deposit(message):
@@ -1243,7 +1247,7 @@ async def cmd_plan(message: types.Message):
         )
 
 
-@router.message(Command("set"))
+@trading_router.message(Command("set"))
 async def cmd_set(message: types.Message):
     uid  = message.from_user.id
     lang = get_lang(uid)
@@ -1279,7 +1283,7 @@ async def cmd_set(message: types.Message):
     )
 
 
-@router.message(Command("settings"))
+@trading_router.message(Command("settings"))
 async def cmd_settings(message: types.Message):
     uid      = message.from_user.id
     lang     = get_lang(uid)
@@ -1295,7 +1299,7 @@ async def cmd_settings(message: types.Message):
     await message.reply(text, parse_mode="HTML")
 
 
-@router.message(Command("scan"))
+@trading_router.message(Command("scan"))
 async def cmd_scan(message: types.Message):
     logger.info("command.scan.received message_id=%s", message.message_id)
     if not await require_deposit(message):
@@ -1366,7 +1370,7 @@ async def cmd_scan(message: types.Message):
         )
 
 
-@router.message(Command("digest"))
+@trading_router.message(Command("digest"))
 async def cmd_digest(message: types.Message):
     if not await require_deposit(message):
         return
@@ -1582,7 +1586,7 @@ async def _handle_spikes(message: types.Message):
 # ОБРАБОТЧИК ТЕКСТА (natural language)
 # ═══════════════════════════════════════════
 
-@router.message(StateFilter(None), F.text)
+@free_text_router.message(StateFilter(None), F.text)
 async def handle_text(message: types.Message, state: FSMContext | None = None):
     text = message.text.lower()
     lang = get_lang(message.from_user.id)
@@ -1646,6 +1650,11 @@ async def handle_text(message: types.Message, state: FSMContext | None = None):
                 parse_mode="HTML",
                 reply_markup=_plan_symbol_keyboard(lang, symbol),
             )
+
+
+router.include_routers(
+    onboarding_router, access_router, trading_router, free_text_router,
+)
 
 # ═══════════════════════════════════════════
 # ФОНОВЫЕ ЦИКЛЫ
