@@ -19,16 +19,49 @@ def _as_float(value: Any) -> Optional[float]:
     return number if number > 0 else None
 
 
-def _reached(side: str, price: float, level: Any, *, rising: bool) -> bool:
+def _touched(side: str, high: float, low: float, level: Any, *, rising: bool) -> bool:
     target = _as_float(level)
     if target is None:
         return False
     direction = str(side or "").upper()
     if direction == "LONG":
-        return price >= target if rising else price <= target
+        return high >= target if rising else low <= target
     if direction == "SHORT":
-        return price <= target if rising else price >= target
+        return low <= target if rising else high >= target
     return False
+
+
+def _level_transition(signal: dict, status: str, high: float, low: float) -> dict:
+    """Apply the same level priority to a live price or a closed candle.
+
+    A target and entry inside one candle have unknown order, so an unentered
+    setup is cancelled. After entry, Stop wins ambiguous Stop/target candles.
+    """
+    events: list[str] = []
+    side = str(signal.get("side") or "").upper()
+    if status == "waiting_entry":
+        if _touched(side, high, low, signal.get("tp1"), rising=True):
+            return {"status": "cancelled_before_entry", "events": ["cancelled_before_entry"]}
+        if not _touched(side, high, low, signal.get("entry"), rising=False):
+            return {"status": status, "events": events}
+        status = "active"
+        events.append("entry_reached")
+
+    if status == "active":
+        if _touched(side, high, low, signal.get("stop"), rising=False):
+            return {"status": "stopped", "events": [*events, "stop_reached"]}
+        if _touched(side, high, low, signal.get("tp2"), rising=True):
+            return {"status": "tp2_reached", "events": [*events, "tp1_reached", "tp2_reached"]}
+        if _touched(side, high, low, signal.get("tp1"), rising=True):
+            return {"status": "tp1_reached", "events": [*events, "tp1_reached"]}
+
+    if status == "tp1_reached":
+        # The remaining half is protected at the entry price after TP1.
+        if _touched(side, high, low, signal.get("entry"), rising=False):
+            return {"status": "stopped", "events": ["stop_reached"]}
+        if _touched(side, high, low, signal.get("tp2"), rising=True):
+            return {"status": "tp2_reached", "events": ["tp2_reached"]}
+    return {"status": status, "events": events}
 
 
 def advance_lifecycle(signal: dict, price: Any, now: datetime) -> dict:
@@ -39,8 +72,7 @@ def advance_lifecycle(signal: dict, price: Any, now: datetime) -> dict:
     does not enqueue a stale break-even instruction.
     """
     status = str(signal.get("status") or "waiting_entry")
-    events: list[str] = []
-    result = {"status": status, "events": events}
+    result = {"status": status, "events": []}
     if status not in TRACKABLE_STATUSES:
         return result
 
@@ -54,35 +86,7 @@ def advance_lifecycle(signal: dict, price: Any, now: datetime) -> dict:
     current = _as_float(price)
     if current is None:
         return result
-    side = str(signal.get("side") or "").upper()
-
-    if status == "waiting_entry":
-        if _reached(side, current, signal.get("tp1"), rising=True):
-            return {
-                "status": "cancelled_before_entry",
-                "events": ["cancelled_before_entry"],
-            }
-        if not _reached(side, current, signal.get("entry"), rising=False):
-            return result
-        status = "active"
-        events.append("entry_reached")
-
-    if status == "active":
-        if _reached(side, current, signal.get("stop"), rising=False):
-            return {"status": "stopped", "events": [*events, "stop_reached"]}
-        if _reached(side, current, signal.get("tp2"), rising=True):
-            return {"status": "tp2_reached", "events": [*events, "tp1_reached", "tp2_reached"]}
-        if _reached(side, current, signal.get("tp1"), rising=True):
-            return {"status": "tp1_reached", "events": [*events, "tp1_reached"]}
-
-    if status == "tp1_reached":
-        # After the TP1 instruction the remaining half is protected at the
-        # signal entry, so that entry becomes the effective Stop (BE).
-        if _reached(side, current, signal.get("entry"), rising=False):
-            return {"status": "stopped", "events": ["stop_reached"]}
-        if _reached(side, current, signal.get("tp2"), rising=True):
-            return {"status": "tp2_reached", "events": ["tp2_reached"]}
-    return {"status": status, "events": events}
+    return _level_transition(signal, status, current, current)
 
 
 def replay_lifecycle(
@@ -104,11 +108,8 @@ def replay_lifecycle(
         entry_expires_at = entry_expires_at.replace(tzinfo=timezone.utc)
     max_holding_seconds = max(1, int(signal.get("max_holding_seconds") or 14 * 86400))
     side = str(signal.get("side") or "").upper()
-    entry = _as_float(signal.get("entry"))
-    stop = _as_float(signal.get("stop"))
-    tp1 = _as_float(signal.get("tp1"))
-    tp2 = _as_float(signal.get("tp2"))
-    if side not in {"LONG", "SHORT"} or None in {entry, stop, tp1, tp2}:
+    levels = tuple(_as_float(signal.get(key)) for key in ("entry", "stop", "tp1", "tp2"))
+    if side not in {"LONG", "SHORT"} or None in levels:
         return {"status": "expired", "expired_at": now}
 
     status = "waiting_entry"
@@ -134,37 +135,27 @@ def replay_lifecycle(
             if candle_at >= entry_expires_at:
                 status, expired_at = "expired", entry_expires_at
                 break
-            entry_touched = low <= entry if side == "LONG" else high >= entry
-            tp1_touched_before_entry = high >= tp1 if side == "LONG" else low <= tp1
-            if tp1_touched_before_entry:
-                # With both levels inside one candle there is no proven entry
-                # before TP1. The smaller 1m audit resolves this when possible;
-                # at the smallest available resolution we cancel safely.
-                status, cancelled_at = "cancelled_before_entry", candle_at
-                break
-            if not entry_touched:
-                continue
-            status = "active"
-            entry_hit_at = candle_at
-            holding_expires_at = candle_at + timedelta(seconds=max_holding_seconds)
-
-        if holding_expires_at and candle_at >= holding_expires_at:
+        elif holding_expires_at and candle_at >= holding_expires_at:
             status, expired_at = "expired", holding_expires_at
             break
-        effective_stop = entry if status == "tp1_reached" else stop
-        stop_touched = low <= effective_stop if side == "LONG" else high >= effective_stop
-        tp1_touched = high >= tp1 if side == "LONG" else low <= tp1
-        tp2_touched = high >= tp2 if side == "LONG" else low <= tp2
-        if stop_touched:
-            status, stop_hit_at = "stopped", candle_at
+
+        outcome = _level_transition(signal, status, high, low)
+        events = outcome["events"]
+        if "cancelled_before_entry" in events:
+            status, cancelled_at = "cancelled_before_entry", candle_at
             break
-        if tp2_touched:
-            status = "tp2_reached"
+        if "entry_reached" in events:
+            entry_hit_at = candle_at
+            holding_expires_at = candle_at + timedelta(seconds=max_holding_seconds)
+        status = outcome["status"]
+        if "tp1_reached" in events:
             tp1_hit_at = tp1_hit_at or candle_at
+        if "stop_reached" in events:
+            stop_hit_at = candle_at
+            break
+        if "tp2_reached" in events:
             tp2_hit_at = candle_at
             break
-        if status == "active" and tp1_touched:
-            status, tp1_hit_at = "tp1_reached", candle_at
 
     if status == "waiting_entry" and now >= entry_expires_at:
         status, expired_at = "expired", entry_expires_at

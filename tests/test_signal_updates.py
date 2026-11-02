@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from trading import state
 from trading.signal_updates import (
     advance_lifecycle,
@@ -93,6 +95,42 @@ def test_pending_signal_expires_without_entry():
     assert outcome == {"status": "expired", "events": ["expired"]}
 
 
+@pytest.mark.parametrize(
+    ("side", "entry", "stop", "tp1", "tp2", "prices", "expected"),
+    [
+        ("LONG", 1.082, 1.041, 1.13, 1.176, [1.13], "cancelled_before_entry"),
+        ("SHORT", 10, 11, 9, 8, [9], "cancelled_before_entry"),
+        ("LONG", 1.082, 1.041, 1.13, 1.176, [1.082, 1.13, 1.082], "stopped"),
+        ("SHORT", 10, 11, 9, 8, [10, 9, 10], "stopped"),
+        ("LONG", 1.082, 1.041, 1.13, 1.176, [1.082, 1.20], "tp2_reached"),
+        ("SHORT", 10, 11, 9, 8, [10, 7.5], "tp2_reached"),
+    ],
+)
+def test_live_and_closed_candles_use_the_same_level_decisions(
+    side, entry, stop, tp1, tp2, prices, expected,
+):
+    created_at = NOW - timedelta(minutes=10)
+    signal = _signal(
+        side=side, entry=entry, stop=stop, tp1=tp1, tp2=tp2,
+        created_at=created_at, entry_expires_at=NOW + timedelta(hours=1),
+        max_holding_seconds=3600,
+    )
+    candles = []
+    live = dict(signal)
+    for index, price in enumerate(prices):
+        candle_at = NOW - timedelta(minutes=8 - index * 2)
+        candles.append({
+            "time": int(candle_at.timestamp()), "high": price, "low": price,
+        })
+        outcome = advance_lifecycle(live, price, candle_at + timedelta(minutes=1))
+        live["status"] = outcome["status"]
+        if "entry_reached" in outcome["events"]:
+            live["holding_expires_at"] = candle_at + timedelta(hours=1)
+
+    restored = replay_lifecycle(signal, candles, NOW, candle_seconds=60)
+    assert live["status"] == restored["status"] == expected
+
+
 def _candle(hours_ago, *, high, low):
     moment = NOW - timedelta(hours=hours_ago)
     return {"time": int(moment.timestamp()), "high": high, "low": low}
@@ -175,6 +213,19 @@ def test_replay_uses_entry_as_break_even_after_tp1():
     ], NOW)
     assert result["status"] == "stopped"
     assert result["stop_hit_at"] == NOW - timedelta(hours=2)
+
+
+def test_replay_treats_stop_and_tp2_in_one_candle_as_stop():
+    old = _signal(
+        created_at=NOW - timedelta(hours=10),
+        entry_expires_at=NOW + timedelta(hours=2),
+    )
+    result = replay_lifecycle(old, [
+        _candle(9, high=1.09, low=1.08),
+        _candle(5, high=1.20, low=1.03),
+    ], NOW)
+    assert result["status"] == "stopped"
+    assert result["tp2_hit_at"] is None
 
 
 def test_replay_expires_old_signal_that_never_entered():
