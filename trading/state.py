@@ -29,6 +29,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 SIGNAL_DEDUP_COOLDOWN_SECS = int(float(os.getenv("SIGNAL_DEDUP_HOURS", "4")) * 3600)
 SIGNAL_HARD_COOLDOWN_SECS = int(float(os.getenv("SIGNAL_HARD_COOLDOWN_MINUTES", "30")) * 60)
 SIGNAL_LEVEL_TOLERANCE = float(os.getenv("SIGNAL_LEVEL_TOLERANCE_PCT", "1.5")) / 100
+SIGNAL_SETUP_REUSE_SECS = max(
+    SIGNAL_DEDUP_COOLDOWN_SECS,
+    int(float(os.getenv("SIGNAL_SETUP_REUSE_HOURS", "168")) * 3600),
+)
+OPEN_SIGNAL_STATUSES = frozenset({"replay_pending", "waiting_entry", "active", "tp1_reached"})
 SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS = max(
     1, int(os.getenv("SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS", "48"))
 )
@@ -152,11 +157,38 @@ def _alert_is_allowed(previous: Optional[dict], side: str, levels: dict, now: fl
     age = now - float(previous.get("ts", 0) or 0)
     if age < SIGNAL_HARD_COOLDOWN_SECS:
         return False
-    if age >= SIGNAL_DEDUP_COOLDOWN_SECS:
-        return True
-    if str(previous.get("side", "")).upper() != str(side).upper():
-        return True
-    return not _levels_are_similar(previous, levels)
+    if age < SIGNAL_DEDUP_COOLDOWN_SECS:
+        return False
+    if age < SIGNAL_SETUP_REUSE_SECS and str(previous.get("side", "")).upper() == str(side).upper():
+        return not _levels_are_similar(previous, levels)
+    return True
+
+
+def _scanner_signal_is_allowed(connection, symbol: str, side: str, levels: dict, now: float) -> bool:
+    """Reject overlapping positions and recently recycled levels, even if no alert marker was saved."""
+    rows = connection.execute(
+        """
+        SELECT s.side, s.entry, s.stop, s.tp1, s.tp2,
+               EXTRACT(EPOCH FROM s.created_at), l.status
+        FROM signals s
+        LEFT JOIN signal_lifecycle l ON l.signal_id = s.id
+        WHERE s.symbol = %s AND s.source = 'scanner'
+          AND (
+              s.created_at >= NOW() - (%s * INTERVAL '1 second')
+              OR l.status IN ('replay_pending', 'waiting_entry', 'active', 'tp1_reached')
+          )
+        ORDER BY s.created_at DESC
+        """,
+        (symbol, SIGNAL_SETUP_REUSE_SECS),
+    ).fetchall()
+    for old_side, entry, stop, tp1, tp2, created_at, status in rows:
+        if status in OPEN_SIGNAL_STATUSES:
+            return False
+        if (now - float(created_at)) < SIGNAL_SETUP_REUSE_SECS and str(old_side).upper() == str(side).upper():
+            old_levels = {"entry": entry, "stop": stop, "tp1": tp1, "tp2": tp2}
+            if _levels_are_similar(old_levels, levels):
+                return False
+    return True
 
 
 def _load() -> Dict:
@@ -193,12 +225,13 @@ def should_send_alert(symbol: str, side: str, conf: float, plan: Optional[dict] 
                     """,
                     (symbol,),
                 ).fetchone()
-                connection.commit()
-            previous = None if row is None else {
-                "side": row[0], "conf": float(row[1]), "entry": row[2], "stop": row[3],
-                "tp1": row[4], "tp2": row[5], "ts": float(row[6]),
-            }
-            return _alert_is_allowed(previous, side, levels, now)
+                previous = None if row is None else {
+                    "side": row[0], "conf": float(row[1]), "entry": row[2], "stop": row[3],
+                    "tp1": row[4], "tp2": row[5], "ts": float(row[6]),
+                }
+                if not _alert_is_allowed(previous, side, levels, now):
+                    return False
+                return _scanner_signal_is_allowed(connection, symbol, side, levels, now)
         except Exception as exc:
             logger.warning("alert dedup read failed: %s", type(exc).__name__)
             return False
@@ -377,6 +410,16 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
     origin = source if source in {"scanner", "manual"} else "manual"
     try:
         with psycopg.connect(DATABASE_URL) as connection:
+            if origin == "scanner":
+                # Serialize all scanner inserts for this market, including across workers.
+                connection.execute(
+                    "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
+                    (20261102, symbol),
+                )
+                if not _scanner_signal_is_allowed(
+                    connection, symbol, side, _plan_levels(plan), time.time()
+                ):
+                    return None
             row = connection.execute(
                 """
                 INSERT INTO signals (

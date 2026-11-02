@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
 from aiogram.filters import StateFilter
 from fastapi.testclient import TestClient
 
@@ -566,7 +567,8 @@ def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
     assert calls[1][1]["details"]["alerts_sent"] == 0
 
 
-def test_extracted_plan_scanner_delivers_and_records_one_signal(monkeypatch):
+@pytest.mark.parametrize("signal_id", [77, None])
+def test_extracted_plan_scanner_only_delivers_persisted_signal(monkeypatch, signal_id):
     from core import background_loops
 
     class FixedDatetime(datetime):
@@ -594,7 +596,7 @@ def test_extracted_plan_scanner_delivers_and_records_one_signal(monkeypatch):
     monkeypatch.setattr(bot, "_rank_actionable_plans", lambda plans: plans)
     monkeypatch.setattr(bot, "_conf", lambda _plan: 0.8)
     monkeypatch.setattr(bot.st, "should_send_alert", lambda *_args: True)
-    monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: 77)
+    monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: signal_id)
     monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"deposit": 300})
     monkeypatch.setattr(bot.st, "grant_signal_access", lambda user_id, signal_id: calls.append(("grant", user_id, signal_id)))
     monkeypatch.setattr(bot.st, "should_persist_sent_marker", lambda delivered: delivered > 0)
@@ -608,10 +610,10 @@ def test_extracted_plan_scanner_delivers_and_records_one_signal(monkeypatch):
     monkeypatch.setattr(bot, "get_lang", lambda _user_id: "ru")
 
     asyncio.run(bot.plan_scanner_loop())
-    assert ("send", "4242", "ALERT") in calls
-    assert ("grant", 4242, 77) in calls
-    assert ("marked",) in calls
-    assert next(item[1]["details"]["alerts_sent"] for item in calls if item[0] == "plan_scanner") == 1
+    assert (("send", "4242", "ALERT") in calls) is (signal_id is not None)
+    assert (("grant", 4242, 77) in calls) is (signal_id is not None)
+    assert (("marked",) in calls) is (signal_id is not None)
+    assert next(item[1]["details"]["alerts_sent"] for item in calls if item[0] == "plan_scanner") == int(signal_id is not None)
 
 
 def test_bare_symbol_offers_one_plan_and_a_greeting_asks_for_language(monkeypatch):

@@ -1,3 +1,5 @@
+import time
+
 from trading import state
 
 
@@ -22,6 +24,26 @@ class _RuntimeConnection:
         return (9,)
 
 
+class _ScannerConnection(_RuntimeConnection):
+    def __init__(self, existing_rows):
+        super().__init__()
+        self.existing_rows = existing_rows
+
+    def fetchall(self):
+        return self.existing_rows
+
+
+def _scanner_plan(symbol="LTC_USDT"):
+    return {
+        "symbol": symbol,
+        "price": 55.9,
+        "primary": {
+            "side": "short", "entry": 55.99, "stop": 57.58,
+            "tps": [{"price": 54.39}, {"price": 52.79}],
+        },
+    }
+
+
 def _duplicate_target_plan():
     return {
         "symbol": "XPL_USDT",
@@ -40,6 +62,71 @@ def test_invalid_plan_cannot_be_alerted_or_saved(monkeypatch):
 
     assert state.should_send_alert("XPL_USDT", "short", 0.83, plan) is False
     assert state.save_signal(plan, "XPL_USDT", "short", 0.83) is None
+
+
+def test_alert_dedup_does_not_reset_identical_setup_after_four_hours():
+    now = time.time()
+    levels = {"entry": 55.99, "stop": 57.58, "tp1": 54.39, "tp2": 52.79}
+    previous = {"side": "SHORT", **levels, "ts": now - 5 * 3600}
+
+    assert not state._alert_is_allowed(previous, "SHORT", levels, now)
+    assert state._alert_is_allowed(
+        previous, "SHORT", {"entry": 53, "stop": 55, "tp1": 50, "tp2": 48}, now
+    )
+    assert state._alert_is_allowed(
+        {**previous, "ts": now - state.SIGNAL_SETUP_REUSE_SECS - 1},
+        "SHORT", levels, now,
+    )
+
+
+def test_scanner_rejects_any_open_trade_for_same_coin():
+    now = time.time()
+    levels = state._plan_levels(_scanner_plan())
+    for symbol in ("BTC_USDT", "ETH_USDT", "SOL_USDT", "LTC_USDT"):
+        for status in state.OPEN_SIGNAL_STATUSES:
+            connection = _ScannerConnection([
+                ("SHORT", 55.99, 57.58, 54.39, 52.79, now - 5 * 3600, status)
+            ])
+            assert not state._scanner_signal_is_allowed(connection, symbol, "LONG", levels, now)
+            assert connection.calls[0][1][0] == symbol
+
+
+def test_scanner_rejects_recycled_levels_after_terminal_trade():
+    now = time.time()
+    connection = _ScannerConnection([
+        ("SHORT", 55.99, 57.58, 54.39, 52.79, now - 5 * 3600, "cancelled_before_entry")
+    ])
+    same_levels = state._plan_levels(_scanner_plan())
+    assert not state._scanner_signal_is_allowed(connection, "LTC_USDT", "SHORT", same_levels, now)
+    assert state._scanner_signal_is_allowed(
+        connection, "LTC_USDT", "SHORT",
+        {"entry": 53, "stop": 55, "tp1": 50, "tp2": 48}, now,
+    )
+
+
+def test_scanner_save_rechecks_under_transaction_lock(monkeypatch):
+    now = time.time()
+    connection = _ScannerConnection([
+        ("SHORT", 55.99, 57.58, 54.39, 52.79, now - 5 * 3600, "active")
+    ])
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.83) is None
+    assert "pg_advisory_xact_lock" in connection.calls[0][0]
+    assert not any("INSERT INTO signals" in query for query, _ in connection.calls)
+
+
+def test_scanner_can_save_distinct_setup_after_terminal_trade(monkeypatch):
+    now = time.time()
+    connection = _ScannerConnection([
+        ("SHORT", 51, 53, 49, 47, now - 5 * 3600, "stopped")
+    ])
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.83) == 9
+    assert any("INSERT INTO signals" in query for query, _ in connection.calls)
 
 
 def test_signal_contract_rules_are_extracted_for_history():
