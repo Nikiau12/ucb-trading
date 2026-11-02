@@ -125,6 +125,9 @@ SIGNAL_REPLAY_BATCH_SIZE = max(
 SIGNAL_ENTRY_AUDIT_INTERVAL_SECONDS = max(
     60, int(os.getenv("SIGNAL_ENTRY_AUDIT_INTERVAL_SECONDS", "300"))
 )
+SIGNAL_ENTRY_AUDIT_BATCH_SIZE = max(
+    1, min(20, int(os.getenv("SIGNAL_ENTRY_AUDIT_BATCH_SIZE", "3")))
+)
 
 
 class DepositSetup(StatesGroup):
@@ -1951,12 +1954,48 @@ def _public_signal_candles(
     return rows if isinstance(rows, list) else []
 
 
+async def _deliver_pending_signal_updates(loop) -> tuple[int, int]:
+    """Deliver queued lifecycle messages before making market-data calls."""
+    deliveries = await loop.run_in_executor(None, st.load_pending_signal_updates)
+    delivered = 0
+    for update in deliveries:
+        user_id = int(update["telegram_user_id"])
+        lang = get_lang(user_id)
+        if update.get("event_type") == "stop_reached":
+            text = render_stop_update(update, lang=lang)
+        elif update.get("event_type") == "cancelled_before_entry":
+            text = render_cancelled_before_entry_update(update, lang=lang)
+        else:
+            text = render_tp1_update(update, lang=lang)
+        sent = await notifier.send_message_to_user(
+            str(user_id),
+            text,
+            gated=False,
+            reply_markup=_open_setup_keyboard(update["id"], lang),
+        )
+        retry_seconds = min(900, 30 * (2 ** int(update.get("attempts") or 0)))
+        await loop.run_in_executor(
+            None,
+            lambda item=update, ok=sent, delay=retry_seconds: st.mark_signal_update_delivery(
+                item["id"],
+                item["telegram_user_id"],
+                item["event_type"],
+                sent=ok,
+                error="telegram_delivery_failed" if not ok else "",
+                retry_seconds=delay,
+            ),
+        )
+        delivered += int(bool(sent))
+    return len(deliveries), delivered
+
+
 async def signal_lifecycle_loop():
     """Track public BingX prices and send one TP1/BE update per recipient."""
     while True:
         started_at = time.monotonic()
         try:
             loop = asyncio.get_running_loop()
+            pending_updates, delivered = await _deliver_pending_signal_updates(loop)
             trackable = await loop.run_in_executor(None, st.load_trackable_signals)
             replay_pending = [
                 signal for signal in trackable
@@ -2037,6 +2076,7 @@ async def signal_lifecycle_loop():
 
             now = datetime.now(timezone.utc)
             audit_results: dict[int, dict] = {}
+            audit_candidates = []
             for signal in live:
                 if signal.get("status") != "waiting_entry":
                     continue
@@ -2048,6 +2088,9 @@ async def signal_lifecycle_loop():
                 )
                 if not audit_due:
                     continue
+                audit_candidates.append(signal)
+
+            for signal in audit_candidates[:SIGNAL_ENTRY_AUDIT_BATCH_SIZE]:
                 symbol = str(signal.get("symbol") or "").upper()
                 if symbol in minute_failed_symbols:
                     continue
@@ -2091,37 +2134,6 @@ async def signal_lifecycle_loop():
                 if result and result.get("events"):
                     transitioned += 1
 
-            deliveries = await loop.run_in_executor(None, st.load_pending_signal_updates)
-            delivered = 0
-            for update in deliveries:
-                user_id = int(update["telegram_user_id"])
-                lang = get_lang(user_id)
-                if update.get("event_type") == "stop_reached":
-                    text = render_stop_update(update, lang=lang)
-                elif update.get("event_type") == "cancelled_before_entry":
-                    text = render_cancelled_before_entry_update(update, lang=lang)
-                else:
-                    text = render_tp1_update(update, lang=lang)
-                sent = await notifier.send_message_to_user(
-                    str(user_id),
-                    text,
-                    gated=False,
-                    reply_markup=_open_setup_keyboard(update["id"], lang),
-                )
-                retry_seconds = min(900, 30 * (2 ** int(update.get("attempts") or 0)))
-                await loop.run_in_executor(
-                    None,
-                    lambda item=update, ok=sent, delay=retry_seconds: st.mark_signal_update_delivery(
-                        item["id"],
-                        item["telegram_user_id"],
-                        item["event_type"],
-                        sent=ok,
-                        error="telegram_delivery_failed" if not ok else "",
-                        retry_seconds=delay,
-                    ),
-                )
-                delivered += int(bool(sent))
-
             st.record_runtime_health(
                 "signal_lifecycle",
                 success=True,
@@ -2134,7 +2146,7 @@ async def signal_lifecycle_loop():
                     "unsupported": unsupported,
                     "replay_errors": replay_errors,
                     "transitioned": transitioned,
-                    "pending_updates": len(deliveries),
+                    "pending_updates": pending_updates,
                     "delivered": delivered,
                 },
             )
