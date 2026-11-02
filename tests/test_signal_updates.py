@@ -280,6 +280,31 @@ class _LifecycleConnection:
         return None
 
 
+def test_pending_notifications_require_matching_trade_state(monkeypatch):
+    connection = _LifecycleConnection(None)
+    connection.fetchall = lambda: []
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    assert state.load_pending_signal_updates() == []
+    query = connection.calls[0][0]
+    assert "d.event_type = 'tp1_reached' AND l.status = 'tp1_reached'" in query
+    assert "d.event_type = 'stop_reached' AND l.status = 'stopped'" in query
+    assert "l.status = 'cancelled_before_entry'" in query
+
+
+def test_late_delivery_failure_cannot_reopen_cancelled_notification(monkeypatch):
+    connection = _LifecycleConnection(None)
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    state.mark_signal_update_delivery(
+        1842, 4242, "tp1_reached", sent=False, error="telegram_delivery_failed",
+    )
+    query = connection.calls[0][0]
+    assert "AND status IN ('pending', 'failed')" in query
+
+
 def test_tp1_transition_atomically_enqueues_original_recipients(monkeypatch):
     row = (
         1842, "ASTER_USDT", "LONG", 1.082, 1.041, 1.13, 1.176,
@@ -316,6 +341,33 @@ def test_stop_transition_atomically_enqueues_original_recipients(monkeypatch):
         "'stop_reached'" in query and "INSERT INTO signal_update_deliveries" in query
         for query, _ in connection.calls
     )
+
+
+def test_stop_after_tp1_cancels_pending_break_even_before_queuing_stop(monkeypatch):
+    row = (
+        1842, "ASTER_USDT", "LONG", 1.082, 1.041, 1.13, 1.176,
+        NOW - timedelta(hours=2), 0.001, "tp1_reached",
+        NOW + timedelta(hours=2), NOW + timedelta(days=7), 7 * 86400,
+        NOW - timedelta(hours=1), NOW - timedelta(minutes=10), None,
+        None, None, None,
+    )
+    connection = _LifecycleConnection(row)
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+
+    result = state.update_signal_lifecycle(1842, 1.082, checked_at=NOW)
+
+    assert result["status"] == "stopped"
+    queries = [query for query, _ in connection.calls]
+    cancelled = next(
+        index for index, query in enumerate(queries)
+        if "cancelled_after_terminal_state" in query
+    )
+    stop_queued = next(
+        index for index, query in enumerate(queries)
+        if "'stop_reached'" in query and "INSERT INTO signal_update_deliveries" in query
+    )
+    assert cancelled < stop_queued
 
 
 def test_cancel_before_entry_atomically_enqueues_original_recipients(monkeypatch):

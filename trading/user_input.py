@@ -103,3 +103,36 @@ def bare_plan_symbol(text: Optional[str]) -> Optional[str]:
         return None
     return base
 
+
+_INTENT_WORD = r"(?:анализ|сетап|сигнал|analysis|analyze|analyse|setup|signal)"
+_SYMBOL_WORD = r"[A-Za-z]{2,12}(?:[_/-]USDT)?"
+_REQUEST_WORDS = {"GET", "GIVE", "ME", "PLEASE", "SHOW", "FOR", "ON", "OF"}
+_MENTIONED_SYMBOL_PATTERNS = (
+    re.compile(
+        rf"(?<!\w){_INTENT_WORD}(?!\w)[\s:,-]+"
+        rf"(?:(?:по(?:\s+монете)?|для|на|for|on|of)\s+)?"
+        rf"(?!(?:for|on|of|please)\b)(?P<symbol>{_SYMBOL_WORD})(?![A-Za-z0-9])",
+        re.I,
+    ),
+    re.compile(
+        rf"(?<![A-Za-z0-9])(?P<symbol>{_SYMBOL_WORD})\s+{_INTENT_WORD}(?!\w)",
+        re.I,
+    ),
+)
+
+
+def mentioned_plan_symbol(text: Optional[str]) -> Optional[str]:
+    """Find a ticker adjacent to an intent, rejecting ambiguous requests.
+
+    Arbitrary Latin words elsewhere in a sentence must never become a ticker.
+    Explicit slash commands use their own argument parser.
+    """
+    symbols = {
+        symbol
+        for pattern in _MENTIONED_SYMBOL_PATTERNS
+        for match in pattern.finditer(str(text or ""))
+        if (symbol := bare_plan_symbol(match.group("symbol"))) is not None
+        and symbol not in _REQUEST_WORDS
+    }
+    return next(iter(symbols)) if len(symbols) == 1 else None
+

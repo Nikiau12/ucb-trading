@@ -5,6 +5,7 @@ from trading.user_input import (
     bare_plan_symbol,
     is_deposit_input,
     is_greeting,
+    mentioned_plan_symbol,
     parse_deposit_amount,
 )
 
@@ -65,3 +66,24 @@ def test_scanner_word_asks_for_the_plan_scan(value):
 @pytest.mark.parametrize("value", ["spike", "памп", "btc"])
 def test_spike_words_do_not_ask_for_the_plan_scan(value):
     assert asks_for_plan_scan(value) is False
+
+
+@pytest.mark.parametrize(
+    ("text", "symbol"),
+    [
+        ("сигнал по ASTER", "ASTER"),
+        ("анализ BTC", "BTC"),
+        ("BTC анализ", "BTC"),
+        ("setup eth/usdt", "ETH"),
+        ("analyse SOL", "SOL"),
+        ("get setup for ASTER", "ASTER"),
+        ("give me BTC signal", "BTC"),
+        ("покажи анализ по монете ETH", "ETH"),
+        ("анализ", None),
+        ("сигнал по", None),
+        ("setup please BTC", None),
+        ("BTC анализ ETH", None),
+    ],
+)
+def test_free_text_symbol_ignores_intent_words(text, symbol):
+    assert mentioned_plan_symbol(text) == symbol

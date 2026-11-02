@@ -23,7 +23,7 @@ import psycopg
 os.environ.setdefault("AIOHTTP_NO_EXTENSIONS", "1")
 
 from aiogram import Bot, Dispatcher, types, Router, F, BaseMiddleware
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
@@ -88,6 +88,7 @@ from user_input import (
     bare_plan_symbol,
     is_deposit_input,
     is_greeting,
+    mentioned_plan_symbol,
     parse_deposit_amount,
     parse_setting,
 )
@@ -1581,9 +1582,7 @@ async def _handle_spikes(message: types.Message):
 # ОБРАБОТЧИК ТЕКСТА (natural language)
 # ═══════════════════════════════════════════
 
-_SKIP_WORDS = {"ПО", "НА", "ДАЙ", "И", "В", "ЗА", "THE", "A", "BY", "FOR", "OF"}
-
-@router.message(F.text)
+@router.message(StateFilter(None), F.text)
 async def handle_text(message: types.Message, state: FSMContext | None = None):
     text = message.text.lower()
     lang = get_lang(message.from_user.id)
@@ -1607,17 +1606,14 @@ async def handle_text(message: types.Message, state: FSMContext | None = None):
         await cmd_scan(_CommandView(message, message.from_user, "/scan"))
         return
 
-    words = message.text.split()
-
-    coin = next(
-        (w.upper() for w in words
-         if len(w) >= 2 and w.upper().isalpha() and w.upper() not in _SKIP_WORDS),
-        None,
-    )
+    coin = mentioned_plan_symbol(message.text)
 
     if any(kw in text for kw in ("всплеск", "памп", "дамп", "spike", "pump", "dump")):
         await _handle_spikes(message)
-    elif any(kw in text for kw in ("анализ", "analyze", "analyse")) and coin:
+    elif any(kw in text for kw in ("анализ", "analyze", "analyse", "analysis")):
+        if not coin:
+            await message.reply(_t(lang, "another_symbol_prompt"), parse_mode="HTML")
+            return
         mode = await gate_access(message)
         if not mode:
             return
@@ -1637,7 +1633,10 @@ async def handle_text(message: types.Message, state: FSMContext | None = None):
             await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
             return
         debit_trial(_user_id(message), mode)
-    elif any(kw in text for kw in ("сетап", "setup", "сигнал", "signal")) and coin:
+    elif any(kw in text for kw in ("сетап", "setup", "сигнал", "signal")):
+        if not coin:
+            await message.reply(_t(lang, "another_symbol_prompt"), parse_mode="HTML")
+            return
         await _handle_setup(message, coin)
     else:
         symbol = bare_plan_symbol(message.text)
@@ -1955,7 +1954,7 @@ def _public_signal_candles(
 
 
 async def _deliver_pending_signal_updates(loop) -> tuple[int, int]:
-    """Deliver queued lifecycle messages before making market-data calls."""
+    """Deliver lifecycle messages after refreshing the trade states."""
     deliveries = await loop.run_in_executor(None, st.load_pending_signal_updates)
     delivered = 0
     for update in deliveries:
@@ -1995,7 +1994,6 @@ async def signal_lifecycle_loop():
         started_at = time.monotonic()
         try:
             loop = asyncio.get_running_loop()
-            pending_updates, delivered = await _deliver_pending_signal_updates(loop)
             trackable = await loop.run_in_executor(None, st.load_trackable_signals)
             replay_pending = [
                 signal for signal in trackable
@@ -2134,6 +2132,9 @@ async def signal_lifecycle_loop():
                 if result and result.get("events"):
                     transitioned += 1
 
+            # Resolve terminal prices first so a queued TP1/BE instruction is
+            # cancelled instead of reaching users after Stop or TP2.
+            pending_updates, delivered = await _deliver_pending_signal_updates(loop)
             st.record_runtime_health(
                 "signal_lifecycle",
                 success=True,
