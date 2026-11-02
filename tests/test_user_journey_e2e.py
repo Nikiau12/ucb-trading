@@ -335,6 +335,7 @@ def test_free_text_handler_is_only_registered_for_idle_state():
         item for item in bot.free_text_router.message.handlers
         if item.callback is bot.handle_text
     )
+    assert handler.callback.__module__ == "core.free_text_handlers"
     assert any(
         isinstance(item.callback, StateFilter) and item.callback.states == (None,)
         for item in handler.filters
