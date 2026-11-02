@@ -20,9 +20,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 # responses, even though the pinned aiohttp release includes the parser fixes.
 os.environ.setdefault("AIOHTTP_NO_EXTENSIONS", "1")
 
-from aiogram import Bot, Dispatcher, types, Router, F, BaseMiddleware
-from aiogram.filters import Command, StateFilter
-from aiogram.fsm.context import FSMContext
+from aiogram import Bot, Dispatcher, types, Router, BaseMiddleware
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -58,6 +56,7 @@ from core.config import (
 from core.tron_payment import TronPaymentVerifier
 from core.chat_policy import is_private_chat, language_for_start
 from core.access_handlers import bind_access_handlers
+from core.free_text_handlers import bind_free_text_handler
 from core.onboarding_handlers import bind_onboarding_handlers
 from core.trading_handlers import bind_trading_handlers
 from core.bot_commands import menu_commands
@@ -893,70 +892,8 @@ async def _handle_spikes(message: types.Message):
 # ОБРАБОТЧИК ТЕКСТА (natural language)
 # ═══════════════════════════════════════════
 
-@free_text_router.message(StateFilter(None), F.text)
-async def handle_text(message: types.Message, state: FSMContext | None = None):
-    text = message.text.lower()
-    lang = get_lang(message.from_user.id)
-    if is_greeting(message.text):
-        if not st.language_is_chosen(message.from_user.id):
-            await message.reply(_t("en", "choose_lang"), parse_mode="HTML", reply_markup=_language_only_keyboard())
-            return
-        if not _has_saved_deposit(message.from_user.id):
-            if state is not None:
-                await state.set_state(DepositSetup.waiting_for_amount)
-            await message.reply(_t(lang, "deposit_prompt"), parse_mode="HTML")
-            return
-        settings = st.get_user_settings(message.from_user.id)
-        await message.reply(
-            _ready_text(lang, settings.get("deposit"), settings.get("risk_pct")),
-            parse_mode="HTML",
-            reply_markup=_ready_keyboard(lang),
-        )
-        return
-    if asks_for_plan_scan(message.text):
-        await cmd_scan(_CommandView(message, message.from_user, "/scan"))
-        return
-
-    coin = mentioned_plan_symbol(message.text)
-
-    if any(kw in text for kw in ("всплеск", "памп", "дамп", "spike", "pump", "dump")):
-        await _handle_spikes(message)
-    elif any(kw in text for kw in ("анализ", "analyze", "analyse", "analysis")):
-        if not coin:
-            await message.reply(_t(lang, "another_symbol_prompt"), parse_mode="HTML")
-            return
-        mode = await gate_access(message)
-        if not mode:
-            return
-        lang = get_lang(message.from_user.id)
-        symbol = await exchange.validate_symbol(coin)
-        if not symbol:
-            await message.reply(_t(lang, "coin_missing", coin=html.escape(coin)), parse_mode="HTML")
-            return
-        await message.reply(_t(lang, "analysis_running", symbol=html.escape(symbol)), parse_mode="HTML")
-        try:
-            dfs = await _fetch_mtf(symbol)
-            analyses = {tf: smc_analyzer.analyze_tf(df) for tf, df in dfs.items() if df is not None}
-            verdict = mtf_engine.analyze(dfs)
-            msg = notifier.format_full_analysis(symbol, analyses, verdict, lang=lang)
-            await message.reply(msg, parse_mode="HTML")
-        except Exception as exc:
-            await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
-            return
-        debit_trial(_user_id(message), mode)
-    elif any(kw in text for kw in ("сетап", "setup", "сигнал", "signal")):
-        if not coin:
-            await message.reply(_t(lang, "another_symbol_prompt"), parse_mode="HTML")
-            return
-        await _handle_setup(message, coin)
-    else:
-        symbol = bare_plan_symbol(message.text)
-        if symbol:
-            await message.reply(
-                _t(lang, "plan_symbol_prompt", symbol=html.escape(symbol)),
-                parse_mode="HTML",
-                reply_markup=_plan_symbol_keyboard(lang, symbol),
-            )
+_free_text_handlers = bind_free_text_handler(free_text_router, sys.modules[__name__])
+handle_text = _free_text_handlers.handle_text
 
 
 router.include_routers(
