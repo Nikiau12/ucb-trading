@@ -13,7 +13,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import psycopg
@@ -76,7 +76,12 @@ import state as st
 from i18n import LANG_BUTTONS, t as _t
 from telegram_render import confidence_percent, render_telegram_plan
 from auto_alert import render_auto_alert
-from signal_updates import render_stop_update, render_tp1_update, signal_identity_footer
+from signal_updates import (
+    render_cancelled_before_entry_update,
+    render_stop_update,
+    render_tp1_update,
+    signal_identity_footer,
+)
 from setup_text import no_setup_query, render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
@@ -116,6 +121,9 @@ SIGNAL_TRACKER_INTERVAL_SECONDS = max(
 )
 SIGNAL_REPLAY_BATCH_SIZE = max(
     1, min(200, int(os.getenv("SIGNAL_REPLAY_BATCH_SIZE", "100")))
+)
+SIGNAL_ENTRY_AUDIT_INTERVAL_SECONDS = max(
+    60, int(os.getenv("SIGNAL_ENTRY_AUDIT_INTERVAL_SECONDS", "300"))
 )
 
 
@@ -1934,9 +1942,11 @@ def _public_signal_prices() -> dict[str, float]:
     return prices
 
 
-def _public_signal_candles(symbol: str) -> list[dict]:
-    """Load enough closed-market history to restore one recent signal."""
-    payload = snap.futures_kline(symbol, "1h", 400)
+def _public_signal_candles(
+    symbol: str, interval: str = "1h", limit: int = 400
+) -> list[dict]:
+    """Load public candles used to restore or audit one signal."""
+    payload = snap.futures_kline(symbol, interval, limit)
     rows = payload.get("data", []) if isinstance(payload, dict) else []
     return rows if isinstance(rows, list) else []
 
@@ -1960,11 +1970,14 @@ async def signal_lifecycle_loop():
             if trackable:
                 prices = await loop.run_in_executor(None, _public_signal_prices)
             replayed = 0
+            audited = 0
             transitioned = 0
             unsupported = 0
             replay_errors = 0
-            candle_cache: dict[str, list[dict]] = {}
-            failed_symbols: set[str] = set()
+            hourly_candle_cache: dict[str, list[dict]] = {}
+            minute_candle_cache: dict[str, list[dict]] = {}
+            hourly_failed_symbols: set[str] = set()
+            minute_failed_symbols: set[str] = set()
             for signal in replay_pending:
                 symbol = str(signal.get("symbol") or "").upper()
                 if symbol not in prices:
@@ -1977,12 +1990,22 @@ async def signal_lifecycle_loop():
                     replayed += int(bool(result))
                     unsupported += 1
                     continue
+                created_at = signal.get("created_at")
+                use_minute_candles = bool(
+                    isinstance(created_at, datetime)
+                    and datetime.now(timezone.utc) - created_at <= timedelta(hours=23)
+                )
+                cache = minute_candle_cache if use_minute_candles else hourly_candle_cache
+                failed_symbols = (
+                    minute_failed_symbols if use_minute_candles else hourly_failed_symbols
+                )
                 if symbol in failed_symbols:
                     continue
-                if symbol not in candle_cache:
+                if symbol not in cache:
                     try:
-                        candle_cache[symbol] = await loop.run_in_executor(
-                            None, _public_signal_candles, symbol,
+                        interval, limit = ("1m", 1440) if use_minute_candles else ("1h", 400)
+                        cache[symbol] = await loop.run_in_executor(
+                            None, _public_signal_candles, symbol, interval, limit,
                         )
                     except Exception as exc:
                         failed_symbols.add(symbol)
@@ -1992,11 +2015,14 @@ async def signal_lifecycle_loop():
                             symbol, type(exc).__name__,
                         )
                         continue
+                signal_id = int(signal["id"])
+                rows = cache[symbol]
+                resolution = 60 if use_minute_candles else 3600
                 result = await loop.run_in_executor(
                     None,
-                    st.replay_signal_lifecycle,
-                    int(signal["id"]),
-                    candle_cache[symbol],
+                    lambda sid=signal_id, data=rows, seconds=resolution: st.replay_signal_lifecycle(
+                        sid, data, candle_seconds=seconds
+                    ),
                 )
                 replayed += int(bool(result))
                 if result and result.get("status") in {"active", "tp1_reached"}:
@@ -2009,7 +2035,53 @@ async def signal_lifecycle_loop():
                     if current and current.get("events"):
                         transitioned += 1
 
+            now = datetime.now(timezone.utc)
+            audit_results: dict[int, dict] = {}
             for signal in live:
+                if signal.get("status") != "waiting_entry":
+                    continue
+                last_audit = signal.get("entry_path_checked_at")
+                audit_due = not isinstance(last_audit, datetime) or (
+                    now - last_audit >= timedelta(
+                        seconds=SIGNAL_ENTRY_AUDIT_INTERVAL_SECONDS
+                    )
+                )
+                if not audit_due:
+                    continue
+                symbol = str(signal.get("symbol") or "").upper()
+                if symbol in minute_failed_symbols:
+                    continue
+                if symbol not in minute_candle_cache:
+                    try:
+                        minute_candle_cache[symbol] = await loop.run_in_executor(
+                            None, _public_signal_candles, symbol, "1m", 1440,
+                        )
+                    except Exception as exc:
+                        minute_failed_symbols.add(symbol)
+                        replay_errors += 1
+                        logger.warning(
+                            "waiting signal audit data failed symbol=%s: %s",
+                            symbol, type(exc).__name__,
+                        )
+                        continue
+                result = await loop.run_in_executor(
+                    None,
+                    st.audit_waiting_signal_lifecycle,
+                    int(signal["id"]),
+                    minute_candle_cache[symbol],
+                )
+                if result:
+                    audit_results[int(signal["id"])] = result
+                    audited += 1
+                    if result.get("events"):
+                        transitioned += 1
+
+            for signal in live:
+                audited_result = audit_results.get(int(signal["id"]))
+                if audited_result and audited_result.get("status") not in {
+                    "waiting_entry", "active", "tp1_reached"
+                }:
+                    continue
                 result = await loop.run_in_executor(
                     None,
                     st.update_signal_lifecycle,
@@ -2024,11 +2096,12 @@ async def signal_lifecycle_loop():
             for update in deliveries:
                 user_id = int(update["telegram_user_id"])
                 lang = get_lang(user_id)
-                text = (
-                    render_stop_update(update, lang=lang)
-                    if update.get("event_type") == "stop_reached"
-                    else render_tp1_update(update, lang=lang)
-                )
+                if update.get("event_type") == "stop_reached":
+                    text = render_stop_update(update, lang=lang)
+                elif update.get("event_type") == "cancelled_before_entry":
+                    text = render_cancelled_before_entry_update(update, lang=lang)
+                else:
+                    text = render_tp1_update(update, lang=lang)
                 sent = await notifier.send_message_to_user(
                     str(user_id),
                     text,
@@ -2057,6 +2130,7 @@ async def signal_lifecycle_loop():
                     "trackable": len(trackable),
                     "replay_pending": len(replay_pending),
                     "replayed": replayed,
+                    "audited_waiting": audited,
                     "unsupported": unsupported,
                     "replay_errors": replay_errors,
                     "transitioned": transitioned,

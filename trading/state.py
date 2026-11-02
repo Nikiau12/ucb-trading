@@ -504,6 +504,18 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
                 """,
                 (signal_id, user_id, signal_id),
             )
+            connection.execute(
+                """
+                INSERT INTO signal_update_deliveries (
+                    signal_id, telegram_user_id, event_type
+                )
+                SELECT %s, %s, 'cancelled_before_entry'
+                FROM signal_lifecycle
+                WHERE signal_id = %s AND status = 'cancelled_before_entry'
+                ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                """,
+                (signal_id, user_id, signal_id),
+            )
             connection.commit()
     except Exception as exc:
         logger.warning("signal access write failed: %s", type(exc).__name__)
@@ -519,7 +531,8 @@ def load_trackable_signals(limit: int = 200) -> list[dict]:
                 """
                 SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
                        s.created_at, s.price_unit, l.status, l.entry_expires_at,
-                       l.holding_expires_at, l.max_holding_seconds
+                       l.holding_expires_at, l.max_holding_seconds,
+                       l.entry_path_checked_at
                 FROM signal_lifecycle l
                 JOIN signals s ON s.id = l.signal_id
                 WHERE l.status IN ('replay_pending', 'waiting_entry', 'active', 'tp1_reached')
@@ -535,7 +548,7 @@ def load_trackable_signals(limit: int = 200) -> list[dict]:
         keys = (
             "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
             "created_at", "price_unit", "status", "entry_expires_at",
-            "holding_expires_at", "max_holding_seconds",
+            "holding_expires_at", "max_holding_seconds", "entry_path_checked_at",
         )
         return [dict(zip(keys, row)) for row in rows]
     except Exception as exc:
@@ -562,7 +575,8 @@ def update_signal_lifecycle(
                 SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
                        s.created_at, s.price_unit, l.status, l.entry_expires_at,
                        l.holding_expires_at, l.max_holding_seconds, l.entry_hit_at,
-                       l.tp1_hit_at, l.tp2_hit_at, l.stop_hit_at, l.expired_at
+                       l.tp1_hit_at, l.tp2_hit_at, l.stop_hit_at, l.expired_at,
+                       l.cancelled_at
                 FROM signal_lifecycle l
                 JOIN signals s ON s.id = l.signal_id
                 WHERE s.id = %s
@@ -577,6 +591,7 @@ def update_signal_lifecycle(
                 "created_at", "price_unit", "status", "entry_expires_at",
                 "holding_expires_at", "max_holding_seconds", "entry_hit_at",
                 "tp1_hit_at", "tp2_hit_at", "stop_hit_at", "expired_at",
+                "cancelled_at",
             )
             signal = dict(zip(keys, row))
             outcome = advance_lifecycle(signal, price, now)
@@ -594,12 +609,15 @@ def update_signal_lifecycle(
                 signal["stop_hit_at"] = now
             if "expired" in events and signal["expired_at"] is None:
                 signal["expired_at"] = now
+            if "cancelled_before_entry" in events and signal["cancelled_at"] is None:
+                signal["cancelled_at"] = now
             connection.execute(
                 """
                 UPDATE signal_lifecycle
                 SET status = %s, holding_expires_at = %s, entry_hit_at = %s,
                     tp1_hit_at = %s, tp2_hit_at = %s, stop_hit_at = %s,
-                    expired_at = %s, last_price = COALESCE(%s, last_price),
+                    expired_at = %s, cancelled_at = %s,
+                    last_price = COALESCE(%s, last_price),
                     last_checked_at = %s, updated_at = NOW()
                 WHERE signal_id = %s
                 """,
@@ -607,7 +625,8 @@ def update_signal_lifecycle(
                     outcome["status"], signal["holding_expires_at"],
                     signal["entry_hit_at"], signal["tp1_hit_at"],
                     signal["tp2_hit_at"], signal["stop_hit_at"],
-                    signal["expired_at"], price, now, int(signal_id),
+                    signal["expired_at"], signal["cancelled_at"],
+                    price, now, int(signal_id),
                 ),
             )
             if outcome["status"] == "tp1_reached" and "tp1_reached" in events:
@@ -623,7 +642,9 @@ def update_signal_lifecycle(
                     """,
                     (int(signal_id), int(signal_id)),
                 )
-            if outcome["status"] in {"tp2_reached", "stopped", "expired"}:
+            if outcome["status"] in {
+                "tp2_reached", "stopped", "expired", "cancelled_before_entry"
+            }:
                 # Never deliver a delayed BE instruction after the trade has
                 # already reached a terminal state.
                 connection.execute(
@@ -649,6 +670,22 @@ def update_signal_lifecycle(
                     """,
                     (int(signal_id), int(signal_id)),
                 )
+            if (
+                outcome["status"] == "cancelled_before_entry"
+                and "cancelled_before_entry" in events
+            ):
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'cancelled_before_entry'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
             connection.commit()
             return {**signal, "status": outcome["status"], "events": list(outcome["events"])}
     except Exception as exc:
@@ -661,6 +698,7 @@ def replay_signal_lifecycle(
     candles: list[dict],
     *,
     checked_at: Optional[datetime] = None,
+    candle_seconds: int = 3600,
 ) -> Optional[dict]:
     """Rebuild one recent pre-migration signal and persist its true state."""
     if not _db_ready() or not signal_id:
@@ -690,20 +728,27 @@ def replay_signal_lifecycle(
                 "holding_expires_at", "max_holding_seconds",
             )
             signal = dict(zip(keys, row))
-            restored = replay_lifecycle(signal, candles, now)
+            restored = replay_lifecycle(
+                signal,
+                candles,
+                now,
+                candle_seconds=candle_seconds,
+            )
             connection.execute(
                 """
                 UPDATE signal_lifecycle
                 SET status = %s, holding_expires_at = %s, entry_hit_at = %s,
                     tp1_hit_at = %s, tp2_hit_at = %s, stop_hit_at = %s,
-                    expired_at = %s, last_checked_at = %s, updated_at = NOW()
+                    expired_at = %s, cancelled_at = %s,
+                    last_checked_at = %s, updated_at = NOW()
                 WHERE signal_id = %s AND status = 'replay_pending'
                 """,
                 (
                     restored["status"], restored.get("holding_expires_at"),
                     restored.get("entry_hit_at"), restored.get("tp1_hit_at"),
                     restored.get("tp2_hit_at"), restored.get("stop_hit_at"),
-                    restored.get("expired_at"), now, int(signal_id),
+                    restored.get("expired_at"), restored.get("cancelled_at"),
+                    now, int(signal_id),
                 ),
             )
             tp1_hit_at = restored.get("tp1_hit_at")
@@ -726,10 +771,144 @@ def replay_signal_lifecycle(
                     """,
                     (int(signal_id), int(signal_id)),
                 )
+            if restored["status"] == "cancelled_before_entry":
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'cancelled_before_entry'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
             connection.commit()
             return {**signal, **restored, "replayed": True, "tp1_update_queued": recent_tp1}
     except Exception as exc:
         logger.warning("signal lifecycle replay failed id=%s: %s", signal_id, type(exc).__name__)
+        return None
+
+
+def audit_waiting_signal_lifecycle(
+    signal_id: int,
+    candles: list[dict],
+    *,
+    checked_at: Optional[datetime] = None,
+) -> Optional[dict]:
+    """Reconcile a waiting setup from closed 1m candles.
+
+    This catches brief target touches and worker downtime, including signals
+    that were already waiting when the rule was deployed.
+    """
+    if not _db_ready() or not signal_id:
+        return None
+    now = checked_at or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            row = connection.execute(
+                """
+                SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
+                       s.created_at, s.price_unit, l.status, l.entry_expires_at,
+                       l.holding_expires_at, l.max_holding_seconds
+                FROM signal_lifecycle l
+                JOIN signals s ON s.id = l.signal_id
+                WHERE s.id = %s AND l.status = 'waiting_entry'
+                FOR UPDATE OF l
+                """,
+                (int(signal_id),),
+            ).fetchone()
+            if not row:
+                return None
+            keys = (
+                "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
+                "created_at", "price_unit", "status", "entry_expires_at",
+                "holding_expires_at", "max_holding_seconds",
+            )
+            signal = dict(zip(keys, row))
+            restored = replay_lifecycle(
+                signal,
+                candles,
+                now,
+                candle_seconds=60,
+            )
+            connection.execute(
+                """
+                UPDATE signal_lifecycle
+                SET status = %s, holding_expires_at = %s, entry_hit_at = %s,
+                    tp1_hit_at = %s, tp2_hit_at = %s, stop_hit_at = %s,
+                    expired_at = %s, cancelled_at = %s,
+                    entry_path_checked_at = %s, last_checked_at = %s,
+                    updated_at = NOW()
+                WHERE signal_id = %s AND status = 'waiting_entry'
+                """,
+                (
+                    restored["status"], restored.get("holding_expires_at"),
+                    restored.get("entry_hit_at"), restored.get("tp1_hit_at"),
+                    restored.get("tp2_hit_at"), restored.get("stop_hit_at"),
+                    restored.get("expired_at"), restored.get("cancelled_at"),
+                    now, now, int(signal_id),
+                ),
+            )
+            event = {
+                "active": "entry_reached",
+                "tp1_reached": "tp1_reached",
+                "tp2_reached": "tp2_reached",
+                "stopped": "stop_reached",
+                "expired": "expired",
+                "cancelled_before_entry": "cancelled_before_entry",
+            }.get(restored["status"])
+            if restored["status"] == "tp1_reached":
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'tp1_reached'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
+            if restored["status"] == "stopped":
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'stop_reached'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
+            if restored["status"] == "cancelled_before_entry":
+                connection.execute(
+                    """
+                    INSERT INTO signal_update_deliveries (
+                        signal_id, telegram_user_id, event_type
+                    )
+                    SELECT %s, telegram_user_id, 'cancelled_before_entry'
+                    FROM user_signal_access
+                    WHERE signal_id = %s
+                    ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
+                    """,
+                    (int(signal_id), int(signal_id)),
+                )
+            connection.commit()
+            return {
+                **signal,
+                **restored,
+                "audited": True,
+                "events": [event] if event else [],
+            }
+    except Exception as exc:
+        logger.warning("waiting signal audit failed id=%s: %s", signal_id, type(exc).__name__)
         return None
 
 

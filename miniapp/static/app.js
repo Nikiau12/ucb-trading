@@ -34,6 +34,11 @@ Object.assign(translations.ru,{tp1Profit:'Прибыль TP1 · 50%',tp2Profit:'
 Object.assign(translations.de,{tp1Profit:'TP1-Gewinn · 50%',tp2Profit:'TP2-Gewinn · 50%',totalProfit:'Gesamt bei TP2',sizeDisclaimer:'Der Bot berechnet die Größe. Der Gewinn ist vor Gebühren und Slippage geschätzt. Du setzt die Order.'});
 Object.assign(translations.fr,{tp1Profit:'Gain TP1 · 50 %',tp2Profit:'Gain TP2 · 50 %',totalProfit:'Total à TP2',sizeDisclaimer:'Le bot calcule la taille. Le gain est estimé avant frais et slippage. Tu passes l’ordre.'});
 Object.assign(translations.es,{tp1Profit:'Ganancia TP1 · 50 %',tp2Profit:'Ganancia TP2 · 50 %',totalProfit:'Total en TP2',sizeDisclaimer:'El bot calcula el tamaño. La ganancia se estima antes de comisiones y deslizamiento. Tú colocas la orden.'});
+Object.assign(translations.en,{statusCancelledBeforeEntry:'Cancelled before entry',signalCancelled:'SIGNAL CANCELLED',entryWasNotReached:'The entry level was not reached',tp1ReachedFirst:'Price reached TP1 before entry',cancelledWaitNew:'Do not enter this setup. Wait for a new signal.'});
+Object.assign(translations.ru,{statusCancelledBeforeEntry:'Аннулирована до входа',signalCancelled:'СИГНАЛ АННУЛИРОВАН',entryWasNotReached:'Точка входа не была достигнута',tp1ReachedFirst:'Цена достигла TP1 раньше входа',cancelledWaitNew:'Не входите в этот сетап. Дождитесь нового сигнала.'});
+Object.assign(translations.de,{statusCancelledBeforeEntry:'Vor Einstieg aufgehoben',signalCancelled:'SIGNAL AUFGEHOBEN',entryWasNotReached:'Der Einstieg wurde nicht erreicht',tp1ReachedFirst:'Der Preis erreichte TP1 vor dem Einstieg',cancelledWaitNew:'Nicht in dieses Setup einsteigen. Warte auf ein neues Signal.'});
+Object.assign(translations.fr,{statusCancelledBeforeEntry:'Annulé avant l’entrée',signalCancelled:'SIGNAL ANNULÉ',entryWasNotReached:'Le niveau d’entrée n’a pas été atteint',tp1ReachedFirst:'Le prix a atteint TP1 avant l’entrée',cancelledWaitNew:'N’entrez pas sur ce setup. Attendez un nouveau signal.'});
+Object.assign(translations.es,{statusCancelledBeforeEntry:'Anulada antes de la entrada',signalCancelled:'SEÑAL ANULADA',entryWasNotReached:'No se alcanzó el nivel de entrada',tp1ReachedFirst:'El precio alcanzó TP1 antes de la entrada',cancelledWaitNew:'No entres en este setup. Espera una nueva señal.'});
 
 const taglines={
   en:'Setups, risk and execution — one screen.',
@@ -219,7 +224,7 @@ function signalDate(signal){
 
 function signalStatus(signal){
   const status=String(signal?.trade_status||'untracked');
-  const keys={replay_pending:'statusReplaying',waiting_entry:'statusWaiting',active:'statusActive',tp1_reached:'statusTp1',tp2_reached:'statusTp2',stopped:'statusStopped',expired:'statusExpired'};
+  const keys={replay_pending:'statusReplaying',waiting_entry:'statusWaiting',active:'statusActive',tp1_reached:'statusTp1',tp2_reached:'statusTp2',stopped:'statusStopped',expired:'statusExpired',cancelled_before_entry:'statusCancelledBeforeEntry'};
   return{status,label:keys[status]?tr(keys[status]):''};
 }
 
@@ -386,7 +391,7 @@ async function api(path,options={}){
 }
 
 const ALERT_SOURCES=new Set(['spike','smc','listing']);
-const TERMINAL_TRADE_STATUSES=new Set(['stopped','tp2_reached','expired']);
+const TERMINAL_TRADE_STATUSES=new Set(['stopped','tp2_reached','expired','cancelled_before_entry']);
 function isSetup(signal){
   return !ALERT_SOURCES.has(String(signal?.source||'').toLowerCase());
 }
@@ -511,18 +516,22 @@ function renderHome(){
   const state=signalStatus(signal);
   if(action){
     const stopped=state.status==='stopped';
-    action.hidden=state.status!=='tp1_reached'&&!stopped;
-    action.classList.toggle('cancelled',stopped);
+    const cancelledBeforeEntry=state.status==='cancelled_before_entry';
+    const cancelled=stopped||cancelledBeforeEntry;
+    action.hidden=state.status!=='tp1_reached'&&!cancelled;
+    action.classList.toggle('cancelled',cancelled);
     const kicker=action.querySelector(':scope>p');
     const status=$('#plan-action-status');
     const steps=$('#plan-action-steps');
     const note=$('#plan-action-note');
-    if(kicker)kicker.textContent=stopped?tr('tradeClosed'):tr('actionNow');
+    if(kicker)kicker.textContent=cancelledBeforeEntry?tr('signalCancelled'):(stopped?tr('tradeClosed'):tr('actionNow'));
     if(status)status.textContent=state.label;
-    if(steps)steps.innerHTML=stopped
-      ?`<li>${escapeHtml(tr('tradeCancelled'))}</li><li>${escapeHtml(tr('waitNewSignal'))}</li>`
-      :`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`;
-    if(note){note.hidden=stopped;note.textContent=stopped?'':tr('actualEntryNote');}
+    if(steps)steps.innerHTML=cancelledBeforeEntry
+      ?`<li>${escapeHtml(tr('entryWasNotReached'))}</li><li>${escapeHtml(tr('tp1ReachedFirst'))}</li><li>${escapeHtml(tr('cancelledWaitNew'))}</li>`
+      :(stopped
+        ?`<li>${escapeHtml(tr('tradeCancelled'))}</li><li>${escapeHtml(tr('waitNewSignal'))}</li>`
+        :`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`);
+    if(note){note.hidden=cancelled;note.textContent=cancelled?'':tr('actualEntryNote');}
   }
 }
 async function loadHomeChart(){

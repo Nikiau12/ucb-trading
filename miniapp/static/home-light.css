@@ -101,7 +101,7 @@ body.home-light{
 .home-light .signal-row strong{font:600 16px var(--sans);letter-spacing:-.025em}
 .home-light .signal-row b{font:600 14px var(--sans);font-variant-numeric:tabular-nums;color:var(--text)}
 .home-light .signal-row small{font-size:12px;font-variant-numeric:tabular-nums}
-.home-light .signal-row .instrument-copy small{font-size:10px;color:var(--muted);font-weight:500}.home-light .signal-row .trade-state{font-size:11px;font-weight:600;background:#f2f5f9;color:var(--muted)}.home-light .signal-row .trade-state.active,.home-light .signal-row .trade-state.tp1_reached,.home-light .signal-row .trade-state.tp2_reached{background:#e8f6f1;color:var(--green)}.home-light .signal-row .trade-state.stopped{background:#fcecef;color:var(--red)}
+.home-light .signal-row .instrument-copy small{font-size:10px;color:var(--muted);font-weight:500}.home-light .signal-row .trade-state{font-size:11px;font-weight:600;background:#f2f5f9;color:var(--muted)}.home-light .signal-row .trade-state.active,.home-light .signal-row .trade-state.tp1_reached,.home-light .signal-row .trade-state.tp2_reached{background:#e8f6f1;color:var(--green)}.home-light .signal-row .trade-state.stopped,.home-light .signal-row .trade-state.cancelled_before_entry{background:#fcecef;color:var(--red)}
 .home-light .signal-list .empty-state{margin-top:0}
 @media(hover:hover){.home-light .signal-row:hover{border-color:#c7d5f8;background:#fcfdff}}
 

@@ -99,7 +99,7 @@ def test_requested_old_signal_is_added_only_through_user_access(monkeypatch):
                 self.requested_params = params
                 self.one = requested
             elif "FROM signal_lifecycle" in query:
-                self.many = [(13988, "tp1_reached", now, now, None, None, None, 0.185)]
+                self.many = [(13988, "tp1_reached", now, now, None, None, None, None, 0.185)]
             return self
 
         def fetchone(self):

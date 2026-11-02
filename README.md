@@ -27,6 +27,7 @@ A user can:
 - review entry, stop-loss, TP1, TP2, and confidence;
 - calculate position size and required margin from a personal risk profile;
 - receive deduplicated automatic alerts;
+- receive lifecycle updates when TP1, Stop, or a pre-entry cancellation occurs;
 - use the interface in English, Russian, German, French, or Spanish;
 - start with a limited trial and activate monthly access with USDT TRC20.
 
@@ -52,6 +53,7 @@ The Mini App provides:
 - live BingX candlestick charts across `15m`, `1h`, `4h`, and `1d`;
 - recent and historical signal cards;
 - detailed entry, stop, take-profit, and confidence views;
+- an explicit cancelled-before-entry state when TP1 trades before Entry;
 - personalized position size, margin, and stop-risk calculations;
 - language, risk, leverage, and margin settings;
 - trial and subscription states.

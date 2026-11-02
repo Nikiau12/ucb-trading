@@ -57,6 +57,11 @@ def advance_lifecycle(signal: dict, price: Any, now: datetime) -> dict:
     side = str(signal.get("side") or "").upper()
 
     if status == "waiting_entry":
+        if _reached(side, current, signal.get("tp1"), rising=True):
+            return {
+                "status": "cancelled_before_entry",
+                "events": ["cancelled_before_entry"],
+            }
         if not _reached(side, current, signal.get("entry"), rising=False):
             return result
         status = "active"
@@ -80,11 +85,18 @@ def advance_lifecycle(signal: dict, price: Any, now: datetime) -> dict:
     return {"status": status, "events": events}
 
 
-def replay_lifecycle(signal: dict, candles: list[dict], now: datetime) -> dict:
-    """Reconstruct a pre-feature signal from closed 1H candles.
+def replay_lifecycle(
+    signal: dict,
+    candles: list[dict],
+    now: datetime,
+    *,
+    candle_seconds: int = 3600,
+) -> dict:
+    """Reconstruct a signal from chronologically ordered closed candles.
 
-    This is used once for recent production signals during migration. Ambiguous
-    candles remain conservative: Stop is evaluated before either target.
+    A target reached before entry cancels the setup. If Entry and TP1 occur in
+    the same smallest available candle, their order cannot be proven, so the
+    setup is cancelled conservatively. Stop remains conservative after entry.
     """
     created_at = _utc(signal.get("created_at"))
     entry_expires_at = signal.get("entry_expires_at") or created_at + timedelta(hours=12)
@@ -101,7 +113,9 @@ def replay_lifecycle(signal: dict, candles: list[dict], now: datetime) -> dict:
 
     status = "waiting_entry"
     entry_hit_at = tp1_hit_at = tp2_hit_at = stop_hit_at = expired_at = None
+    cancelled_at = None
     holding_expires_at = None
+    candle_duration = timedelta(seconds=max(1, int(candle_seconds)))
     ordered = sorted(candles or [], key=lambda item: int(item.get("time") or 0))
     for candle in ordered:
         try:
@@ -112,16 +126,22 @@ def replay_lifecycle(signal: dict, candles: list[dict], now: datetime) -> dict:
             continue
         if candle_at < created_at:
             continue
-        # BingX includes the currently forming 1H candle. Historical replay
-        # must only use closed candles or an intrahour wick could create a
-        # false entry/target before that candle is final.
-        if candle_at + timedelta(hours=1) > now:
+        # BingX includes the currently forming candle. Historical replay must
+        # use only closed candles or a live wick could create a false event.
+        if candle_at + candle_duration > now:
             continue
         if status == "waiting_entry":
             if candle_at >= entry_expires_at:
                 status, expired_at = "expired", entry_expires_at
                 break
             entry_touched = low <= entry if side == "LONG" else high >= entry
+            tp1_touched_before_entry = high >= tp1 if side == "LONG" else low <= tp1
+            if tp1_touched_before_entry:
+                # With both levels inside one candle there is no proven entry
+                # before TP1. The smaller 1m audit resolves this when possible;
+                # at the smallest available resolution we cancel safely.
+                status, cancelled_at = "cancelled_before_entry", candle_at
+                break
             if not entry_touched:
                 continue
             status = "active"
@@ -158,6 +178,7 @@ def replay_lifecycle(signal: dict, candles: list[dict], now: datetime) -> dict:
         "tp2_hit_at": tp2_hit_at,
         "stop_hit_at": stop_hit_at,
         "expired_at": expired_at,
+        "cancelled_at": cancelled_at,
     }
 
 
@@ -207,6 +228,10 @@ _COPY = {
         "cancel": "Сетап аннулирован. Не входите повторно.",
         "wait": "Дождитесь нового сигнала — он придёт отдельным сообщением.",
         "be_level": "Цена БУ",
+        "cancel_before_entry_title": "Сигнал аннулирован до входа",
+        "entry_not_reached": "Цена не активировала точку входа",
+        "tp1_first": "TP1 был достигнут раньше входа",
+        "do_not_enter": "Не входите в этот сетап. Дождитесь нового сигнала.",
     },
     "en": {
         "trade": "Trade",
@@ -224,6 +249,10 @@ _COPY = {
         "cancel": "The setup is cancelled. Do not re-enter it.",
         "wait": "Wait for a new signal; it will arrive in a separate message.",
         "be_level": "Break-even price",
+        "cancel_before_entry_title": "Signal cancelled before entry",
+        "entry_not_reached": "Price did not activate the entry level",
+        "tp1_first": "TP1 was reached before entry",
+        "do_not_enter": "Do not enter this setup. Wait for a new signal.",
     },
     "de": {
         "trade": "Trade",
@@ -241,6 +270,10 @@ _COPY = {
         "cancel": "Das Setup ist aufgehoben. Nicht erneut einsteigen.",
         "wait": "Warte auf ein neues Signal; es kommt als eigene Nachricht.",
         "be_level": "Einstandspreis",
+        "cancel_before_entry_title": "Signal vor Einstieg aufgehoben",
+        "entry_not_reached": "Der Einstieg wurde nicht aktiviert",
+        "tp1_first": "TP1 wurde vor dem Einstieg erreicht",
+        "do_not_enter": "Nicht in dieses Setup einsteigen. Warte auf ein neues Signal.",
     },
     "fr": {
         "trade": "Trade",
@@ -258,6 +291,10 @@ _COPY = {
         "cancel": "Le setup est annulé. Ne rentrez pas à nouveau.",
         "wait": "Attendez un nouveau signal; il arrivera séparément.",
         "be_level": "Prix d'équilibre",
+        "cancel_before_entry_title": "Signal annulé avant l'entrée",
+        "entry_not_reached": "Le niveau d'entrée n'a pas été activé",
+        "tp1_first": "TP1 a été atteint avant l'entrée",
+        "do_not_enter": "N'entrez pas sur ce setup. Attendez un nouveau signal.",
     },
     "es": {
         "trade": "Operación",
@@ -275,6 +312,10 @@ _COPY = {
         "cancel": "El setup queda anulado. No vuelvas a entrar.",
         "wait": "Espera una nueva señal; llegará en otro mensaje.",
         "be_level": "Precio de equilibrio",
+        "cancel_before_entry_title": "Señal anulada antes de la entrada",
+        "entry_not_reached": "El precio no activó el nivel de entrada",
+        "tp1_first": "TP1 se alcanzó antes de la entrada",
+        "do_not_enter": "No entres en este setup. Espera una nueva señal.",
     },
 }
 
@@ -351,4 +392,26 @@ def render_stop_update(signal: dict, *, lang: str) -> str:
         f"• {html.escape(words['cancel'])}\n"
         f"• {html.escape(words['wait'])}\n\n"
         f"<i>{html.escape(level_label)}: {html.escape(level)}</i>"
+    )
+
+
+def render_cancelled_before_entry_update(signal: dict, *, lang: str) -> str:
+    words = _copy(lang)
+    entry = _format_price(signal.get("entry"), signal.get("price_unit"))
+    tp1 = _format_price(signal.get("tp1"), signal.get("price_unit"))
+    footer = signal_identity_footer(
+        int(signal["id"]),
+        str(signal.get("symbol") or "").upper(),
+        str(signal.get("side") or "").upper(),
+        lang=lang,
+        created_at=signal.get("created_at"),
+    )
+    return (
+        f"🚫 <b>{html.escape(words['cancel_before_entry_title'])}</b>\n\n"
+        f"{footer}\n\n"
+        f"Entry: <code>{html.escape(entry)}</code>\n"
+        f"TP1: <code>{html.escape(tp1)}</code>\n\n"
+        f"• {html.escape(words['entry_not_reached'])}\n"
+        f"• {html.escape(words['tp1_first'])}\n\n"
+        f"<b>{html.escape(words['do_not_enter'])}</b>"
     )
