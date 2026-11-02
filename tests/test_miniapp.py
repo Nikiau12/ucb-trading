@@ -32,7 +32,8 @@ def test_api_domains_keep_each_existing_route_once():
         router = getattr(miniapp, router_name)
         assert {route.path for route in router.routes} == paths
         for path in paths:
-            assert sum(route.path == path for route in miniapp.app.routes) == 1
+            assert sum(route.path == path for route in router.routes) == 1
+            assert path in miniapp.app.openapi()["paths"]
 
 
 def _signed_init_data(
