@@ -2,6 +2,8 @@
 // All API calls are mocked; no exchange, Telegram, database, or payment writes.
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 
 const origin=process.env.UI_TEST_URL||'http://127.0.0.1:8765';
 assert.ok(['127.0.0.1','localhost'].includes(new URL(origin).hostname),'Local server only');
@@ -24,8 +26,8 @@ async function touch(cdp,type,points){
 async function zoomState(page){
   return page.evaluate(()=>{
     const bundle=overviewChart;
-    const zoom=bundle.chart.getOption().dataZoom[0];
-    return{start:Number(zoom.start),end:Number(zoom.end),key:bundle.key};
+    const range=bundle.chart.timeScale().getVisibleLogicalRange();
+    return{start:range.from,end:range.to,key:bundle.key};
   });
 }
 
@@ -50,7 +52,12 @@ async function zoomState(page){
     });
     await page.goto(origin);
     await page.waitForFunction(()=>overviewChart?.data?.length===180);
-    assert.equal(await page.locator('#chart-zoom-in,#chart-zoom-out').count(),0);
+    if(process.env.UI_SCREENSHOT_DIR){
+      fs.mkdirSync(process.env.UI_SCREENSHOT_DIR,{recursive:true});
+      await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,'chart-restored-btc.png')});
+    }
+    assert.equal(await page.locator('#chart-zoom-in,#chart-zoom-out,#chart-expand').count(),0);
+    assert.equal(await page.evaluate(()=>overviewChart.candles.options().upColor),'#15977b');
     const bounds=await page.locator('#chart').boundingBox();
     const cdp=await context.newCDPSession(page);
     const centerX=bounds.x+bounds.width/2;
@@ -81,11 +88,6 @@ async function zoomState(page){
     assert.ok(Math.abs(refreshed.start-moved.start)<1,'refresh must preserve the viewport');
     assert.ok(Math.abs(refreshed.end-moved.end)<1,'refresh must preserve zoom');
 
-    await page.click('#chart-expand');
-    assert.equal(await page.locator('.chart-section.chart-expanded').count(),1);
-    const expandedBounds=await page.locator('#chart').boundingBox();
-    assert.ok(expandedBounds.height>bounds.height*1.5,'expanded chart must use the viewport');
-    await page.click('#chart-expand');
     for(const timeframe of ['15m','1h','1d'])await page.click(`#overview-timeframe button[data-timeframe="${timeframe}"]`);
     await page.waitForFunction(()=>overviewChart?.key==='BTC_USDT:1d:latest');
     await page.waitForTimeout(400);
@@ -97,6 +99,9 @@ async function zoomState(page){
     assert.ok(marketRequests.some(value=>value.includes('SOL_USDT?timeframe=4h&at=')),'old trade must load historical candles');
     assert.match(await page.locator('#chart-price').textContent(),/история/);
     assert.equal(await page.evaluate(()=>overviewChart.levels.length),4);
+    if(process.env.UI_SCREENSHOT_DIR){
+      await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,'chart-restored-selected.png')});
+    }
     const selectedBounds=await page.locator('#chart').boundingBox();
     const selectedX=selectedBounds.x+selectedBounds.width/2;
     const selectedY=selectedBounds.y+selectedBounds.height/2;
@@ -119,13 +124,11 @@ async function zoomState(page){
     for(const width of [320,390,768,1280]){
       await page.setViewportSize({width,height:844});
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`no horizontal overflow at ${width}px`);
-      await page.click('#chart-expand');
-      const expanded=await page.locator('.chart-section.chart-expanded').boundingBox();
-      assert.ok(expanded.x>=0&&expanded.x+expanded.width<=width+1,`expanded chart fits ${width}px`);
-      await page.click('#chart-expand');
+      const chart=await page.locator('#chart').boundingBox();
+      assert.ok(chart.x>=0&&chart.x+chart.width<=width+1,`chart fits ${width}px`);
     }
     assert.deepEqual(errors,[]);
-    console.log('PASS mobile pinch, drag, refresh viewport, expansion, timeframe race, selected historical trade, mismatch guard, 4 widths');
+    console.log('PASS restored candles, mobile pinch and drag, refresh viewport, timeframe race, selected historical trade, mismatch guard, 4 widths');
   }finally{
     await browser.close();
   }
