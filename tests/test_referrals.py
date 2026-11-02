@@ -291,4 +291,4 @@ def test_mini_app_contains_the_referral_claim_flow():
     assert "uid_used" in script
     assert "bingx.com" in script
     assert "referralExpired" in script
-    assert "20261102-preentry-cancel-1" in html
+    assert '/static/app.js?v=' in html

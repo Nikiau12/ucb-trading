@@ -1072,7 +1072,12 @@ def signals(
 
 
 @signals_api.get("/api/market/{symbol}")
-def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Header(default="")):
+def market(
+    symbol: str,
+    timeframe: str = "1h",
+    at: Optional[int] = None,
+    x_telegram_init_data: str = Header(default=""),
+):
     user = get_user(x_telegram_init_data)
     rate_limiter.check("market", str(user["id"]), limit=60, window_seconds=60)
     normalized = symbol.upper().replace("_", "")
@@ -1081,17 +1086,24 @@ def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Heade
     intervals = {"15m": "15m", "1h": "1h", "4h": "4h", "1d": "1d"}
     if timeframe not in intervals:
         raise HTTPException(422, "Invalid timeframe")
+    interval_seconds = {"15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}[timeframe]
+    if at is not None and (at < 1_577_836_800 or at > int(time.time()) + 60):
+        raise HTTPException(422, "Invalid market time")
     bingx_interval = intervals[timeframe]
     contract_symbol = normalized[:-4] + "-USDT"
-    cache_key = (contract_symbol, timeframe)
+    end_seconds = min(int(time.time()), (at // interval_seconds + 60) * interval_seconds) if at else None
+    cache_key = (contract_symbol, timeframe, end_seconds)
     with market_cache_lock:
         cached = market_cache.get(cache_key)
         if cached and cached[0] > time.monotonic() - 15:
             return cached[1]
     try:
+        params = {"symbol": contract_symbol, "interval": bingx_interval, "limit": 180}
+        if end_seconds is not None:
+            params["endTime"] = end_seconds * 1000
         response = requests.get(
             "https://open-api.bingx.com/openApi/swap/v3/quote/klines",
-            params={"symbol": contract_symbol, "interval": bingx_interval, "limit": 180},
+            params=params,
             timeout=10,
         )
         response.raise_for_status()
