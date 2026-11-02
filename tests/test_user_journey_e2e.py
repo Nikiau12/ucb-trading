@@ -514,6 +514,106 @@ def test_trade_state_is_refreshed_before_lifecycle_messages(monkeypatch):
     assert calls == ["prices", "advance", "deliver"]
 
 
+def test_extracted_market_scanner_records_a_completed_empty_cycle(monkeypatch):
+    calls = []
+
+    async def no_markets():
+        return []
+
+    def record(name, **kwargs):
+        calls.append((name, kwargs))
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(bot, "refresh_recipients", lambda: calls.append("recipients"))
+    monkeypatch.setattr(bot.exchange, "get_top_pairs", no_markets)
+    monkeypatch.setattr(bot.st, "record_runtime_health", record)
+
+    asyncio.run(bot.market_scanner_loop())
+    assert calls[0] == "recipients"
+    assert calls[1][0] == "market_scanner"
+    assert calls[1][1]["success"] is True
+    assert calls[1][1]["details"] == {"symbols": 0}
+
+
+def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
+    from core import background_loops
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 2, 15, 5, tzinfo=tz)
+
+    calls = []
+
+    def record(name, **kwargs):
+        calls.append((name, kwargs))
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
+    monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
+    monkeypatch.setattr(bot, "refresh_recipients", lambda: calls.append("recipients"))
+    monkeypatch.setattr(bot.snap, "top_symbols_by_volume", lambda _limit: ["BTC_USDT"])
+    monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
+    monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(bot.st, "record_runtime_health", record)
+
+    asyncio.run(bot.plan_scanner_loop())
+    assert bot._last_plan_1h_block == 15
+    assert calls[0] == "recipients"
+    assert calls[1][0] == "plan_scanner"
+    assert calls[1][1]["success"] is True
+    assert calls[1][1]["details"]["requested"] == 1
+    assert calls[1][1]["details"]["alerts_sent"] == 0
+
+
+def test_extracted_plan_scanner_delivers_and_records_one_signal(monkeypatch):
+    from core import background_loops
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 2, 16, 5, tzinfo=tz)
+
+    calls = []
+    plan = _actionable_plan()
+
+    async def send(chat_id, text, **_kwargs):
+        calls.append(("send", chat_id, text))
+        return True
+
+    def record(name, **kwargs):
+        calls.append((name, kwargs))
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
+    monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
+    monkeypatch.setattr(bot, "refresh_recipients", lambda: None)
+    monkeypatch.setattr(bot.snap, "top_symbols_by_volume", lambda _limit: ["BTC_USDT"])
+    monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
+    monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [plan])
+    monkeypatch.setattr(bot, "_rank_actionable_plans", lambda plans: plans)
+    monkeypatch.setattr(bot, "_conf", lambda _plan: 0.8)
+    monkeypatch.setattr(bot.st, "should_send_alert", lambda *_args: True)
+    monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: 77)
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: {"deposit": 300})
+    monkeypatch.setattr(bot.st, "grant_signal_access", lambda user_id, signal_id: calls.append(("grant", user_id, signal_id)))
+    monkeypatch.setattr(bot.st, "should_persist_sent_marker", lambda delivered: delivered > 0)
+    monkeypatch.setattr(bot.st, "mark_sent", lambda *_args: calls.append(("marked",)))
+    monkeypatch.setattr(bot.st, "record_runtime_health", record)
+    monkeypatch.setattr(bot.notifier, "active_users", {"4242"})
+    monkeypatch.setattr(bot.notifier, "send_message_to_user", send)
+    monkeypatch.setattr(bot, "render_auto_alert", lambda *_args, **_kwargs: "ALERT")
+    monkeypatch.setattr(bot, "_with_signal_identity", lambda text, *_args: text)
+    monkeypatch.setattr(bot, "_alert_keyboard", lambda *_args: None)
+    monkeypatch.setattr(bot, "get_lang", lambda _user_id: "ru")
+
+    asyncio.run(bot.plan_scanner_loop())
+    assert ("send", "4242", "ALERT") in calls
+    assert ("grant", 4242, 77) in calls
+    assert ("marked",) in calls
+    assert next(item[1]["details"]["alerts_sent"] for item in calls if item[0] == "plan_scanner") == 1
+
+
 def test_bare_symbol_offers_one_plan_and_a_greeting_asks_for_language(monkeypatch):
     async def fail_plan(_message):
         raise AssertionError("plan must wait for the button")
