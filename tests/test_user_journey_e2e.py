@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from aiogram.filters import StateFilter
@@ -282,8 +283,8 @@ def test_free_text_routing_stays_inside_deposit_dialog(monkeypatch):
         for text in ("сканер", "сетап BTC"):
             message = FakeMessage(text)
             message.chat.type = "private"
-            await bot.router.message.trigger(
-                message,
+            await bot.router.propagate_event(
+                "message", message,
                 raw_state=bot.DepositSetup.waiting_for_amount.state,
                 state=FakeState(),
                 bot=bot.bot_instance,
@@ -293,8 +294,8 @@ def test_free_text_routing_stays_inside_deposit_dialog(monkeypatch):
 
         idle_message = FakeMessage("сканер")
         idle_message.chat.type = "private"
-        await bot.router.message.trigger(
-            idle_message,
+        await bot.router.propagate_event(
+            "message", idle_message,
             raw_state=None,
             state=FakeState(),
             bot=bot.bot_instance,
@@ -306,13 +307,62 @@ def test_free_text_routing_stays_inside_deposit_dialog(monkeypatch):
 
 def test_free_text_handler_is_only_registered_for_idle_state():
     handler = next(
-        item for item in bot.router.message.handlers
+        item for item in bot.free_text_router.message.handlers
         if item.callback is bot.handle_text
     )
     assert any(
         isinstance(item.callback, StateFilter) and item.callback.states == (None,)
         for item in handler.filters
     )
+
+
+def test_route_domains_preserve_order_and_private_chat_gate(monkeypatch):
+    assert [child.name for child in bot.router.sub_routers] == [
+        "onboarding", "access", "trading", "free_text",
+    ]
+    called = []
+
+    async def scan(_message):
+        called.append("scan")
+
+    async def answer(_message, text):
+        called.append(("private_only", text))
+
+    async def callback_answer(_callback, text, **_kwargs):
+        called.append(("private_callback_only", text))
+
+    monkeypatch.setattr(bot, "cmd_scan", scan)
+    monkeypatch.setattr(bot.types.Message, "answer", answer)
+    monkeypatch.setattr(bot.types.CallbackQuery, "answer", callback_answer)
+
+    async def run():
+        message = bot.types.Message(
+            message_id=1,
+            date=datetime.now(timezone.utc),
+            chat=bot.types.Chat(id=-100, type="group"),
+            from_user=bot.types.User(id=4242, is_bot=False, first_name="Tester"),
+            text="сканер",
+        )
+        await bot.router.propagate_event(
+            "message", message, raw_state=None, state=FakeState(),
+            bot=bot.bot_instance,
+        )
+        callback = bot.types.CallbackQuery(
+            id="group-callback",
+            from_user=message.from_user,
+            chat_instance="group-chat",
+            message=message,
+            data="set_deposit",
+        )
+        await bot.router.propagate_event(
+            "callback_query", callback, raw_state=None, state=FakeState(),
+            bot=bot.bot_instance,
+        )
+
+    asyncio.run(run())
+    assert [kind for kind, _ in called] == [
+        "private_only", "private_callback_only",
+    ]
 
 
 def test_free_text_uses_the_ticker_not_the_request_word(monkeypatch):

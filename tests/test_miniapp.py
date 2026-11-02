@@ -20,6 +20,21 @@ from miniapp import app as miniapp
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
+def test_api_domains_keep_each_existing_route_once():
+    expected = {
+        "profile_api": {"/api/me", "/api/settings"},
+        "billing_api": {
+            "/api/bingx-referral", "/api/payment-instructions", "/api/payment",
+        },
+        "signals_api": {"/api/signals", "/api/market/{symbol}"},
+    }
+    for router_name, paths in expected.items():
+        router = getattr(miniapp, router_name)
+        assert {route.path for route in router.routes} == paths
+        for path in paths:
+            assert sum(route.path == path for route in miniapp.app.routes) == 1
+
+
 def _signed_init_data(
     token: str,
     user: dict,

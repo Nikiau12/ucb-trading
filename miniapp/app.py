@@ -19,7 +19,7 @@ from urllib.parse import parse_qsl
 
 import psycopg
 import requests
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import APIRouter, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -136,6 +136,9 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="UCB Trading Mini App", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+profile_api = APIRouter()
+billing_api = APIRouter()
+signals_api = APIRouter()
 
 
 class SlidingWindowLimiter:
@@ -698,7 +701,7 @@ def metrics(
     return http_metrics.prometheus()
 
 
-@app.get("/api/me")
+@profile_api.get("/api/me")
 def me(x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
     require_database(x_telegram_init_data)
@@ -754,7 +757,7 @@ def me(x_telegram_init_data: str = Header(default="")):
     }
 
 
-@app.patch("/api/settings")
+@profile_api.patch("/api/settings")
 def update_settings(payload: SettingsUpdate, x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
     require_database(x_telegram_init_data)
@@ -845,7 +848,7 @@ def _automatic_referral_review(user_id: int, bingx_uid: str) -> dict:
     }
 
 
-@app.post("/api/bingx-referral")
+@billing_api.post("/api/bingx-referral")
 def claim_bingx_referral(
     payload: BingxReferralClaim,
     x_telegram_init_data: str = Header(default=""),
@@ -879,7 +882,7 @@ def claim_bingx_referral(
     }
 
 
-@app.post("/api/payment-instructions")
+@billing_api.post("/api/payment-instructions")
 def payment_instructions(x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
     require_database(x_telegram_init_data)
@@ -921,7 +924,7 @@ def payment_instructions(x_telegram_init_data: str = Header(default="")):
     return {"ok": True}
 
 
-@app.post("/api/payment")
+@billing_api.post("/api/payment")
 def claim_payment(payload: PaymentClaim, x_telegram_init_data: str = Header(default="")):
     """Verify a transaction hash. A request without a confirmed hash does not grant access."""
     user = get_user(x_telegram_init_data)
@@ -967,7 +970,7 @@ def claim_payment(payload: PaymentClaim, x_telegram_init_data: str = Header(defa
     return {"ok": True, "access_open": True, "paid_until": settled.get("paid_until")}
 
 
-@app.get("/api/signals")
+@signals_api.get("/api/signals")
 def signals(
     signal_id: Optional[int] = None,
     x_telegram_init_data: str = Header(default=""),
@@ -1068,7 +1071,7 @@ def signals(
     ]
 
 
-@app.get("/api/market/{symbol}")
+@signals_api.get("/api/market/{symbol}")
 def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
     rate_limiter.check("market", str(user["id"]), limit=60, window_seconds=60)
@@ -1129,3 +1132,8 @@ def market(symbol: str, timeframe: str = "1h", x_telegram_init_data: str = Heade
         return candles
     except (requests.RequestException, ValueError, TypeError, IndexError) as exc:
         raise HTTPException(502, "BingX market data unavailable") from exc
+
+
+app.include_router(profile_api)
+app.include_router(billing_api)
+app.include_router(signals_api)
