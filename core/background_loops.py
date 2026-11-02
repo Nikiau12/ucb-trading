@@ -106,9 +106,7 @@ def bind_background_loops(services) -> SimpleNamespace:
 
 
     async def plan_scanner_loop():
-        """EMA/ATR планировщик — запускается через 5 мин после каждого закрытия 1h свечи.
-        Повтор одной и той же монеты — не чаще раза в 4h (dedup в state.py).
-        """
+        """Refresh 4H/1D plans hourly; state.py prevents overlapping or recycled setups."""
         while True:
             try:
                 now = datetime.now(timezone.utc)
@@ -147,6 +145,9 @@ def bind_background_loops(services) -> SimpleNamespace:
                                 continue
 
                             signal_id = services.st.save_signal(plan, symbol, side, conf, source="scanner")
+                            if signal_id is None:
+                                # Another cycle may have claimed this market after the read-only precheck.
+                                continue
                             delivered_count = 0
                             for chat_id in list(services.notifier.active_users):
                                 try:
