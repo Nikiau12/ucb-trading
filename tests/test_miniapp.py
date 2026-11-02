@@ -80,14 +80,17 @@ def test_demo_profile_and_signal_history_are_available(demo_client):
     assert all(item["sizing"]["risk_usdt"] == pytest.approx(4.0) for item in signals.json())
 
 
-def test_requested_old_signal_is_added_only_through_user_access(monkeypatch):
+@pytest.mark.parametrize("requested_symbol", ["HBAR_USDT", "BTC_USDT"])
+def test_requested_old_signal_is_added_only_through_user_access(
+    monkeypatch, requested_symbol,
+):
     now = datetime.now(timezone.utc)
     recent = (
         14050, "BTC_USDT", "LONG", 0.8, 65000, 64800, 63800, 66200, 67500,
         0.1, 1, 1, 1, 1000, 50, 5, now, "scanner", "", "", "4h",
     )
     requested = (
-        13988, "HBAR_USDT", "SHORT", 0.82, 0.19, 0.194, 0.202, 0.186, 0.178,
+        13988, requested_symbol, "SHORT", 0.82, 0.19, 0.194, 0.202, 0.186, 0.178,
         0.0001, 1, 1, 1, 1000, 20, 5, now, "scanner", "", "", "4h",
     )
 
@@ -115,7 +118,10 @@ def test_requested_old_signal_is_added_only_through_user_access(monkeypatch):
                 self.requested_params = params
                 self.one = requested
             elif "FROM signal_lifecycle" in query:
-                self.many = [(13988, "tp1_reached", now, now, None, None, None, None, 0.185)]
+                self.many = [
+                    (13988, "tp1_reached", now, now, None, None, None, None, 0.185),
+                    (14050, "waiting_entry", None, None, None, None, None, None, 65000),
+                ]
             return self
 
         def fetchone(self):
@@ -141,11 +147,19 @@ def test_requested_old_signal_is_added_only_through_user_access(monkeypatch):
     monkeypatch.setattr(miniapp, "require_database", lambda _data: None)
     monkeypatch.setattr(miniapp, "db", lambda: Connection())
 
-    result = miniapp.signals(signal_id=13988, x_telegram_init_data="signed")
+    client = TestClient(miniapp.app)
+    response = client.get(
+        "/api/signals?signal_id=13988",
+        headers={"X-Telegram-Init-Data": "signed"},
+    )
+    client.close()
+    assert response.status_code == 200
+    result = response.json()
 
     assert [item["id"] for item in result] == [13988, 14050]
-    assert result[0]["symbol"] == "HBAR_USDT"
+    assert result[0]["symbol"] == requested_symbol
     assert result[0]["trade_status"] == "tp1_reached"
+    assert result[1]["trade_status"] == "waiting_entry"
     assert cursor.requested_params == (42, 13988)
 
 
@@ -341,6 +355,37 @@ def test_market_endpoint_accepts_bingx_array_candles(demo_client, monkeypatch):
         "time": 8, "open": 2.0, "high": 3.0, "low": 1.0,
         "close": 2.5, "volume": 5.0,
     }
+
+
+def test_bingx_timeout_returns_502_without_blocking_another_market(
+    demo_client, monkeypatch,
+):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "code": 0,
+                "data": [[8_000, "2", "3", "1", "2.5", "5"]],
+            }
+
+    def fake_get(_url, *, params, **_kwargs):
+        if params["symbol"] == "BTC-USDT":
+            raise miniapp.requests.Timeout("temporary exchange outage")
+        return Response()
+
+    monkeypatch.setattr(miniapp.requests, "get", fake_get)
+    with miniapp.market_cache_lock:
+        miniapp.market_cache.clear()
+
+    unavailable = demo_client.get("/api/market/BTC_USDT?timeframe=4h")
+    available = demo_client.get("/api/market/ETH_USDT?timeframe=4h")
+
+    assert unavailable.status_code == 502
+    assert unavailable.json() == {"detail": "BingX market data unavailable"}
+    assert available.status_code == 200
+    assert available.json()[0]["close"] == 2.5
 
 
 def test_telegram_init_data_signature_is_verified(monkeypatch):
