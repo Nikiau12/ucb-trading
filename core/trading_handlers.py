@@ -140,14 +140,24 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
         )
 
 
-    @router.message(Command("settings"))
+    @router.message(Command("account", "settings"))
     async def cmd_settings(message: types.Message):
         uid      = message.from_user.id
         lang     = services.get_lang(uid)
+        unavailable = False
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, services.st.refresh_user_balance, uid)
+        except Exception:
+            unavailable = True
         settings = services.st.get_user_settings(uid)
-        deposit  = settings.get("deposit")
-        text     = services._t(lang, "settings_title")
-        text    += services._t(lang, "settings_deposit", val=f"{deposit:,.0f} USDT") if deposit else services._t(lang, "settings_deposit_missing")
+        deposit = settings.get("deposit")
+        text = services._t(lang, "settings_title")
+        if unavailable:
+            text += services.personal_text(lang, "balance_unavailable") + "\n"
+        elif deposit is not None:
+            text += services._t(lang, "settings_deposit", val=f"{float(deposit):,.2f} USDT")
+        else:
+            text += services._t(lang, "settings_deposit_missing")
         text    += services._t(lang, "settings_risk",   val=settings["risk_pct"])
         text    += services._t(lang, "settings_lev",    val=settings["lev"])
         text    += services._t(lang, "settings_margin", val=html.escape(str(settings["margin"])))

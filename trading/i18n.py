@@ -62,7 +62,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/status — статус доступа\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>ТВОИ ПАРАМЕТРЫ</b>\n"
-            "/settings — посмотреть текущие параметры\n\n"
+            "/account — посмотреть текущие параметры\n\n"
             "/set deposit=5000    — твой депозит для расчёта позиции\n"
             "/set risk=1          — % риска на сделку (по умолч. 1%)\n"
             "/set lev=20          — кредитное плечо (по умолч. 10x)\n"
@@ -94,13 +94,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "set_usage": "Настройки — в панели.",
         "set_saved":       "✅ Сохранено.",
         "set_unknown":     "❌ Неизвестный параметр: {key}. Доступны: deposit, risk, lev, margin",
-        "settings_title":  "⚙️ <b>Твои параметры</b>\n\n",
+        "settings_title":  "<b>Аккаунт</b>\n\n",
         "settings_deposit":"💰 Депозит: {val}\n",
         "settings_deposit_missing": "💰 Депозит: <b>⚠️ не установлен</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Изменить их можно в панели.",
+        "settings_change": "Параметры можно изменить в аккаунте.",
         "deposit_not_set": "⚠️ не установлен → /set deposit=XXXX",
         "plan_loading":    "⏳ Загружаю {symbol}...",
         "plan_error":      "❌ Ошибка: {error}",
@@ -211,7 +211,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/status — access status\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>YOUR PARAMETERS</b>\n"
-            "/settings — view your current parameters\n\n"
+            "/account — view your current parameters\n\n"
             "/set deposit=5000    — your deposit for position sizing\n"
             "/set risk=1          — % risk per trade (default 1%)\n"
             "/set lev=20          — leverage (default 10x)\n"
@@ -243,13 +243,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "set_usage": "Settings are in the panel.",
         "set_saved":       "✅ Saved.",
         "set_unknown":     "❌ Unknown parameter: {key}. Allowed: deposit, risk, lev, margin",
-        "settings_title":  "⚙️ <b>Your settings</b>\n\n",
+        "settings_title":  "<b>Account</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
         "settings_deposit_missing": "💰 deposit: <b>⚠️ not set</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Change them in the panel.",
+        "settings_change": "Change these parameters in your account.",
         "deposit_not_set": "⚠️ not set → /set deposit=XXXX",
         "plan_loading":    "⏳ Loading {symbol}...",
         "plan_error":      "❌ Error: {error}",
@@ -359,7 +359,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/status — Zugangsstatus\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>DEINE PARAMETER</b>\n"
-            "/settings — aktuelle Parameter anzeigen\n\n"
+            "/account — aktuelle Parameter anzeigen\n\n"
             "/set deposit=5000    — dein Kapital für die Positionsgröße\n"
             "/set risk=1          — Risiko-% pro Trade (Standard 1%)\n"
             "/set lev=20          — Hebel (Standard 10x)\n"
@@ -391,13 +391,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "set_usage": "Die Einstellungen sind im Panel.",
         "set_saved":       "✅ Gespeichert.",
         "set_unknown":     "❌ Unbekannter Parameter: {key}. Erlaubt: deposit, risk, lev, margin",
-        "settings_title":  "⚙️ <b>Deine Parameter</b>\n\n",
+        "settings_title":  "<b>Konto</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
         "settings_deposit_missing": "💰 deposit: <b>⚠️ nicht festgelegt</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Ändern kannst du sie im Panel.",
+        "settings_change": "Diese Parameter kannst du im Konto ändern.",
         "deposit_not_set": "⚠️ nicht festgelegt → /set deposit=XXXX",
         "plan_loading":    "⏳ Lade {symbol}...",
         "plan_error":      "❌ Fehler: {error}",
@@ -507,7 +507,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/status — statut d'accès\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>TES PARAMÈTRES</b>\n"
-            "/settings — voir tes paramètres actuels\n\n"
+            "/account — voir tes paramètres actuels\n\n"
             "/set deposit=5000    — ton dépôt pour calculer la position\n"
             "/set risk=1          — % de risque par trade (défaut 1%)\n"
             "/set lev=20          — levier (défaut 10x)\n"
@@ -539,13 +539,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "set_usage": "Les réglages sont dans le panneau.",
         "set_saved":       "✅ Sauvegardé.",
         "set_unknown":     "❌ Paramètre inconnu : {key}. Autorisés : deposit, risk, lev, margin",
-        "settings_title":  "⚙️ <b>Tes paramètres</b>\n\n",
+        "settings_title":  "<b>Compte</b>\n\n",
         "settings_deposit":"💰 Dépôt : {val}\n",
         "settings_deposit_missing": "💰 deposit : <b>⚠️ non défini</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk : <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev : <b>{val}x</b>\n",
         "settings_margin": "📐 margin : <b>{val}</b>\n\n",
-        "settings_change": "Tu peux les modifier dans le panneau.",
+        "settings_change": "Tu peux modifier ces paramètres dans ton compte.",
         "deposit_not_set": "⚠️ non défini → /set deposit=XXXX",
         "plan_loading":    "⏳ Chargement de {symbol}...",
         "plan_error":      "❌ Erreur : {error}",
@@ -655,7 +655,7 @@ STRINGS: dict[str, dict[str, Any]] = {
             "/status — estado de acceso\n\n"
             "━━━━━━━━━━━━━━━━\n"
             "⚙️ <b>TUS PARÁMETROS</b>\n"
-            "/settings — ver tus parámetros actuales\n\n"
+            "/account — ver tus parámetros actuales\n\n"
             "/set deposit=5000    — tu depósito para calcular la posición\n"
             "/set risk=1          — % de riesgo por trade (defecto 1%)\n"
             "/set lev=20          — apalancamiento (defecto 10x)\n"
@@ -687,13 +687,13 @@ STRINGS: dict[str, dict[str, Any]] = {
         "set_usage": "Los ajustes están en el panel.",
         "set_saved":       "✅ Guardado.",
         "set_unknown":     "❌ Parámetro desconocido: {key}. Permitidos: deposit, risk, lev, margin",
-        "settings_title":  "⚙️ <b>Tus parámetros</b>\n\n",
+        "settings_title":  "<b>Cuenta</b>\n\n",
         "settings_deposit":"💰 deposit: {val}\n",
         "settings_deposit_missing": "💰 deposit: <b>⚠️ no establecido</b> → <code>/set deposit=XXXX</code>\n",
         "settings_risk":   "🎯 risk: <b>{val}%</b>\n",
         "settings_lev":    "🧰 lev: <b>{val}x</b>\n",
         "settings_margin": "📐 margin: <b>{val}</b>\n\n",
-        "settings_change": "Puedes cambiarlos en el panel.",
+        "settings_change": "Puedes cambiar estos parámetros en tu cuenta.",
         "deposit_not_set": "⚠️ no establecido → /set deposit=XXXX",
         "plan_loading":    "⏳ Cargando {symbol}...",
         "plan_error":      "❌ Error: {error}",

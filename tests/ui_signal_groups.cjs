@@ -14,12 +14,12 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
  try{
   const page=await browser.newPage({viewport:{width:390,height:844}});
   const errors=[],writes=[];
-  let failGroups=false,failAccount=false;
+  let failGroups=false,failAccount=false,failProfile=false;
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),body=req.postDataJSON();
    if(req.method()!=='GET')writes.push({path:url.pathname,method:req.method(),body});
-   if(url.pathname==='/api/me')return route.fulfill({json:profile});
+   if(url.pathname==='/api/me')return failProfile?route.fulfill({status:503,json:{detail:'unavailable'}}):route.fulfill({json:profile});
    if(url.pathname==='/api/signals')return route.fulfill({json:visible()});
    if(url.pathname==='/api/settings'){
     if(failGroups)return route.fulfill({status:503,json:{detail:'unavailable'}});
@@ -28,7 +28,7 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
    if(url.pathname==='/api/bingx-account'){
     if(failAccount)return route.fulfill({status:503,json:{detail:'unavailable'}});
     if(req.method()==='DELETE'){profile.bingx_account={connected:false};return route.fulfill({json:{connected:false}});}
-    profile.bingx_account={connected:true,key_hint:'1234',balance:550};profile.deposit=550;
+    profile.bingx_account={connected:true,key_hint:'1234',balance:550,checked_at:new Date().toISOString()};profile.deposit=550;
     return route.fulfill({json:profile.bingx_account});
    }
    const tracking=url.pathname.match(/^\/api\/signals\/(\d+)\/tracking$/);
@@ -71,6 +71,9 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
   await page.waitForFunction(()=>document.querySelector('#tracking-button').disabled);
   assert.equal(feed[0].tracking_status,'exited');
   await page.click('[data-target=settings]');
+  assert.equal(await page.locator('[data-target=settings]').textContent(),'Аккаунт');
+  assert.equal(await page.locator('#manual-deposit-field').isVisible(),true);
+  await page.click('#account-connection summary');
   await page.fill('#account-key','fake-key-1234');await page.fill('#account-secret','fake-secret-5678');
   await page.click('#account-connect');
   await page.waitForFunction(()=>document.querySelector('#account-disconnect').hidden===false);
@@ -79,10 +82,42 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
   assert.equal(await page.locator('#deposit-input').isDisabled(),true);
   assert.equal(await page.locator('#deposit-input').inputValue(),'550');
   assert.equal(await page.evaluate(()=>JSON.stringify({...localStorage,...sessionStorage}).includes('fake-secret')),false);
+  assert.equal(await page.locator('#manual-deposit-field').isVisible(),false);
+  assert.equal(await page.locator('#account-connection').evaluate(el=>el.open),false);
+  assert.equal(await page.locator('#account-balance').textContent(),'550,00');
+  await page.fill('#risk-input','2');
+  await page.fill('#leverage-input','20');
+  assert.match(await page.locator('#account-risk-amount').textContent(),/11,00 USDT/);
+  await page.selectOption('#language','de');
+  assert.equal(await page.locator('#risk-input').inputValue(),'2','language change keeps the draft');
+  await page.selectOption('#language','ru');
+  profile.deposit=600;profile.bingx_account.balance=600;
+  await page.click('#account-refresh');
+  await page.waitForFunction(()=>!document.querySelector('#account-refresh').disabled);
+  assert.equal(await page.locator('#risk-input').inputValue(),'2','refresh keeps unsaved risk');
+  assert.equal(await page.locator('#leverage-input').inputValue(),'20','refresh keeps unsaved leverage');
+  assert.equal(await page.locator('#account-balance').textContent(),'600,00');
+  assert.match(await page.locator('#account-risk-amount').textContent(),/12,00 USDT/);
+  failGroups=true;await page.click('#account-save');
+  await page.waitForFunction(()=>document.querySelector('#form-status').classList.contains('error'));
+  assert.equal(await page.locator('#risk-input').inputValue(),'2','failed save keeps draft');
+  failGroups=false;
   await page.click('#settings-form button[type=submit]');
-  await page.waitForFunction(()=>document.querySelector('#form-status').textContent.length>0);
+  await page.waitForFunction(()=>document.querySelector('#form-status').textContent==='Изменения сохранены'&&!document.querySelector('#account-save').disabled);
   const settingsWrite=writes.filter(x=>x.path==='/api/settings').at(-1);
   assert.equal('deposit' in settingsWrite.body,false,'API balance cannot be overridden by manual settings');
+  assert.equal(profile.risk_pct,2);assert.equal(profile.leverage,20);
+  await page.fill('#risk-input','3');await page.click('#account-discard');
+  assert.equal(await page.locator('#risk-input').inputValue(),'2');
+  profile.deposit=0;profile.bingx_account.balance=0;
+  await page.click('#account-refresh');await page.waitForFunction(()=>!document.querySelector('#account-refresh').disabled);
+  assert.equal(await page.locator('#account-balance').textContent(),'0,00','zero is a real balance');
+  assert.match(await page.locator('#account-balance-note').textContent(),/нулевой/);
+  failProfile=true;await page.click('#account-refresh');await page.waitForFunction(()=>!document.querySelector('#account-refresh').disabled);
+  assert.equal(await page.locator('#account-balance').textContent(),'—','API failure must not display zero or a stale balance');
+  assert.equal(await page.locator('#account-connection-badge').getAttribute('data-state'),'unavailable');
+  failProfile=false;
+  await page.click('#account-connection summary');
   await page.click('#account-disconnect');
   await page.waitForFunction(()=>document.querySelector('#account-disconnect').hidden===true);
   assert.equal(await page.locator('#deposit-input').isDisabled(),false);
@@ -102,12 +137,17 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
    }
   }
   await page.selectOption('#language','ru');
+  // Restore a connected fixture for visual review; no real account is used.
+  profile.deposit=550;profile.bingx_account={connected:true,balance:550,key_hint:'1234',checked_at:new Date().toISOString()};
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#account-balance').textContent==='550,00');
   await page.waitForFunction(()=>!document.querySelector('#toast').classList.contains('show'));
   if(process.env.UI_SCREENSHOT_DIR){
    fs.mkdirSync(process.env.UI_SCREENSHOT_DIR,{recursive:true});
    for(const [name,width,height] of [['mobile',390,844],['desktop',1280,800]]){
     await page.setViewportSize({width,height});
-    await page.click('[data-target=settings]');await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,`account-${name}.png`),fullPage:true});
+    await page.click('[data-target=settings]');await page.mouse.move(0,0);await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,`account-${name}.png`),fullPage:true});
+    await page.evaluate(()=>window.scrollTo({top:document.querySelector('#trade-preferences-title').getBoundingClientRect().top+scrollY-25,behavior:'instant'}));
+    await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,`account-trading-${name}.png`)});
     await page.click('[data-target=signals]');await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,`groups-${name}.png`),fullPage:true});
    }
   }
