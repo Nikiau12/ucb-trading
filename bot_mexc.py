@@ -434,13 +434,14 @@ def _callback_symbol(raw: str) -> str:
     return re.sub(r"[^A-Z0-9_]", "", str(raw or "").upper())[:40]
 
 
-def _remember_personal_alert(user_id, **fields) -> None:
+def _remember_personal_alert(user_id, **fields) -> int | None:
     signal_id = st.save_alert_signal(**fields)
     if signal_id:
         try:
             st.grant_signal_access(int(user_id), signal_id)
         except (TypeError, ValueError):
             logger.warning("alert access grant skipped")
+    return signal_id
 
 
 async def _set_user_commands(chat_id, lang: str) -> None:
@@ -814,8 +815,7 @@ async def _handle_setup(message: types.Message, coin: str):
                     verdict = mtf_engine.analyze(dfs)
                     if verdict.setup_type.name != "NO_TRADE":
                         msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict, lang=lang)
-                        await message.reply(msg, parse_mode="HTML")
-                        _remember_personal_alert(
+                        alert_id = _remember_personal_alert(
                             message.from_user.id,
                             symbol=symbol,
                             side="LONG" if setup.get("type") == "LONG" else "SHORT",
@@ -825,7 +825,9 @@ async def _handle_setup(message: types.Message, coin: str):
                             entry=setup.get("entry"),
                             stop=setup.get("stop_loss"),
                             tp1=setup.get("take_profit"),
+                            timeframe=tf,
                         )
+                        await message.reply(msg, parse_mode="HTML", reply_markup=_open_setup_keyboard(alert_id, lang))
                         found = True
                         delivered = True
         if not found:
@@ -871,8 +873,7 @@ async def _handle_spikes(message: types.Message):
         for sym, spk in found[:15]:
             coin_info = await coin_info_svc.get_coin_info(sym)
             msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info, lang=lang)
-            await message.reply(msg, parse_mode="HTML")
-            _remember_personal_alert(
+            alert_id = _remember_personal_alert(
                 message.from_user.id,
                 symbol=sym,
                 side="LONG" if spk.get("direction") == "up" else "SHORT",
@@ -880,7 +881,9 @@ async def _handle_spikes(message: types.Message):
                 source="spike",
                 price=spk.get("current_price"),
                 entry=spk.get("current_price"),
+                timeframe="15m",
             )
+            await message.reply(msg, parse_mode="HTML", reply_markup=_open_setup_keyboard(alert_id, lang))
             delivered = True
             await asyncio.sleep(0.1)
     except Exception as exc:
@@ -932,12 +935,15 @@ async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render,
             user_id = int(chat_id)
         except (TypeError, ValueError):
             continue
-        if await notifier.send_message_to_user(chat_id, render(get_lang(user_id))):
+        if alert and not saved:
+            payload = alert() if callable(alert) else dict(alert)
+            signal_id = st.save_alert_signal(**payload)
+            saved = True
+        if await notifier.send_message_to_user(
+            chat_id, render(get_lang(user_id)),
+            reply_markup=_open_setup_keyboard(signal_id, get_lang(user_id)),
+        ):
             delivered += 1
-            if alert and not saved:
-                saved = True
-                payload = alert() if callable(alert) else dict(alert)
-                signal_id = st.save_alert_signal(**payload)
             if signal_id:
                 st.grant_signal_access(user_id, signal_id)
         await asyncio.sleep(0.1)
@@ -955,10 +961,13 @@ async def _broadcast_personal(render, alert: dict | None = None) -> None:
             user_id = int(chat_id)
         except (TypeError, ValueError):
             continue
-        if await notifier.send_message_to_user(chat_id, render(get_lang(user_id))):
-            if alert and not saved:
-                saved = True
-                signal_id = st.save_alert_signal(**alert)
+        if alert and not saved:
+            signal_id = st.save_alert_signal(**alert)
+            saved = True
+        if await notifier.send_message_to_user(
+            chat_id, render(get_lang(user_id)),
+            reply_markup=_open_setup_keyboard(signal_id, get_lang(user_id)),
+        ):
             if signal_id:
                 st.grant_signal_access(user_id, signal_id)
         await asyncio.sleep(0.1)

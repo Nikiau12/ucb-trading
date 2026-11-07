@@ -48,6 +48,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                                         "side": "LONG" if _spike.get("direction") == "up" else "SHORT",
                                         "confidence": float(_spike.get("score") or 0) / 100.0,
                                         "source": "spike",
+                                        "timeframe": "15m",
                                         "price": _spike.get("current_price"),
                                         "entry": _spike.get("current_price"),
                                     },
@@ -74,11 +75,12 @@ def bind_background_loops(services) -> SimpleNamespace:
                                             _symbol, _tf, _setup, _score, _verdict, lang=lang
                                         )
                                     ),
-                                    alert=lambda _symbol=symbol, _setup=setup, _score=score: {
+                                    alert=lambda _symbol=symbol, _setup=setup, _score=score, _tf=tf: {
                                         "symbol": _symbol,
                                         "side": "LONG" if _setup.get("type") == "LONG" else "SHORT",
                                         "confidence": float(getattr(_score, "confidence", 0) or 0) / 100.0,
                                         "source": "smc",
+                                        "timeframe": _tf,
                                         "price": _setup.get("entry"),
                                         "entry": _setup.get("entry"),
                                         "stop": _setup.get("stop_loss"),

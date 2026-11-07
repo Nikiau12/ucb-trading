@@ -61,6 +61,37 @@ class FakeState:
         self.value = None
 
 
+def test_scanner_alert_has_an_id_specific_mini_app_button(monkeypatch):
+    sent = []
+    granted = []
+    saved = []
+
+    async def deliver(chat_id, text, **kwargs):
+        sent.append((chat_id, text, kwargs))
+        return True
+
+    monkeypatch.setattr(bot, "MINI_APP_URL", "https://example.test/app")
+    monkeypatch.setattr(bot.notifier, "active_users", ["123"])
+    monkeypatch.setattr(bot.notifier, "send_message_to_user", deliver)
+    monkeypatch.setattr(bot.st, "cooldown_ready", lambda *_args: True)
+    monkeypatch.setattr(bot.st, "save_alert_signal", lambda **payload: saved.append(payload) or 88)
+    monkeypatch.setattr(bot.st, "grant_signal_access", lambda *args: granted.append(args))
+    monkeypatch.setattr(bot.st, "should_persist_sent_marker", lambda count: count > 0)
+    monkeypatch.setattr(bot.st, "mark_cooldown", lambda *_args: None)
+    monkeypatch.setattr(bot, "get_lang", lambda _user_id: "ru")
+
+    count = asyncio.run(bot._deliver_localized(
+        "spike", "ETH_15m_up", 60, lambda _lang: "Скальп ETH",
+        alert={"symbol": "ETH_USDT", "source": "spike", "side": "LONG",
+               "confidence": 0.8, "price": 3500, "timeframe": "15m"},
+    ))
+    assert count == 1
+    assert len(saved) == 1
+    assert granted == [(123, 88)]
+    button = sent[0][2]["reply_markup"].inline_keyboard[0][0]
+    assert button.web_app.url == "https://example.test/app?signal_id=88"
+
+
 def _actionable_plan():
     return {
         "symbol": "BTC_USDT",

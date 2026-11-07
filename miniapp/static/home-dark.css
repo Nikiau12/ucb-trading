@@ -1,0 +1,48 @@
+/* Dark palette over the existing compact layout. Keep chart touch behaviour intact. */
+html{background:#0b1019;color-scheme:dark}
+body.home-light{
+  --bg:#0b1019;--panel:#141c29;--panel-2:#1a2535;--panel-3:#202c3d;
+  --line:#283548;--line-strong:#35455b;--text:#f1f5fb;--muted:#a9b7ca;
+  --blue:#81aaff;--blue-soft:#1d3152;--green:#42d5aa;--red:#ff8193;
+  color-scheme:dark;background:var(--bg)
+}
+.home-light .topbar{background:rgba(11,16,25,.96);border-bottom:1px solid var(--line)}
+.home-light .icon-button,.home-light .major-market-card,.home-light .detail-metric,.home-light .signal-row,.home-light .settings-form,.home-light .empty-state{background:var(--panel);color:var(--text);border-color:var(--line)}
+.home-light .coin-dot,.home-light .chart-controls,.home-light .filter-row,.home-light .segmented.wide{background:var(--panel-2)}
+.home-light .chart-section{background:var(--panel);border-color:var(--line);box-shadow:0 8px 28px #0003}
+.home-light .chart-controls button.selected,.home-light .filter.selected,.home-light .segmented.wide input:checked+span{background:#30415a;color:#e8f0ff;box-shadow:none}
+.home-light .chart-frame,.home-light #chart,.home-light .chart-readout,.home-light .chart-skeleton{background:#101722}
+.home-light .chart-skeleton{background:linear-gradient(90deg,#101722,#1c2a3b,#101722);background-size:200% 100%}
+.home-light .chart-readout{border-color:var(--line)}
+.home-light .chart-readout>div+div{border-color:var(--line)}
+.home-light .major-market-card.active-setup{border-color:#3d5681;box-shadow:0 4px 16px #0002}
+.home-light .plan-numbers{background:var(--panel)}
+.home-light .plan-numbers .detail-metric+.detail-metric{border-color:var(--line)}
+.home-light .side.long{background:#163e36}.home-light .side.short{background:#4a2632}
+.home-light .bottom-nav{background:rgba(11,16,25,.97);border-color:var(--line)}
+.home-light .bottom-nav button.active{background:#20365a;color:#b8d0ff}
+.home-light .trial-paywall,.home-light .subscription-panel{background:#17243a;border-color:#304364}
+.home-light .referral-panel{background:#173027;border-color:#2b5a48}
+.home-light .secondary-button,.home-light #payment-copy{background:#243650;color:#b9d1ff;border-color:#36537d}
+.home-light .settings-form input[type=number],.home-light .settings-form .language-select,.home-light #payment-hash,.home-light #bingx-uid{background:#101927;border-color:var(--line-strong);color:var(--text)}
+.home-light .referral-form{border-color:#2b5a48}
+.home-light .signal-row .trade-state{background:var(--panel-2);color:var(--muted)}
+.home-light .signal-row .trade-state.active,.home-light .signal-row .trade-state.tp1_reached,.home-light .signal-row .trade-state.tp2_reached{background:#153e34;color:var(--green)}
+.home-light .signal-row .trade-state.stopped,.home-light .signal-row .trade-state.cancelled_before_entry{background:#4a2632;color:var(--red)}
+.home-light .payment-sheet{background:rgba(0,0,0,.7)}
+.home-light .payment-sheet .payment-panel{background:var(--panel);border:1px solid var(--line);box-shadow:0 24px 80px #0008}
+.home-light .payment-close{background:var(--panel-2)}
+.home-light #payment-state{background:#20365a;color:#c1d5ff}
+.home-light #payment-state[data-state=mismatch]{background:#4a2632;color:#ffb8c2}
+.home-light #payment-state[data-state=open],.home-light .payment-success{background:#173e33;color:#b4f1d7}
+.home-light .payment-network b,.home-light .payment-address code{background:#101927;color:var(--text);border-color:var(--line)}
+.home-light .toast{background:#e5ecf7;color:#111c2c}
+.home-light .trade-action{background:#153c32;border-color:#286c55}
+.home-light .trade-action.cancelled{background:#432630;border-color:#754150}
+.home-light .filter-row{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.home-light .filter-row::-webkit-scrollbar{display:none}
+.home-light .filter{flex:0 0 auto}
+.alert-body{margin:14px 0 26px;padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--panel)}
+.alert-body h1{margin:8px 0;font-size:25px;letter-spacing:-.03em}
+.alert-body .plan-levels{margin:18px 0;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+@media(hover:hover){.home-light .signal-row:hover,.home-light .icon-button:hover,.home-light .bottom-nav button:not(.active):hover{background:#202c3d;border-color:#40557a}}

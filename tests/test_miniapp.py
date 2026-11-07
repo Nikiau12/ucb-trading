@@ -80,6 +80,30 @@ def test_demo_profile_and_signal_history_are_available(demo_client):
     assert all(item["sizing"]["risk_usdt"] == pytest.approx(4.0) for item in signals.json())
 
 
+def test_informational_alert_is_visible_without_fabricated_position_size():
+    alert = {"id": 91, "source": "spike", "symbol": "ETH_USDT", "price": 3500,
+             "entry": 3500, "stop": None, "tp1": None}
+    result = miniapp.attach_personal_sizing(alert, {"deposit": 300, "risk_pct": 1, "leverage": 10})
+    assert result["id"] == 91
+    assert result["sizing"] is None
+    assert "NOT IN ('spike', 'smc', 'listing')" not in miniapp.REQUESTED_SIGNAL_SQL
+
+
+def test_dark_theme_and_alert_filters_are_wired():
+    root = ROOT_DIR / "miniapp" / "static"
+    html = (root / "index.html").read_text()
+    js = (root / "app.js").read_text()
+    dark = (root / "home-dark.css").read_text()
+    assert 'home-dark.css' in html
+    assert 'data-filter="SCALP"' in html
+    assert 'data-filter="SMC"' in html
+    assert 'data-filter="LISTING"' in html
+    assert '#alert-body' in js
+    assert "signals.filter(signal=>isUsdtPair(signal.symbol))" in js
+    assert "#101722" in js
+    assert "--bg:#0b1019" in dark
+
+
 @pytest.mark.parametrize("requested_symbol", ["HBAR_USDT", "BTC_USDT"])
 def test_requested_old_signal_is_added_only_through_user_access(
     monkeypatch, requested_symbol,
@@ -587,7 +611,7 @@ def test_remaining_interface_gaps_are_in_the_mini_app():
     assert "trade-levels" not in css
     assert "level-line" not in css
     assert "signal_id" in script
-    assert "setHeaderColor?.('#f5f7fb')" in script
+    assert "setHeaderColor?.('#0b1019')" in script
     assert "MainButton" not in script
     assert "setupClipboard" not in script
     assert "riskUsdt/distance" not in script
