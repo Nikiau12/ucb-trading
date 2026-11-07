@@ -7,10 +7,33 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from trading.scan_diagnostics import summarize_scan
+from trading import group_shadow
 
 
 def bind_background_loops(services) -> SimpleNamespace:
     """Build loops with the entrypoint's shared services resolved at call time."""
+
+    async def group_shadow_loop():
+        """Account for model signals separately from delivery and trade state."""
+        while True:
+            started = time.monotonic()
+            try:
+                loop = asyncio.get_running_loop()
+                summary = await loop.run_in_executor(None, lambda: group_shadow.sync_pending(limit=20))
+                services.st.record_runtime_health(
+                    "group_shadow", success=summary["market_data_errors"] == 0,
+                    duration_seconds=time.monotonic() - started, details=summary,
+                )
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                services.st.record_runtime_health(
+                    "group_shadow", success=False,
+                    duration_seconds=time.monotonic() - started,
+                    details={"error": type(exc).__name__},
+                )
+                services.logger.warning("group shadow accounting failed: %s", type(exc).__name__)
+            await asyncio.sleep(3600)
 
     async def account_tracker_loop():
         while True:
@@ -380,6 +403,7 @@ def bind_background_loops(services) -> SimpleNamespace:
 
     return SimpleNamespace(
         account_tracker_loop=account_tracker_loop,
+        group_shadow_loop=group_shadow_loop,
         plan_scanner_loop=plan_scanner_loop,
         signal_lifecycle_loop=signal_lifecycle_loop,
         listing_watcher_loop=listing_watcher_loop,

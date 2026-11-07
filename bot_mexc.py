@@ -962,6 +962,7 @@ async def _deliver_pending_signal_updates(loop) -> tuple[int, int]:
 
 _background_loops = bind_background_loops(sys.modules[__name__])
 account_tracker_loop = _background_loops.account_tracker_loop
+group_shadow_loop = _background_loops.group_shadow_loop
 plan_scanner_loop = _background_loops.plan_scanner_loop
 signal_lifecycle_loop = _background_loops.signal_lifecycle_loop
 listing_watcher_loop = _background_loops.listing_watcher_loop
@@ -996,10 +997,13 @@ async def main():
     t2 = asyncio.create_task(plan_scanner_loop())
     t3 = asyncio.create_task(listing_watcher_loop())
     t4 = asyncio.create_task(signal_lifecycle_loop())
+    t5 = asyncio.create_task(group_shadow_loop()) if database_url else None
     try:
         await dp.start_polling(bot_instance)
     finally:
         t1.cancel(); t2.cancel(); t3.cancel(); t4.cancel()
+        if t5 is not None:
+            t5.cancel()
         await exchange.close()
         await notifier.close()
         if lock is not None:
