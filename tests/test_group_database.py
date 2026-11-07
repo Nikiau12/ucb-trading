@@ -201,3 +201,64 @@ def test_scheduled_group_signal_is_persisted_delivered_and_accessible_without_au
         assert conn.execute("SELECT symbol FROM signal_alert_state").fetchone()[0]=="ETH_USDT"
         health=conn.execute("SELECT details FROM runtime_health WHERE component='plan_scanner'").fetchone()[0]
         assert health["strategy_version"]==VERSION and health["alerts_sent"]==1
+        journal=conn.execute("SELECT run_id,summary,decisions FROM scanner_runs").fetchone()
+        assert journal[1]["outcomes"]["candidate"]==1
+        assert journal[1]["signals_persisted"]==1
+        assert journal[2][0]["symbol"]=="ETH_USDT"
+        assert state.record_scan_run(journal[0],ScanClock.now(timezone.utc),journal[1],journal[2])
+        assert conn.execute("SELECT count(*) FROM scanner_runs").fetchone()[0]==1
+
+
+def test_scan_journal_report_is_versioned_and_read_only(database, monkeypatch, capsys):
+    import json
+    from trading.scan_diagnostics import main, summarize_scan
+    url, _ = database
+    for version in ("version-a", "version-b"):
+        summary, decisions = summarize_scan(["BTC_USDT"], [{"symbol": "BTC_USDT", "side": "skip",
+            "reasons": ["group_no_setup:daily_regime/daily_regime"]}], strategy_version=version)
+        assert state.record_scan_run(version, datetime.now(timezone.utc), summary, decisions)
+    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setattr("sys.argv", ["scan_diagnostics", "--hours", "24"])
+    main()
+    report = json.loads(capsys.readouterr().out)
+    assert report["unit"] == "scanner_attempts_not_trades"
+    assert {r["strategy_version"] for r in report["versions"]} == {"version-a", "version-b"}
+    assert all(r["runs"] == 1 and r["outcomes"]["no_setup"] == 1 for r in report["versions"])
+    with psycopg.connect(url) as conn:
+        assert conn.execute("SELECT count(*) FROM scanner_runs").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM signals").fetchone()[0] == 1  # Only legacy fixture.
+
+
+def test_outcome_cli_reads_only_new_strategy_lifecycle(database, monkeypatch, capsys):
+    import json
+    from trading.scan_diagnostics import main
+    url, legacy_id = database
+    with psycopg.connect(url) as conn:
+        for symbol, side, group, version, status, entry, tp1, tp2 in (
+            ("AVAX_USDT", "LONG", "l1", "v1", "stopped", True, False, False),
+            ("NEAR_USDT", "SHORT", "l1", "v2", "tp2_reached", True, True, True),
+            ("PAXG_USDT", "LONG", "rwa", "v1", "cancelled_before_entry", False, False, False),
+        ):
+            meta = {"version": version, "catalog_version": "catalog-2", "group": group}
+            signal_id = conn.execute("""INSERT INTO signals(symbol,side,confidence,strategy_metadata)
+                VALUES (%s,%s,0.8,%s::jsonb) RETURNING id""",
+                (symbol, side, json.dumps(meta))).fetchone()[0]
+            conn.execute("""INSERT INTO signal_lifecycle
+                (signal_id,status,entry_expires_at,entry_hit_at,tp1_hit_at,tp2_hit_at)
+                VALUES (%s,%s,NOW()+INTERVAL '1 hour',
+                        CASE WHEN %s THEN NOW() ELSE NULL END,
+                        CASE WHEN %s THEN NOW() ELSE NULL END,
+                        CASE WHEN %s THEN NOW() ELSE NULL END)""",
+                (signal_id, status, entry, tp1, tp2))
+    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setattr("sys.argv", ["scan_diagnostics", "--outcomes", "--hours", "24"])
+    main()
+    report = json.loads(capsys.readouterr().out)
+    assert report["overall"]["signals"] == 3 and report["overall"]["entered"] == 2
+    assert report["overall"]["buckets"] == {
+        "cancelled_before_entry": 1, "stop_before_tp1_model": 1, "tp2_model": 1,
+    }
+    assert {r["strategy_version"] for r in report["by_group_direction_version"]} == {"v1", "v2"}
+    with psycopg.connect(url) as conn:
+        assert conn.execute("SELECT status FROM signal_lifecycle WHERE signal_id=%s", (legacy_id,)).fetchone()[0] == "active"
+        assert conn.execute("SELECT count(*) FROM signals").fetchone()[0] == 4

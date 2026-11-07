@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import sys
 import threading
 import time
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Dict, Optional
 
 import requests
@@ -90,10 +92,14 @@ class BingxPublicClient:
         self._request_get = request_get
         self._lock = threading.Lock()
         self._last_request_at = 0.0
+        self._cooldown_until = 0.0
 
     def _wait_for_slot(self) -> None:
         with self._lock:
-            delay = self.min_interval - (self._clock() - self._last_request_at)
+            cooldown = self._cooldown_until - self._clock()
+            if cooldown > 30:
+                raise BingxAPIError("public request cooldown active", code=100410)
+            delay = max(cooldown, self.min_interval - (self._clock() - self._last_request_at))
             if delay > 0:
                 self._sleep(delay)
             self._last_request_at = self._clock()
@@ -102,12 +108,14 @@ class BingxPublicClient:
     def _payload_error(payload: Any) -> Optional[BingxAPIError]:
         if not isinstance(payload, dict):
             return BingxAPIError("unexpected BingX response")
-        raw_code = payload.get("code", 0)
+        raw_code = payload.get("code")
         try:
+            if isinstance(raw_code, bool) or not isinstance(raw_code, (int, str)):
+                raise ValueError("invalid code")
             code = int(raw_code)
         except (TypeError, ValueError):
-            code = None
-        if code not in (None, 0):
+            return BingxAPIError("missing or invalid BingX response code")
+        if code != 0:
             return BingxAPIError(
                 str(payload.get("msg") or payload.get("message") or "BingX API error"),
                 code=code,
@@ -117,12 +125,22 @@ class BingxPublicClient:
     @staticmethod
     def _retryable(exc: Exception) -> bool:
         if isinstance(exc, BingxAPIError):
+            # Official OpenAPI error reference: 100001 is a bad signature, NOT
+            # a rate limit. Permission/parameter errors must never be retried.
+            if exc.code in {100001, 100004, 100400, 100404, 100412, 100413,
+                            100419, 100421, 109400, 109403, 109425, 109429}:
+                return False
             message = str(exc).lower()
-            return "too many" in message or "frequent" in message or exc.code in {100001}
+            return exc.code in {100410, 100500, 109500, 109701} or any(
+                marker in message for marker in (
+                    "too many", "frequent", "rate limit", "system busy", "temporarily unavailable",
+                    "try again later", "retry later", "请稍后重试", "請稍後重試",
+                )
+            )
         if isinstance(exc, (requests.Timeout, requests.ConnectionError)):
             return True
         if isinstance(exc, requests.HTTPError) and exc.response is not None:
-            return exc.response.status_code == 429 or exc.response.status_code >= 500
+            return exc.response.status_code == 429 or 500 <= exc.response.status_code < 600
         return False
 
     def get(
@@ -148,7 +166,7 @@ class BingxPublicClient:
                     raise payload_error
                 return payload
             except Exception as exc:
-                if not self._retryable(exc) or attempt + 1 >= self.max_attempts:
+                if not self._retryable(exc):
                     raise
                 response = getattr(exc, "response", None)
                 retry_after = None
@@ -156,15 +174,29 @@ class BingxPublicClient:
                     try:
                         retry_after = float(response.headers.get("Retry-After", ""))
                     except (TypeError, ValueError):
-                        retry_after = None
+                        try:
+                            retry_after = parsedate_to_datetime(response.headers.get("Retry-After", "")).timestamp() - time.time()
+                        except (ValueError, TypeError, OverflowError):
+                            retry_after = None
+                if retry_after is not None and (not math.isfinite(retry_after) or retry_after < 0):
+                    retry_after = None
                 backoff = retry_after if retry_after is not None else min(8.0, 2.0 ** attempt)
+                with self._lock:
+                    self._cooldown_until = max(self._cooldown_until, self._clock() + backoff)
+                if backoff > 30:
+                    # Do not wait indefinitely, or retry earlier than the server
+                    # requested. Other scanner threads also respect the pause.
+                    raise
+                if attempt + 1 >= self.max_attempts:
+                    raise
                 logger.warning(
-                    "BingX transient request path=%s attempt=%s/%s retry_in=%.1fs: %s",
+                    "BingX transient request path=%s attempt=%s/%s retry_in=%.1fs error=%s code=%s",
                     path,
                     attempt + 1,
                     self.max_attempts,
                     backoff,
-                    exc,
+                    type(exc).__name__,
+                    getattr(exc, "code", getattr(response, "status_code", None)),
                 )
                 self._sleep(max(0.0, backoff))
         raise RuntimeError("unreachable")
@@ -221,16 +253,19 @@ def futures_contracts() -> Dict[str, Any]:
     with _CONTRACT_CACHE_LOCK:
         if time.time() - _CONTRACT_CACHE_TS <= CONTRACT_CACHE_TTL_SECONDS and _CONTRACT_CACHE:
             return {"code": 0, "msg": "", "data": list(_CONTRACT_CACHE.values())}
-    payload = http_get("/openApi/swap/v2/quote/contracts")
-    items = payload.get("data", []) if isinstance(payload, dict) else []
-    normalized = [
-        normalize_contract(item)
-        for item in items
-        if isinstance(item, dict)
-        and str(item.get("symbol") or item.get("displayName") or "").endswith("-USDT")
-        and is_crypto_contract(item)
-    ]
-    with _CONTRACT_CACHE_LOCK:
+        # Single-flight cache fill: concurrent scanner workers must not all
+        # request this rate-limited, identical whole-exchange response.
+        payload = http_get("/openApi/swap/v2/quote/contracts")
+        items = payload.get("data", []) if isinstance(payload, dict) else []
+        normalized = [
+            normalize_contract(item)
+            for item in items
+            if isinstance(item, dict)
+            and str(item.get("symbol") or item.get("displayName") or "").endswith("-USDT")
+            and is_crypto_contract(item)
+        ]
+        if not normalized:
+            raise BingxAPIError("empty BingX contract response")
         _CONTRACT_CACHE = {item["symbol"]: item for item in normalized}
         _CONTRACT_CACHE_TS = time.time()
     return {"code": 0, "msg": "", "data": normalized}
@@ -370,6 +405,20 @@ def build_snapshot(symbol: str) -> dict:
         "kline_1d": futures_kline(internal_symbol, "1d", 200),
         "stale": False,
     }
+
+
+def build_group_snapshot(symbol: str) -> dict:
+    """Fresh metadata/ticker only; group_plan owns shared closed-4H history.
+
+    The group engine derives 1D context from complete 4H candles. Fetching the
+    legacy 200x1H/4H/1D set first was redundant. No stale disk fallback here.
+    Legacy snapshot callers retain their original data shape and behaviour.
+    """
+    symbol = to_internal_symbol(symbol)
+    observed_at = int(time.time() * 1000)
+    return {"ts": observed_at, "exchange": "bingx", "symbol": symbol,
+            "contract": futures_contract_detail(symbol), "ticker": futures_ticker(symbol),
+            "stale": False}
 
 
 def build_snapshot_with_fallback(symbol: str) -> dict:

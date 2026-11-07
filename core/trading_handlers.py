@@ -64,7 +64,7 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
         status_msg = await message.reply(services._t(lang, "plan_loading", symbol=html.escape(symbol)), parse_mode="HTML")
         try:
             loop     = asyncio.get_event_loop()
-            snapshot = await loop.run_in_executor(None, services.snap.build_snapshot_with_fallback, symbol)
+            snapshot = await loop.run_in_executor(None, services.snap.build_group_snapshot, symbol)
             plan = await loop.run_in_executor(
                 None, lambda: services.core_plan.make_plan(
                     snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin,

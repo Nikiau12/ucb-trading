@@ -311,6 +311,57 @@ See the full [evaluation report](docs/EVALUATION_REPORT.md) and
 - Production deployment, monitoring, and database provisioning are
   environment-specific.
 
+## Group coverage and scanner diagnostics
+
+The runtime catalog extends the frozen 89-instrument research catalog with 22
+reviewed exact BingX contracts. Review sources and deliberately pending mappings
+are recorded in `trading/asset_group_extensions.json`. `group_catalog.py`
+validates scanner/server membership; Node tests check browser parity. Numerical
+contract prefixes are never stripped and prices are never rescaled by grouping.
+The current 16 groups, entry/exit thresholds, top-100-cap selection and existing
+trades are unchanged. Classification does not certify liquidity or profitability.
+
+Research files are not edited to add runtime coins. Existing instruments still
+use the frozen candidate implementation and decision identity. The extension
+adapter mirrors the same decision rules with parity tests and shares the frozen
+indicator/price-geometry functions. New signals record the catalog version/hash.
+
+Group snapshots fetch fresh contract/ticker data, then reuse closed-4H history
+within the same decision window. Complete UTC days supply the 1D context; there
+is no redundant 1H/1D candle download or stale disk fallback in this path.
+Minute candles remain execution-path evidence, not a strategy timeframe.
+Public retries follow the [BingX error reference](https://github.com/BingX-API/api-ai-skills/blob/main/skills/references/error-codes.md):
+bad signatures/permissions/parameters are permanent; busy/rate/network errors
+have bounded backoff. Long server cooldowns pause requests rather than blocking
+the worker indefinitely. Public calls never carry private API credentials.
+
+Migration `013_scanner_runs.sql` only creates an operational journal; it does not
+update existing signals, users or lifecycle rows. Each hourly scanner run records
+per-group outcomes and sanitized per-symbol decisions: candidate, no setup,
+catalog review, market rejection, or unavailable data. Missing results are
+failures, not successful no-setups. `completed` includes catalog-review skips;
+`strategy_evaluated` excludes them and unavailable data. Journal writes cannot change a trading
+decision; failed writes and partial scans are visible in `runtime_health`.
+
+Read-only diagnostic commands (no orders, notifications or signal persistence):
+
+```bash
+python -m trading.scan_diagnostics --live-universe
+python -m trading.scan_diagnostics --dry-scan
+python -m trading.scan_diagnostics --hours 24
+python -m trading.scan_diagnostics --outcomes --hours 24
+```
+
+The last two commands use `DATABASE_URL` in a read-only transaction. The journal
+groups by strategy **and** catalog version; its counts are scanner attempts, not
+unique trades. The outcome command separately counts distinct new-strategy
+signals by group, direction and version: cancellations/expired before entry,
+stops before TP1, TP1 then model stop, model TP2, and still-open signals. Its
+`entered` denominator excludes setups never entered. A TP1-then-stop label
+describes **modelled** break-even management, not an actual user's stop order.
+Neither report proves fills, after-cost PnL, profitability or win rate. Funding,
+user execution and net return analysis remain separate work.
+
 ## Portfolio context
 
 UCB Trading is an end-to-end product case spanning product design, Telegram UX,

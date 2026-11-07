@@ -8,19 +8,21 @@ const context={window:{}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'miniapp/static/asset-groups.js'),'utf8'),context);
 const catalog=context.window.AssetGroups;
 
-test('the display snapshot retains 16 groups and 89 unique contracts',()=>{
-  assert.equal(catalog.version,'2026-11-07-v1');
+test('the runtime catalog retains 16 groups and expands to 111 reviewed contracts',()=>{
+  assert.equal(catalog.version,'2026-11-07-runtime-2');
   assert.equal(catalog.groups.length,16);
   assert.deepEqual(Array.from(catalog.groups.slice(0,3),group=>group.id),['core_btc','core_eth','core_sol']);
   const symbols=Array.from(catalog.groups).flatMap(group=>Array.from(group.symbols));
-  assert.equal(symbols.length,89);
-  assert.equal(new Set(symbols).size,89);
+  assert.equal(symbols.length,111);
+  assert.equal(new Set(symbols).size,111);
   for(const group of catalog.groups)for(const symbol of group.symbols)assert.equal(catalog.classify(symbol),group.id);
 });
 test('supported exchange formats normalize without losing contract units',()=>{
   for(const symbol of ['BTC_USDT','BTC-USDT','BTC/USDT:USDT','BTCUSDT',' btc_usdt '])assert.equal(catalog.classify(symbol),'core_btc');
   assert.equal(catalog.classify('1000PEPE_USDT'),'meme');
   assert.equal(catalog.classify('1000BONK-USDT'),'meme');
+  assert.equal(catalog.classify('1000SHIB-USDT'),'meme');
+  assert.equal(catalog.classify('SHIB_USDT'),'ungrouped');
   assert.equal(catalog.classify('PEPE_USDT'),'ungrouped');
   assert.equal(catalog.classify('BONK_USDT'),'ungrouped');
   assert.equal(catalog.classify('BTC_USDC'),'ungrouped');
@@ -67,4 +69,13 @@ test('display catalog is loaded before the app and new assets are versioned',()=
 test('server and browser use the exact same group membership',()=>{
   const server=JSON.parse(fs.readFileSync(path.join(root,'miniapp/asset_groups.json'),'utf8'));
   assert.deepEqual(Object.fromEntries(Array.from(catalog.groups,g=>[g.id,Array.from(g.symbols)])),server);
+});
+
+test('research baseline stays frozen and pending reviews are not silently enabled',()=>{
+  const frozen=JSON.parse(fs.readFileSync(path.join(root,'evaluation/asset_groups.v1.json'),'utf8'));
+  const review=JSON.parse(fs.readFileSync(path.join(root,'trading/asset_group_extensions.json'),'utf8'));
+  assert.equal(frozen.groups.flatMap(g=>g.symbols).length,89);
+  for(const group of frozen.groups)for(const symbol of group.symbols)assert.equal(catalog.classify(symbol),group.id);
+  for(const row of review.additions)assert.equal(catalog.classify(row.symbol),row.group);
+  for(const symbol of Object.keys(review.pending))assert.equal(catalog.classify(symbol),'ungrouped');
 });
