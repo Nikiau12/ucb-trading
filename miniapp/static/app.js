@@ -62,7 +62,16 @@ const brandCredits={
 };
 for(const [lang,credit] of Object.entries(brandCredits))translations[lang].brandCredit=credit;
 
-let profile=null,signals=[],language='en',activeFilter='ALL',selectedSignal=null;
+const groupFilterCopy={
+  en:{coinGroup:'Coin group',allGroups:'All groups',resetFilters:'Reset filters',groupFilterNote:'Filters only change this list, not bot notifications.',filteredSignalCount:'Showing {shown} of {total} loaded signals',noMatchingSignals:'No signals match these filters.'},
+  ru:{coinGroup:'Группа монет',allGroups:'Все группы',resetFilters:'Сбросить фильтры',groupFilterNote:'Фильтры меняют только список, не уведомления бота.',filteredSignalCount:'Показано {shown} из {total} загруженных сигналов',noMatchingSignals:'По выбранным фильтрам сигналов нет.'},
+  de:{coinGroup:'Coin-Gruppe',allGroups:'Alle Gruppen',resetFilters:'Filter zurücksetzen',groupFilterNote:'Filter ändern nur diese Liste, nicht die Bot-Benachrichtigungen.',filteredSignalCount:'{shown} von {total} geladenen Signalen angezeigt',noMatchingSignals:'Keine Signale für diese Filter.'},
+  fr:{coinGroup:'Groupe de monnaies',allGroups:'Tous les groupes',resetFilters:'Réinitialiser les filtres',groupFilterNote:'Les filtres modifient uniquement cette liste, pas les notifications du bot.',filteredSignalCount:'{shown} signaux affichés sur {total} chargés',noMatchingSignals:'Aucun signal ne correspond à ces filtres.'},
+  es:{coinGroup:'Grupo de monedas',allGroups:'Todos los grupos',resetFilters:'Restablecer filtros',groupFilterNote:'Los filtros solo cambian esta lista, no las notificaciones del bot.',filteredSignalCount:'Mostrando {shown} de {total} señales cargadas',noMatchingSignals:'No hay señales con estos filtros.'}
+};
+for(const [lang,copy] of Object.entries(groupFilterCopy))Object.assign(translations[lang],copy);
+
+let profile=null,signals=[],language='en',activeFilter='ALL',activeGroup='ALL',selectedSignal=null;
 const pinnedNoSetup=(()=>{const raw=new URLSearchParams(window.location.search).get('no_setup')||'';const symbol=raw.trim().toUpperCase();return /^[A-Z0-9]{2,20}_USDT$/.test(symbol)?symbol:'';})();
 const HOME_CHART_SYMBOL='BTC_USDT';
 const CHART_INTERVAL_SECONDS={'15m':900,'1h':3600,'4h':14400,'1d':86400};
@@ -260,12 +269,13 @@ function signalCard(signal){
   const symbol=escapeHtml(displaySymbol(signal.symbol));
   const state=signalStatus(signal);
   const alert=!isSetup(signal);
+  const group=AssetGroups.classify(signal.symbol,signal.asset_type);
   const direction=signal.source==='listing'?'':`<span class="side ${side.toLowerCase()}">${side}</span>`;
-  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${alert?escapeHtml(alertLabel(signal)):escapeHtml(state.label||signalAge(signal))}</small></button>`;
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}" data-group="${group}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${alert?escapeHtml(alertLabel(signal)):escapeHtml(state.label||signalAge(signal))}</small><span class="signal-group-badge">${escapeHtml(AssetGroups.label(group,language))}</span></button>`;
 }
 
 function emptySignals(filterOnly){
-  const reason=filterOnly?tr('filterEmpty').split('{side}').join(activeFilter):tr('scannerSilent');
+  const reason=filterOnly?tr('noMatchingSignals'):tr('scannerSilent');
   const action=filterOnly?'':`<button type="button" class="primary-button empty-action" data-empty-action="plan">${escapeHtml(tr('requestPlan'))}</button>`;
   return `<div class="empty-state"><p>${escapeHtml(reason)}</p><p>${escapeHtml(lastScanLine())}</p>${action}</div>`;
 }
@@ -350,9 +360,29 @@ function syncSymbolPicker(){
   picker.innerHTML=symbols.map(symbol=>`<button type="button" data-symbol="${escapeHtml(symbol)}" class="${symbol===overviewSymbol?'selected':''}">${escapeHtml(coinBase(symbol))}</button>`).join('');
 }
 
+function renderSignalFilters(shown){
+  const picker=$('#signal-group');
+  if(picker&&picker.dataset.language!==language){
+    const options=[['ALL',tr('allGroups')],...AssetGroups.groups.map(group=>[group.id,AssetGroups.label(group.id,language)]),['ungrouped',AssetGroups.label('ungrouped',language)]];
+    picker.innerHTML=options.map(([value,label])=>`<option value="${value}">${escapeHtml(label)}</option>`).join('');
+    picker.dataset.language=language;
+  }
+  if(picker)picker.value=activeGroup;
+  const reset=$('#reset-signal-filters');
+  if(reset)reset.hidden=activeGroup==='ALL'&&activeFilter==='ALL';
+  document.querySelectorAll('[data-filter]').forEach(button=>{
+    const selected=button.dataset.filter===activeFilter;
+    button.classList.toggle('selected',selected);
+    button.setAttribute('aria-pressed',String(selected));
+  });
+  const count=$('#signal-filter-count');
+  if(count)count.textContent=tr('filteredSignalCount').replace('{shown}',String(shown)).replace('{total}',String(signals.length));
+}
+
 function renderSignals(){
-  const filtered=signals.filter(signal=>activeFilter==='ALL'||signal.side===activeFilter||(activeFilter==='SETUP'&&isSetup(signal))||(activeFilter==='SCALP'&&signal.source==='spike')||signal.source===activeFilter.toLowerCase());
-  const filterOnly=activeFilter!=='ALL'&&signals.length>0;
+  const filtered=signals.filter(signal=>AssetGroups.matches(signal,activeGroup)&&(activeFilter==='ALL'||signal.side===activeFilter||(activeFilter==='SETUP'&&isSetup(signal))||(activeFilter==='SCALP'&&signal.source==='spike')||signal.source===activeFilter.toLowerCase()));
+  const filterOnly=activeFilter!=='ALL'||activeGroup!=='ALL';
+  renderSignalFilters(filtered.length);
   const history=$('#signal-history');
   if(history)history.innerHTML=filtered.length?filtered.map(signalCard).join(''):emptySignals(filterOnly);
   syncSymbolPicker();
@@ -722,7 +752,9 @@ async function refreshLiveData(){
 }
 document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',async()=>{showView(button.dataset.target);if(button.dataset.target==='overview'&&chartFollowsSelectedSignal){chartFollowsSelectedSignal=false;selectedSignal=preferredSignal();selectTimeframe('4h');renderHome();await loadHomeChart();}}));
 document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.go)));
-document.querySelectorAll('.filter').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;document.querySelectorAll('.filter').forEach(item=>item.classList.toggle('selected',item===button));renderSignals()}));
+document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;renderSignals()}));
+$('#signal-group').addEventListener('change',event=>{activeGroup=event.target.value;renderSignals()});
+$('#reset-signal-filters').addEventListener('click',()=>{activeGroup='ALL';activeFilter='ALL';renderSignals()});
 const symbolPicker=$('#symbol-picker');
 if(symbolPicker)symbolPicker.addEventListener('click',async event=>{const button=event.target.closest('button[data-symbol]');if(!button)return;overviewSymbol=button.dataset.symbol;document.querySelectorAll('#symbol-picker button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()});
 document.querySelectorAll('#overview-timeframe button').forEach(button=>button.addEventListener('click',async()=>{overviewTimeframe=button.dataset.timeframe;document.querySelectorAll('#overview-timeframe button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()}));
