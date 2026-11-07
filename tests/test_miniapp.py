@@ -111,7 +111,7 @@ def test_brand_credit_is_inside_app_and_localized():
     css = (root / "home-dark.css").read_text()
     assert 'class="brand-credit" data-i18n="brandCredit"' in html
     assert html.index('data-target="settings"') < html.index('class="brand-credit"') < html.index("</nav>")
-    assert "ru:'Сделано на диджитал бюро YoBig'" in js
+    assert "ru:'Сделано диджитал бюро YoBig'" in js
     assert all(f"{lang}:" in js.split("const brandCredits={", 1)[1].split("};", 1)[0]
                for lang in ("en", "ru", "de", "fr", "es"))
     assert ".home-light .brand-credit" in css

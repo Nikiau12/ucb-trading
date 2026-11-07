@@ -55,7 +55,7 @@ const taglines={
 
 const brandCredits={
   en:'Made by YoBig Digital Bureau',
-  ru:'Сделано на диджитал бюро YoBig',
+  ru:'Сделано диджитал бюро YoBig',
   de:'Entwickelt vom Digitalbüro YoBig',
   fr:'Créé par le bureau digital YoBig',
   es:'Creado por el estudio digital YoBig'

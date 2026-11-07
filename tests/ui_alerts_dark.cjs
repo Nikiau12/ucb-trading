@@ -37,7 +37,7 @@ const alerts=[
     assert.match(await page.locator('#alert-note').textContent(),/не готовый торговый план/);
     assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(11, 16, 25)');
     assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#chart')).touchAction),'none');
-    assert.equal(await page.locator('.brand-credit').textContent(),'Сделано на диджитал бюро YoBig');
+    assert.equal(await page.locator('.brand-credit').textContent(),'Сделано диджитал бюро YoBig');
     await page.click('[data-target=signals]');
     for(const [filter,count] of [['ALL',4],['SETUP',1],['SCALP',1],['SMC',1],['LISTING',1],['LONG',3],['SHORT',1]]){
       await page.click(`[data-filter="${filter}"]`);
@@ -53,7 +53,7 @@ const alerts=[
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.click('[data-target=settings]');
     for(const [lang,copy] of Object.entries({
-      ru:'Сделано на диджитал бюро YoBig',
+      ru:'Сделано диджитал бюро YoBig',
       en:'Made by YoBig Digital Bureau',
       de:'Entwickelt vom Digitalbüro YoBig',
       fr:'Créé par le bureau digital YoBig',
