@@ -151,6 +151,9 @@ def check_unused_trigger(plan, now, current):
     expected = list(range(plan["signal_time"], now//60*60, 60))
     if [b.ts for b in relevant if b.ts+60<=now] != expected:
         raise ValueError("group_trigger_path_missing")
+    if not relevant or relevant[-1].ts != now//60*60:
+        # A cached ticker cannot rule out a wick in the current minute.
+        raise ValueError("group_current_minute_missing")
     for bar in relevant:
         if (bar.h >= plan["entry"] or bar.l <= plan["stop"]) if sign==1 else (bar.l <= plan["entry"] or bar.h >= plan["stop"]):
             raise ValueError("group_trigger_already_used_or_invalidated")

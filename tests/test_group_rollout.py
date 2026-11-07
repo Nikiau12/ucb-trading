@@ -49,6 +49,7 @@ class PublicFixture:
         if self.mutation=="gap": rows.pop(1)
         if self.mutation=="entry": rows[1]["high"]=100
         if self.mutation=="stop": rows[1]["low"]=95
+        if self.mutation=="forming": rows.pop()
         return {"data": rows}
 
     def futures_ticker(self, symbol):
@@ -89,7 +90,7 @@ def test_every_group_routes_with_its_own_policy_and_contract_sizing(market, symb
     assert not group.plan_payload_errors(result)
 
 
-@pytest.mark.parametrize("mutation", ["gap","entry","stop"])
+@pytest.mark.parametrize("mutation", ["gap","entry","stop","forming"])
 def test_used_or_unknown_trigger_path_is_never_published(market, mutation):
     market.mutation=mutation
     result=group.make_plan(snapshot(),300,2,10,"cross",now=NOW)
