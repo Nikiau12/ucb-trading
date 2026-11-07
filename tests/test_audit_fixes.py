@@ -156,7 +156,7 @@ def test_html_renderers_escape_interpolated_values():
     assert "80%" in rendered
     assert "━━━━" not in plan_text
     assert "/ 1.0" not in alert
-    assert len(alert.splitlines()) <= 8
+    assert alert == plan_text
 
 
 def test_confidence_percent_is_one_scale():
@@ -180,7 +180,7 @@ def test_confidence_percent_is_one_scale():
     assert "78%" in rendered
     assert "78%" not in plan_text
     assert "0.78" not in alert
-    assert len(alert.splitlines()) <= 8
+    assert alert == plan_text
     assert "/ 1.0" not in alert
     isolated = dict(plan, margin="isolated")
     named = render_telegram_plan(isolated, deposit=1000, risk_pct=1, lang="en")
@@ -293,7 +293,7 @@ def test_russian_setup_uses_panel_words_without_english_tokens():
     assert "entry" not in lowered
     assert "midrange" not in lowered
     assert "deposit" not in lowered
-    assert len(text.splitlines()) <= 8
+    assert text == plan_text
     assert "entry" not in plan_text.lower()
     assert "midrange" not in plan_text.lower()
     assert "━━━━" not in plan_text
@@ -398,11 +398,11 @@ def test_plan_message_is_a_trade_ticket():
     source = (ROOT / "core" / "trading_handlers.py").read_text(encoding="utf-8")
     plan_fn = source.split("async def cmd_plan", 1)[1].split("async def cmd_set", 1)[0]
     assert "render_setup(" in plan_fn
-    assert "_open_setup_keyboard" in plan_fn
+    assert "_trade_keyboard" in plan_fn
     assert "render_scan_card(" not in plan_fn
 
 
-def test_scan_card_is_six_lines_and_opens_one_signal():
+def test_scan_card_uses_the_common_trade_ticket_and_opens_one_signal():
     plan = {
         "symbol": "BTC_USDT",
         "price": 100,
@@ -416,7 +416,7 @@ def test_scan_card_is_six_lines_and_opens_one_signal():
     }
     text = render_scan_card(plan, "BTC_USDT", "LONG", 1000, 1, 10, lang="ru")
     lines = text.splitlines()
-    assert len(lines) <= 6
+    assert text == render_setup(plan, "BTC_USDT", "LONG", 0, 1000, 1, 10, lang="ru")
     assert lines[0] == "<b>BTC_USDT</b> LONG"
     assert "Вход" in text
     assert "Стоп" in text
@@ -433,14 +433,14 @@ def test_scan_card_is_six_lines_and_opens_one_signal():
     digest = bot_source.split("async def _run_digest", 1)[1].split("async def _fetch_mtf", 1)[0]
     assert "render_scan_card(" in scan or "_send_plan_and_record" in scan
     assert "render_scan_card(" in digest
-    assert "_open_setup_keyboard" in digest
+    assert "_trade_keyboard" in digest
     assert "🟩" not in digest
     assert "render_setup(" not in digest
 
 
 def test_paid_feed_is_scanner_only_and_trial_feed_is_granted_only():
     assert "source = 'scanner'" in miniapp.PAID_SIGNALS_SQL
-    assert "s.source <> 'scanner'" in miniapp.PAID_SIGNALS_SQL
+    assert "s.source NOT IN ('scanner', 'spike', 'smc', 'scalp')" in miniapp.PAID_SIGNALS_SQL
     assert "user_signal_access" in miniapp.PAID_SIGNALS_SQL
     assert "user_signal_access" in miniapp.TRIAL_SIGNALS_SQL
     assert "source = 'scanner'" not in miniapp.TRIAL_SIGNALS_SQL

@@ -53,6 +53,14 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
             await message.reply(services._t(lang, "plan_usage"), parse_mode="HTML")
             return
 
+        try:
+            allowed = await asyncio.to_thread(services.snap.top_symbols_by_market_cap, 100)
+        except Exception:
+            await message.reply(services.personal_text(lang, 'universe_unavailable'))
+            return
+        if symbol not in allowed or not services.st.user_accepts_symbol(uid, symbol):
+            await message.reply(services.personal_text(lang, 'outside_selection'))
+            return
         status_msg = await message.reply(services._t(lang, "plan_loading", symbol=html.escape(symbol)), parse_mode="HTML")
         try:
             loop     = asyncio.get_event_loop()
@@ -72,7 +80,7 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
                 if signal_id:
                     services.st.grant_signal_access(uid, signal_id)
                     text = services._with_signal_identity(text, signal_id, symbol, side, lang)
-                markup = services._open_setup_keyboard(signal_id, lang)
+                markup = services._trade_keyboard(signal_id, lang)
             await status_msg.edit_text(
                 text,
                 parse_mode="HTML",
@@ -116,6 +124,11 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
                 else:
                     await message.reply(services._t(lang, "set_invalid", key=html.escape(key)), parse_mode="HTML")
                 return
+            if storage_key == 'deposit' and services.st._db_ready():
+                with services.st.psycopg.connect(services.st.DATABASE_URL) as connection:
+                    if services.st.accounts.account_status(connection, uid)['connected']:
+                        await message.reply(services.personal_text(lang, 'balance_managed'))
+                        return
             services.st.set_user_setting(uid, storage_key, value)
         if services._has_saved_deposit(uid):
             services.access_manager.ensure_user(str(uid))
@@ -140,7 +153,7 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
         text    += services._t(lang, "settings_margin", val=html.escape(str(settings["margin"])))
         text    += services._t(lang, "settings_change")
         text    += "\n\n━━━━━━━━━━━━━━━━\n" + services._access_status_text(str(uid), lang)
-        await message.reply(text, parse_mode="HTML")
+        await message.reply(text, parse_mode="HTML", reply_markup=services._settings_keyboard(lang))
 
 
     @router.message(Command("scan"))
@@ -165,8 +178,8 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
         )
         loop = asyncio.get_event_loop()
         try:
-            top_symbols = await loop.run_in_executor(None, services.snap.top_symbols_by_volume, services.SCAN_CFG["top_n_symbols"])
-            symbols = services._scan_symbols(top_symbols)
+            top_symbols = await loop.run_in_executor(None, services.snap.top_symbols_by_market_cap, services.SCAN_CFG["top_n_symbols"])
+            symbols = [s for s in services._scan_symbols(top_symbols) if services.st.user_accepts_symbol(uid, s)]
             results = await loop.run_in_executor(
                 None,
                 lambda: services.sc.scan_all(

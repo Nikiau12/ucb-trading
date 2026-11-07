@@ -136,8 +136,8 @@ def render_setup(
     lang: str = "en",
     uses_reference_deposit: bool = False,
 ) -> str:
-    """Trade ticket for /plan. The long reason list stays on the Mini App."""
-    del conf, uses_reference_deposit
+    """Shared trade ticket for manual plans, scan results and automatic signals."""
+    del conf
     primary = plan.get("primary") or {}
     targets = primary.get("tps") or []
     entry = primary.get("entry")
@@ -147,11 +147,15 @@ def render_setup(
     price_unit = primary.get("price_unit")
     direction = str(side or "").upper()
     position_usdt = None
+    sizing_errors = []
+    leverage_limited = False
     try:
         sizing = position_size_for_contract(
             primary, float(entry), float(stop), float(deposit), float(risk_pct), float(leverage)
         )
         position_usdt = sizing["position_usdt"]
+        sizing_errors = sizing["errors"]
+        leverage_limited = sizing["effective_leverage"] < sizing["requested_leverage"]
     except (TypeError, ValueError, ZeroDivisionError, KeyError):
         pass
     reasons = primary.get("reasons") or plan.get("reasons") or []
@@ -171,6 +175,12 @@ def render_setup(
         lines.append(ratio)
     if why:
         lines.append(why)
+    if "position_below_min_contract" in sizing_errors or "position_below_min_notional" in sizing_errors:
+        lines.append(_t(lang, "alert_min_contract"))
+    elif leverage_limited:
+        lines.append(_t(lang, "alert_lev_capped"))
+    if uses_reference_deposit:
+        lines.append(_t(lang, "alert_reference"))
     return "\n".join(lines)
 
 
@@ -186,42 +196,9 @@ def render_alert_block(
     lang: str = "en",
     uses_reference_deposit: bool = False,
 ) -> str:
-    """At most eight lines for an auto-alert, scan row, or digest row.
-
-    The longer plan, including the size disclaimer, stays on the plan screen.
-    """
-    del conf, uses_reference_deposit
-    primary = plan.get("primary") or {}
-    targets = primary.get("tps") or []
-    entry = primary.get("entry")
-    stop = primary.get("stop")
-    tp1 = targets[0]["price"] if targets else None
-    price_unit = primary.get("price_unit")
-    direction = str(side or "").upper()
-    position_usdt = None
-    leverage_limited = False
-    sizing_errors: list = []
-    try:
-        sizing = position_size_for_contract(
-            primary, float(entry), float(stop), float(deposit), float(risk_pct), float(leverage)
-        )
-        position_usdt = sizing["position_usdt"]
-        leverage_limited = sizing["effective_leverage"] < sizing["requested_leverage"]
-        sizing_errors = sizing["errors"]
-    except (TypeError, ValueError, ZeroDivisionError, KeyError):
-        pass
-    lines = [
-        f"<b>{_esc(symbol)}</b> {_esc(direction)}",
-        f"{_t(lang, 'alert_entry')}: <code>{_esc(_fmt_price(entry, price_unit))}</code>",
-        f"{_t(lang, 'alert_stop')}: <code>{_esc(_fmt_price(stop, price_unit))}</code>",
-        f"TP1: <code>{_esc(_fmt_price(tp1, price_unit))}</code>",
-        f"{_t(lang, 'alert_position')}: <b>{_fmt_usdt(position_usdt)} USDT</b>",
-    ]
-    if "position_below_min_contract" in sizing_errors:
-        lines.append(_t(lang, "alert_min_contract"))
-    elif leverage_limited:
-        lines.append(_t(lang, "alert_lev_capped"))
-    return "\n".join(lines[:8])
+    """Automatic signals use the same fields and ordering as manual plans."""
+    return render_setup(plan, symbol, side, conf, deposit, risk_pct, leverage,
+                        lang=lang, uses_reference_deposit=uses_reference_deposit)
 
 
 def _reward_risk(entry, stop, tp1) -> str | None:
@@ -245,31 +222,5 @@ def render_scan_card(
     *,
     lang: str = "en",
 ) -> str:
-    """One futures card for /scan and /digest: at most six lines."""
-    primary = plan.get("primary") or {}
-    targets = primary.get("tps") or []
-    entry = primary.get("entry")
-    stop = primary.get("stop")
-    tp1 = targets[0]["price"] if targets else None
-    price_unit = primary.get("price_unit")
-    direction = str(side or "").upper()
-    position_usdt = None
-    try:
-        sizing = position_size_for_contract(
-            primary, float(entry), float(stop), float(deposit), float(risk_pct), float(leverage)
-        )
-        position_usdt = sizing["position_usdt"]
-    except (TypeError, ValueError, ZeroDivisionError, KeyError):
-        pass
-    lines = [
-        f"<b>{_esc(symbol)}</b> {_esc(direction)}",
-        f"{_t(lang, 'alert_entry')}: <code>{_esc(_fmt_price(entry, price_unit))}</code>",
-        f"{_t(lang, 'alert_stop')}: <code>{_esc(_fmt_price(stop, price_unit))}</code>",
-        f"TP1: <code>{_esc(_fmt_price(tp1, price_unit))}</code>",
-    ]
-    ratio = _reward_risk(entry, stop, tp1)
-    if ratio:
-        lines.append(ratio)
-    if position_usdt is not None:
-        lines.append(f"{_t(lang, 'alert_position')}: <b>{_fmt_usdt(position_usdt)} USDT</b>")
-    return "\n".join(lines[:6])
+    """Scan/digest signals use the same trade ticket as /plan."""
+    return render_setup(plan, symbol, side, 0, deposit, risk_pct, leverage, lang=lang)

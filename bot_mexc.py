@@ -35,8 +35,6 @@ from aiogram.types import (
 
 # ── старые модули ──
 from bingx.exchange_client_bingx import ExchangeClient
-from core.smc_analyzer import SMCAnalyzer
-from core.spike_scanner import SpikeScanner
 from core.notifier import Notifier
 from core.smart_engine import SmartContextEngine, SignalType, MTFFusionEngine
 from core.coin_info_service import CoinInfoService
@@ -81,6 +79,9 @@ from signal_updates import (
     signal_identity_footer,
 )
 from trading.notification_delivery import deliver_pending_signal_updates
+from trading.personal_notifications import personal_text, render_unpriced_signal
+from miniapp.tracking import TrackingError
+from core.personal_handlers import bind_personal_handlers
 from setup_text import no_setup_query, render_scan_card, render_setup, signal_query
 from user_input import (
     asks_for_plan_scan,
@@ -158,8 +159,6 @@ active_users = set()
 
 # ── старые сервисы ──
 exchange        = ExchangeClient()
-smc_analyzer    = SMCAnalyzer()
-spike_scanner   = SpikeScanner()
 smart_engine    = SmartContextEngine()
 mtf_engine      = MTFFusionEngine()
 coin_info_svc   = CoinInfoService()
@@ -376,6 +375,16 @@ def _open_setup_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup | None:
     ]])
 
 
+def _trade_keyboard(signal_id, lang, active=False):
+    rows = []
+    if MINI_APP_URL and signal_id:
+        rows.append([_webapp_button(lang, 'open_setup', _signal_app_url(int(signal_id)))])
+    if signal_id:
+        action = 'exit' if active else 'enter'
+        rows.append([InlineKeyboardButton(text=personal_text(lang, action), callback_data=f'trade:{action}:{int(signal_id)}')])
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
 def _with_signal_identity(text: str, signal_id, symbol: str, side: str, lang: str) -> str:
     if not signal_id:
         return text
@@ -389,7 +398,7 @@ def _alert_keyboard(signal_id, lang: str) -> InlineKeyboardMarkup:
     if MINI_APP_URL and signal_id:
         row.append(_webapp_button(lang, "open_setup", _signal_app_url(int(signal_id))))
     row.append(InlineKeyboardButton(text=_t(lang, "alert_later"), callback_data="alert_later"))
-    return InlineKeyboardMarkup(inline_keyboard=[row])
+    return _trade_keyboard(signal_id, lang)
 
 
 def _ready_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -494,7 +503,7 @@ def norm_sym(s: str) -> str:
 def _scan_symbols(symbols: list[str]) -> list[str]:
     seen = set()
     ordered = []
-    for symbol in [*MAJOR_SCAN_SYMBOLS, *symbols]:
+    for symbol in symbols:
         normalized = norm_sym(str(symbol))
         if normalized in seen or not _is_usdt_pair(normalized):
             continue
@@ -589,6 +598,14 @@ async def _finish_callback(callback: types.CallbackQuery, text: str | None = Non
 
 
 async def require_deposit(message: types.Message) -> bool:
+    try:
+        connected_balance = await asyncio.to_thread(st.refresh_user_balance, message.from_user.id)
+        if connected_balance == 0:
+            await message.reply(personal_text(get_lang(message.from_user.id), 'empty_balance'))
+            return False
+    except Exception:
+        await message.reply(personal_text(get_lang(message.from_user.id), 'balance_unavailable'), reply_markup=_settings_keyboard(get_lang(message.from_user.id)))
+        return False
     if _has_saved_deposit(message.from_user.id):
         return True
     lang = get_lang(message.from_user.id)
@@ -621,7 +638,7 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
     await message.reply(
         text,
         parse_mode="HTML",
-        reply_markup=_open_setup_keyboard(signal_id, lang),
+        reply_markup=_trade_keyboard(signal_id, lang),
     )
     return True
 
@@ -686,6 +703,7 @@ cmd_revoke = _access_handlers.cmd_revoke
 # КОМАНДЫ — SMC (старый функционал)
 # ═══════════════════════════════════════════
 
+bind_personal_handlers(trading_router, sys.modules[__name__])
 _trading_handlers = bind_trading_handlers(trading_router, sys.modules[__name__])
 cmd_setup = _trading_handlers.cmd_setup
 cmd_spikes = _trading_handlers.cmd_spikes
@@ -699,8 +717,8 @@ cmd_digest = _trading_handlers.cmd_digest
 async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=3) -> bool:
     loop = asyncio.get_event_loop()
     try:
-        top_symbols = await loop.run_in_executor(None, snap.top_symbols_by_volume, SCAN_CFG["top_n_symbols"])
-        symbols = _scan_symbols(top_symbols)
+        top_symbols = await loop.run_in_executor(None, snap.top_symbols_by_market_cap, SCAN_CFG["top_n_symbols"])
+        symbols = [symbol for symbol in _scan_symbols(top_symbols) if st.user_accepts_symbol(int(chat_id), symbol)]
         results = await loop.run_in_executor(
             None,
             lambda: sc.scan_all(
@@ -759,7 +777,7 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
                 chat_id=chat_id,
                 text=card,
                 parse_mode="HTML",
-                reply_markup=_open_setup_keyboard(signal_id, lang),
+                reply_markup=_trade_keyboard(signal_id, lang),
             )
             await asyncio.sleep(0.4)
         return True
@@ -789,108 +807,12 @@ async def _fetch_mtf(symbol: str) -> dict:
     return dfs
 
 
-async def _handle_setup(message: types.Message, coin: str):
-    mode = await gate_access(message)
-    if not mode:
-        return
-    lang = get_lang(message.from_user.id)
-    symbol = await exchange.validate_symbol(coin)
-    if not symbol:
-        await message.reply(_t(lang, "coin_missing", coin=html.escape(coin)), parse_mode="HTML")
-        return
-    await message.reply(_t(lang, "setup_scanning", symbol=html.escape(symbol)), parse_mode="HTML")
-    delivered = False
-    try:
-        found = False
-        for tf in ["4h", "1d"]:
-            df = await exchange.fetch_ohlcv(symbol, tf)
-            if df.empty:
-                continue
-            smc_res = smc_analyzer.analyze_tf(df)
-            setup = smc_analyzer.find_setup(smc_res)
-            if setup:
-                score = smart_engine.analyze_context(df, symbol, setup["type"])
-                if score.signal != SignalType.NO_TRADE:
-                    dfs = await _fetch_mtf(symbol)
-                    verdict = mtf_engine.analyze(dfs)
-                    if verdict.setup_type.name != "NO_TRADE":
-                        msg = notifier.format_smc_setup(symbol, tf, setup, score, verdict, lang=lang)
-                        alert_id = _remember_personal_alert(
-                            message.from_user.id,
-                            symbol=symbol,
-                            side="LONG" if setup.get("type") == "LONG" else "SHORT",
-                            confidence=float(getattr(score, "confidence", 0) or 0) / 100.0,
-                            source="smc",
-                            price=setup.get("entry"),
-                            entry=setup.get("entry"),
-                            stop=setup.get("stop_loss"),
-                            tp1=setup.get("take_profit"),
-                            timeframe=tf,
-                        )
-                        await message.reply(msg, parse_mode="HTML", reply_markup=_open_setup_keyboard(alert_id, lang))
-                        found = True
-                        delivered = True
-        if not found:
-            safe_symbol = _callback_symbol(symbol)
-            await message.reply(
-                _t(lang, "setup_none", symbol=html.escape(symbol)),
-                parse_mode="HTML",
-                reply_markup=_one_action_keyboard(lang, "retry_setup", f"retry_setup:{safe_symbol}"),
-            )
-    except Exception as exc:
-        await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
-        return
-    if delivered:
-        debit_trial(_user_id(message), mode)
+async def _handle_setup(message, coin):
+    await cmd_plan(_CommandView(message, message.from_user, '/plan ' + coin))
 
 
-async def _handle_spikes(message: types.Message):
-    mode = await gate_access(message)
-    if not mode:
-        return
-    lang = get_lang(message.from_user.id)
-    await message.reply(_t(lang, "spikes_scanning"), parse_mode="HTML")
-    delivered = False
-    try:
-        symbols = await exchange.get_top_pairs()
-        found = []
-        for symbol in symbols:
-            df = await exchange.fetch_ohlcv(symbol, "15m")
-            if df.empty:
-                continue
-            ticker = await exchange.fetch_ticker_cached(symbol)
-            spike = spike_scanner.scan(df, ticker=ticker)
-            if spike:
-                found.append((symbol, spike))
-            await asyncio.sleep(0.05)
-        if not found:
-            await message.reply(
-                _t(lang, "spikes_none"),
-                parse_mode="HTML",
-                reply_markup=_one_action_keyboard(lang, "retry_spikes", "retry_spikes"),
-            )
-            return
-        for sym, spk in found[:15]:
-            coin_info = await coin_info_svc.get_coin_info(sym)
-            msg = notifier.format_spike_alert(sym, "15m", spk, coin_info=coin_info, lang=lang)
-            alert_id = _remember_personal_alert(
-                message.from_user.id,
-                symbol=sym,
-                side="LONG" if spk.get("direction") == "up" else "SHORT",
-                confidence=float(spk.get("score") or 0) / 100.0,
-                source="spike",
-                price=spk.get("current_price"),
-                entry=spk.get("current_price"),
-                timeframe="15m",
-            )
-            await message.reply(msg, parse_mode="HTML", reply_markup=_open_setup_keyboard(alert_id, lang))
-            delivered = True
-            await asyncio.sleep(0.1)
-    except Exception as exc:
-        await message.reply(_t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
-        return
-    if delivered:
-        debit_trial(_user_id(message), mode)
+async def _handle_spikes(message):
+    await message.reply(personal_text(get_lang(message.from_user.id), 'removed'))
 
 # ═══════════════════════════════════════════
 # ОБРАБОТЧИК ТЕКСТА (natural language)
@@ -925,6 +847,8 @@ def _is_usdt_pair(symbol: str) -> bool:
 
 async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render, alert=None) -> int:
     """Send one localized alert. Persist history only for users who received it."""
+    if kind in {"spike", "smc", "scalp"}:
+        return 0
     if not st.cooldown_ready(kind, key, cooldown_seconds):
         return 0
     delivered = 0
@@ -953,13 +877,20 @@ async def _deliver_localized(kind: str, key: str, cooldown_seconds: int, render,
 
 
 async def _broadcast_personal(render, alert: dict | None = None) -> None:
-    """Deliver a listing in each recipient's language and keep it in their history."""
+    """Deliver only listings that belong to the selected capitalization universe."""
+    if not alert:
+        return
+    allowed = await asyncio.to_thread(snap.top_symbols_by_market_cap, 100)
+    if alert.get('symbol') not in allowed:
+        return
     signal_id = None
     saved = False
     for chat_id in list(notifier.active_users):
         try:
             user_id = int(chat_id)
         except (TypeError, ValueError):
+            continue
+        if not st.user_accepts_symbol(user_id, alert['symbol']):
             continue
         if alert and not saved:
             signal_id = st.save_alert_signal(**alert)
@@ -1011,12 +942,12 @@ async def _deliver_pending_signal_updates(loop) -> tuple[int, int]:
     """Deliver lifecycle messages after refreshing the trade states."""
     return await deliver_pending_signal_updates(
         loop, state=st, notifier=notifier, language_for_user=get_lang,
-        open_setup_keyboard=_open_setup_keyboard,
+        open_setup_keyboard=lambda sid, lang: _trade_keyboard(sid, lang, active=True),
     )
 
 
 _background_loops = bind_background_loops(sys.modules[__name__])
-market_scanner_loop = _background_loops.market_scanner_loop
+account_tracker_loop = _background_loops.account_tracker_loop
 plan_scanner_loop = _background_loops.plan_scanner_loop
 signal_lifecycle_loop = _background_loops.signal_lifecycle_loop
 listing_watcher_loop = _background_loops.listing_watcher_loop
@@ -1047,7 +978,7 @@ async def main():
         logger.warning("set_my_commands failed")
     await _set_panel_menu(lang="en")
     logger.info("UCB_TRADING_BOT starting")
-    t1 = asyncio.create_task(market_scanner_loop())
+    t1 = asyncio.create_task(account_tracker_loop())
     t2 = asyncio.create_task(plan_scanner_loop())
     t3 = asyncio.create_task(listing_watcher_loop())
     t4 = asyncio.create_task(signal_lifecycle_loop())

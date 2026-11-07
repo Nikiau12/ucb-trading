@@ -95,11 +95,11 @@ def test_dark_theme_and_alert_filters_are_wired():
     js = (root / "app.js").read_text()
     dark = (root / "home-dark.css").read_text()
     assert 'home-dark.css' in html
-    assert 'data-filter="SCALP"' in html
-    assert 'data-filter="SMC"' in html
+    assert 'data-filter="SCALP"' not in html
+    assert 'data-filter="SMC"' not in html
     assert 'data-filter="LISTING"' in html
     assert '#alert-body' in js
-    assert "signals.filter(signal=>isUsdtPair(signal.symbol))" in js
+    assert "signals.filter(signal=>isUsdtPair(signal.symbol)" in js
     assert "#101722" in js
     assert "--bg:#0b1019" in dark
 
@@ -184,6 +184,9 @@ def test_requested_old_signal_is_added_only_through_user_access(
     monkeypatch.setattr(miniapp, "get_user", lambda _data: {"id": 42})
     monkeypatch.setattr(miniapp, "require_database", lambda _data: None)
     monkeypatch.setattr(miniapp, "db", lambda: Connection())
+    monkeypatch.setattr(miniapp.groups, "load_groups", lambda *_args: None)
+    monkeypatch.setattr(miniapp.universe, "top_symbols", lambda: ["BTC_USDT", "HBAR_USDT"])
+    monkeypatch.setattr(miniapp.accounts, "refresh_balance", lambda *_args: None)
 
     client = TestClient(miniapp.app)
     response = client.get(
