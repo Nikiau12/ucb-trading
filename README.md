@@ -361,8 +361,45 @@ signals by group, direction and version: cancellations/expired before entry,
 stops before TP1, TP1 then model stop, model TP2, and still-open signals. Its
 `entered` denominator excludes setups never entered. A TP1-then-stop label
 describes **modelled** break-even management, not an actual user's stop order.
-Neither report proves fills, after-cost PnL, profitability or win rate. Funding,
-user execution and net return analysis remain separate work.
+Neither report proves fills, after-cost PnL, profitability or win rate. The
+separate model-only accounting below estimates after-cost R; user execution
+and realised net return remain unverified.
+
+### Virtual group-signal accounting
+
+Migration `014_group_shadow_results.sql` adds a separate, idempotent result per
+signal and accounting-model version. The existing worker refreshes up to 20
+pending rows at startup and hourly; it never places orders, sends messages, or
+updates signal/lifecycle decisions. A signal counts once regardless of how many
+users receive it. Historical grouped signals are eligible for backfill, while
+legacy signals are left alone.
+
+The model assumes the saved entry/stop/TP levels, 50% at TP1, remaining 50% at
+entry after TP1, a fixed adverse 2-bps slippage scenario on each fill and the
+public taker fee saved **with that signal**. It reads BingX's public settled
+funding-rate history and uses its mark prices; a missing settlement boundary,
+rate gap, event-order ambiguity, direct one-tick jump across both targets or
+missing fee leaves net R unknown, **not zero**. For a
+time-expired position, it requires a nearby, fully closed 1m candle as a model
+exit price. All amounts are in planned-risk units (`R`), not user USDT or
+realised exchange PnL. Gap fills, account fee tiers, user execution and
+overlapping-position portfolio drawdown are not proven.
+
+Read-only aggregate report for the current 16 groups, separately by direction
+and strategy/catalog version:
+
+```bash
+python -m trading.group_shadow --days 30 --format markdown
+python -m trading.group_shadow --days 30 --format json
+```
+
+`DATABASE_URL` is required. The report includes non-entered and still-open
+setups but excludes them from complete net-return denominators. Below 20
+complete after-cost outcomes per group/direction it explicitly says
+`insufficient_data`; 20 is only a provisional display threshold, not proof of
+profitability. The reported drawdown is the cumulative closed-trade R curve,
+not account-equity drawdown. A manual `--sync` command is available for a
+controlled backfill; the worker normally runs it automatically.
 
 ## Portfolio context
 

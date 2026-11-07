@@ -266,3 +266,81 @@ def test_outcome_cli_reads_only_new_strategy_lifecycle(database, monkeypatch, ca
     with psycopg.connect(url) as conn:
         assert conn.execute("SELECT status FROM signal_lifecycle WHERE signal_id=%s", (legacy_id,)).fetchone()[0] == "active"
         assert conn.execute("SELECT count(*) FROM signals").fetchone()[0] == 4
+
+
+def test_group_shadow_sync_is_per_signal_idempotent_and_read_only_to_trades(database, monkeypatch):
+    from trading import group_shadow as shadow
+    from trading.group_catalog import registry
+    url, legacy_id = database
+    plan = new_plan()
+    plan["strategy"]["catalog_version"] = registry()["version"]
+    plan["strategy"]["execution_checks"] = {"public_taker_fee": .0005}
+    signal_id = state.save_signal(plan, "ETH_USDT", "LONG", 1)
+    first = shadow.sync_pending(database_url=url)
+    assert first["examined"] == 1 and first["complete"] == 0
+    with psycopg.connect(url) as conn:
+        record = conn.execute("""SELECT outcome,net_r FROM group_shadow_results
+            WHERE signal_id=%s""", (signal_id,)).fetchone()
+        assert record == ("awaiting_entry", None)
+        assert conn.execute("SELECT count(*) FROM group_shadow_results WHERE signal_id=%s", (legacy_id,)).fetchone()[0] == 0
+    assert state.update_signal_lifecycle(signal_id, 100)["status"] == "active"
+    assert state.update_signal_lifecycle(signal_id, 108)["status"] == "tp1_reached"
+    assert state.update_signal_lifecycle(signal_id, 100)["status"] == "stopped"
+    monkeypatch.setattr(shadow, "funding_history", lambda *_args, **_kwargs: ([], True))
+    completed = shadow.sync_pending(database_url=url)
+    assert completed["examined"] == completed["complete"] == 1
+    assert shadow.sync_pending(database_url=url)["examined"] == 0
+    with psycopg.connect(url) as conn:
+        before = conn.execute("""SELECT outcome,cost_status,gross_r,net_r,lifecycle_status
+            FROM group_shadow_results WHERE signal_id=%s""", (signal_id,)).fetchone()
+        assert before[0:2] == ("tp1_then_be", "complete")
+        assert float(before[2]) == pytest.approx(.8) and float(before[3]) < .8
+        assert before[4] == "stopped"
+        assert conn.execute("SELECT count(*) FROM group_shadow_results WHERE signal_id=%s", (signal_id,)).fetchone()[0] == 1
+        assert conn.execute("SELECT status FROM signal_lifecycle WHERE signal_id=%s", (legacy_id,)).fetchone()[0] == "active"
+        assert conn.execute("SELECT count(*) FROM user_signal_access").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM signal_update_deliveries").fetchone()[0] == 0
+    report = shadow.load_report(database_url=url)
+    selected = next(r for r in report["rows"] if r["group"] == "core_eth" and r["side"] == "long"
+                    and r["catalog_version"] == registry()["version"])
+    assert selected["signals"] == selected["entered"] == selected["complete_net"] == 1
+    assert selected["outcomes"] == {"tp1_then_be": 1}
+    assert selected["sample_status"] == "insufficient_data"
+
+
+def test_group_shadow_missing_funding_retries_without_guessing_zero(database, monkeypatch):
+    from trading import group_shadow as shadow
+    url, _ = database
+    plan = new_plan()
+    plan["strategy"]["execution_checks"] = {"public_taker_fee": .0005}
+    signal_id = state.save_signal(plan, "ETH_USDT", "LONG", 1)
+    state.update_signal_lifecycle(signal_id, 100)
+    state.update_signal_lifecycle(signal_id, 95)
+    monkeypatch.setattr(shadow, "funding_history", lambda *_args, **_kwargs: ([], False))
+    assert shadow.sync_pending(database_url=url)["pending_costs"] == 1
+    with psycopg.connect(url) as conn:
+        row = conn.execute("SELECT cost_status,net_r FROM group_shadow_results WHERE signal_id=%s", (signal_id,)).fetchone()
+        assert row == ("pending_funding_history", None)
+        conn.execute("UPDATE group_shadow_results SET retry_after=NOW()-INTERVAL '1 second' WHERE signal_id=%s", (signal_id,))
+    monkeypatch.setattr(shadow, "funding_history", lambda *_args, **_kwargs: ([], True))
+    assert shadow.sync_pending(database_url=url)["complete"] == 1
+    with psycopg.connect(url) as conn:
+        row = conn.execute("SELECT cost_status,net_r FROM group_shadow_results WHERE signal_id=%s", (signal_id,)).fetchone()
+        assert row[0] == "complete" and row[1] is not None
+
+
+def test_group_shadow_cli_reports_all_groups_without_writing(database, monkeypatch, capsys):
+    from trading import group_shadow as shadow
+    url, legacy_id = database
+    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setattr("sys.argv", ["group_shadow", "--days", "30", "--format", "markdown"])
+    with psycopg.connect(url) as conn:
+        before = conn.execute("SELECT count(*) FROM group_shadow_results").fetchone()[0]
+    shadow.main()
+    text = capsys.readouterr().out
+    assert "Стратегия group-rules-v1" in text
+    assert "core_btc | long | 0" in text
+    assert "недостаточно данных" in text
+    with psycopg.connect(url) as conn:
+        assert conn.execute("SELECT count(*) FROM group_shadow_results").fetchone()[0] == before
+        assert conn.execute("SELECT status FROM signal_lifecycle WHERE signal_id=%s", (legacy_id,)).fetchone()[0] == "active"
