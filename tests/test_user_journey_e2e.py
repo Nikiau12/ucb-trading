@@ -81,8 +81,8 @@ def test_scanner_alert_has_an_id_specific_mini_app_button(monkeypatch):
     monkeypatch.setattr(bot, "get_lang", lambda _user_id: "ru")
 
     count = asyncio.run(bot._deliver_localized(
-        "spike", "ETH_15m_up", 60, lambda _lang: "Скальп ETH",
-        alert={"symbol": "ETH_USDT", "source": "spike", "side": "LONG",
+        "listing", "ETH_listing", 60, lambda _lang: "Листинг ETH",
+        alert={"symbol": "ETH_USDT", "source": "listing", "side": "LONG",
                "confidence": 0.8, "price": 3500, "timeframe": "15m"},
     ))
     assert count == 1
@@ -114,13 +114,9 @@ def _actionable_plan():
     }
 
 
-def test_major_markets_are_always_first_in_the_plan_scan():
-    assert bot._scan_symbols(["XRP_USDT", "BTC_USDT", "DOGE_USDT"])[:5] == [
-        "BTC_USDT",
-        "ETH_USDT",
-        "SOL_USDT",
-        "XRP_USDT",
-        "DOGE_USDT",
+def test_scan_does_not_inject_coins_outside_the_capitalization_universe():
+    assert bot._scan_symbols(["XRP_USDT", "BTC_USDT", "DOGE_USDT", "XRP_USDT"]) == [
+        "XRP_USDT", "BTC_USDT", "DOGE_USDT",
     ]
 
 
@@ -146,6 +142,9 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     )
     manager.trial_cooldown_seconds = 0
 
+    monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
+    monkeypatch.setattr(bot.st, "refresh_user_balance", lambda _uid: None)
+    monkeypatch.setattr(bot.st, "user_accepts_symbol", lambda *_args: True)
     monkeypatch.setattr(bot, "access_manager", manager)
     monkeypatch.setattr(bot.st, "get_user_settings", lambda _user_id: dict(settings))
     monkeypatch.setattr(bot.st, "set_user_lang", lambda _user_id, value: settings.update(language=value))
@@ -495,13 +494,13 @@ def test_free_text_uses_the_ticker_not_the_request_word(monkeypatch):
     async def access(_message):
         return "paid"
 
-    async def validate(symbol):
-        analyzed_symbols.append(symbol)
+    async def validate(message):
+        analyzed_symbols.append(message.text.split()[-1])
         return None
 
     monkeypatch.setattr(bot, "_handle_setup", setup)
     monkeypatch.setattr(bot, "gate_access", access)
-    monkeypatch.setattr(bot.exchange, "validate_symbol", validate)
+    monkeypatch.setattr(bot, "cmd_plan", validate)
 
     async def run():
         await bot.handle_text(FakeMessage("сигнал по ASTER"))
@@ -546,25 +545,9 @@ def test_trade_state_is_refreshed_before_lifecycle_messages(monkeypatch):
     assert calls == ["prices", "advance", "deliver"]
 
 
-def test_extracted_market_scanner_records_a_completed_empty_cycle(monkeypatch):
-    calls = []
-
-    async def no_markets():
-        return []
-
-    def record(name, **kwargs):
-        calls.append((name, kwargs))
-        raise asyncio.CancelledError()
-
-    monkeypatch.setattr(bot, "refresh_recipients", lambda: calls.append("recipients"))
-    monkeypatch.setattr(bot.exchange, "get_top_pairs", no_markets)
-    monkeypatch.setattr(bot.st, "record_runtime_health", record)
-
-    asyncio.run(bot.market_scanner_loop())
-    assert calls[0] == "recipients"
-    assert calls[1][0] == "market_scanner"
-    assert calls[1][1]["success"] is True
-    assert calls[1][1]["details"] == {"symbols": 0}
+def test_removed_market_scanner_is_not_started():
+    assert not hasattr(bot, 'market_scanner_loop')
+    assert bot.account_tracker_loop.__module__ == 'core.background_loops'
 
 
 def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
@@ -584,7 +567,7 @@ def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
     monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
     monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
     monkeypatch.setattr(bot, "refresh_recipients", lambda: calls.append("recipients"))
-    monkeypatch.setattr(bot.snap, "top_symbols_by_volume", lambda _limit: ["BTC_USDT"])
+    monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
     monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
     monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(bot.st, "record_runtime_health", record)
@@ -621,7 +604,7 @@ def test_extracted_plan_scanner_only_delivers_persisted_signal(monkeypatch, sign
     monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
     monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
     monkeypatch.setattr(bot, "refresh_recipients", lambda: None)
-    monkeypatch.setattr(bot.snap, "top_symbols_by_volume", lambda _limit: ["BTC_USDT"])
+    monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
     monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
     monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [plan])
     monkeypatch.setattr(bot, "_rank_actionable_plans", lambda plans: plans)
@@ -769,3 +752,32 @@ def test_set_replies_saved_and_opens_the_panel(monkeypatch):
         signals = client.get("/api/signals")
         assert signals.status_code == 200
         assert signals.json()[0]["sizing"]["tradable"] is True
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_account_command_refreshes_balance_and_distinguishes_zero_from_failure(monkeypatch, unavailable):
+    from miniapp.bingx_account import AccountUnavailable
+    settings = {"deposit": 1500, "risk_pct": 1, "lev": 10, "margin": "cross"}
+    refreshed = []
+    def refresh(uid):
+        refreshed.append(uid)
+        if unavailable:
+            raise AccountUnavailable("unavailable")
+        settings["deposit"] = 0
+        return 0
+    monkeypatch.setattr(bot.st, "refresh_user_balance", refresh)
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda _uid: dict(settings))
+    monkeypatch.setattr(bot, "get_lang", lambda _uid: "ru")
+    monkeypatch.setattr(bot, "_access_status_text", lambda *_: "")
+    monkeypatch.setattr(bot, "_settings_keyboard", lambda *_: None)
+    message = FakeMessage("/account")
+    asyncio.run(bot.cmd_settings(message))
+    text = message.replies[0].text
+    assert refreshed == [4242]
+    assert "Аккаунт" in text
+    if unavailable:
+        assert "недоступен" in text
+        assert "1,500" not in text
+    else:
+        assert "0.00 USDT" in text
+        assert "не установлен" not in text

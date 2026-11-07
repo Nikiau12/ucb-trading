@@ -1,8 +1,5 @@
-/* Display-only snapshot of asset_groups.v1 (2026-11-07).
- * Keep the 16 approved groups and exact BingX contract units. This catalog is
- * not imported by scanners, strategy research, notifications or access checks.
- * Unknown instruments stay visible; do not infer sectors from ticker fragments.
- */
+/* Shared group catalog. Python/server counterpart: miniapp/asset_groups.json.
+ * tests/asset_groups.test.cjs verifies exact parity; unknown coins stay ungrouped. */
 (() => {
   'use strict';
   const groups = [

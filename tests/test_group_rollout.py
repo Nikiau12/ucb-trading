@@ -160,6 +160,8 @@ def test_scanner_and_manual_command_use_same_adapter(market, monkeypatch):
     import test_user_journey_e2e as journey
     bot=journey.bot
     assert bot.core_plan is group and bot.sc.core is group
+    monkeypatch.setattr(bot.snap,"top_symbols_by_market_cap",lambda *_:["BTC_USDT"])
+    monkeypatch.setattr(bot.st,"user_accepts_symbol",lambda *_:True)
     monkeypatch.setattr(bot.snap,"build_snapshot_with_fallback",lambda symbol: snapshot(symbol))
     scan=bot.sc.scan_symbol("BTC_USDT",300,2,10,"cross")
     saved=[]
@@ -183,6 +185,8 @@ def test_scanner_and_manual_command_use_same_adapter(market, monkeypatch):
 def test_failed_group_persistence_does_not_issue_an_untracked_plan_or_debit_trial(market, monkeypatch):
     import test_user_journey_e2e as journey
     bot=journey.bot
+    monkeypatch.setattr(bot.snap,"top_symbols_by_market_cap",lambda *_:["BTC_USDT"])
+    monkeypatch.setattr(bot.st,"user_accepts_symbol",lambda *_:True)
     async def access(_message): return "paid"
     monkeypatch.setattr(bot,"require_deposit",access)
     monkeypatch.setattr(bot,"gate_access",access)

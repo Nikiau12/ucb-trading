@@ -26,6 +26,9 @@ class _DeliveryState:
         self.deliveries = deliveries
         self.marked = []
 
+    def tracking_is_active(self, user_id, signal_id):
+        return True
+
     def load_pending_signal_updates(self):
         return [item.copy() for item in self.deliveries if not item.get("sent")]
 
@@ -102,5 +105,5 @@ def test_delivery_uses_specific_text_for_stop_and_cancelled_setups():
         )
 
     assert asyncio.run(run()) == (2, 2)
-    assert "Stop сработал" in notifier.calls[0][1]
-    assert "Сигнал аннулирован до входа" in notifier.calls[1][1]
+    assert "Цена сигнала достигла уровня стопа" in notifier.calls[0][1]
+    assert "Сигнал отменён до входа" in notifier.calls[1][1]

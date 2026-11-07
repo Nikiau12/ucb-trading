@@ -22,7 +22,8 @@ import requests
 from fastapi import APIRouter, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
+from fastapi.exceptions import RequestValidationError
 
 try:
     from .sizing import position_size_for_contract
@@ -45,6 +46,11 @@ except ImportError:
         review_referral_claim,
         submit_referral_claim,
     )
+
+try:
+    from . import bingx_account as accounts, tracking, groups, universe
+except ImportError:
+    import bingx_account as accounts, tracking, groups, universe
 
 logger = logging.getLogger("ucb.miniapp")
 
@@ -139,6 +145,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 profile_api = APIRouter()
 billing_api = APIRouter()
 signals_api = APIRouter()
+personal_api = APIRouter()
 
 
 class SlidingWindowLimiter:
@@ -243,6 +250,7 @@ class SettingsUpdate(BaseModel):
     risk_pct: Optional[float] = Field(default=None, ge=0.1, le=5)
     leverage: Optional[float] = Field(default=None, ge=1, le=100)
     margin: Optional[str] = None
+    signal_groups: Optional[list[str]] = None
 
 
 class PaymentClaim(BaseModel):
@@ -351,7 +359,7 @@ def scanner_status() -> dict:
                 """
                 SELECT EXTRACT(EPOCH FROM MAX(last_success_at))
                 FROM runtime_health
-                WHERE component IN ('market_scanner', 'plan_scanner')
+                WHERE component = 'plan_scanner'
                 """
             )
             row = cursor.fetchone()
@@ -460,9 +468,10 @@ FROM (
     FROM signals s
     JOIN user_signal_access a ON a.signal_id = s.id
     WHERE a.telegram_user_id = %s
-      AND s.source <> 'scanner'
+      AND s.source NOT IN ('scanner', 'spike', 'smc', 'scalp')
       AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 ) history
+WHERE symbol = ANY(%s) OR id = ANY(%s)
 ORDER BY created_at DESC
 LIMIT 30
 """
@@ -475,6 +484,8 @@ SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
+  AND s.source NOT IN ('spike','smc','scalp')
+  AND (s.symbol = ANY(%s) OR s.id = ANY(%s))
   AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 ORDER BY s.created_at DESC
 LIMIT %s
@@ -489,6 +500,7 @@ FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
   AND s.id = %s
+  AND s.source NOT IN ('spike','smc','scalp')
   AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 LIMIT 1
 """
@@ -500,6 +512,8 @@ def demo_profile(user: dict) -> dict:
         "first_name": user.get("first_name", "Trader"),
         "language": normalize_language(user.get("language_code")),
         "deposit": 400.0,
+        "signal_groups": None,
+        "bingx_account": {"connected": False},
         "risk_pct": 1.0,
         "leverage": 10.0,
         "margin": "cross",
@@ -547,6 +561,8 @@ def _target_profit_usdt(
 
 
 def attach_personal_sizing(signal: dict, profile: dict) -> dict:
+    if profile.get("balance_unavailable"):
+        return {**signal, "sizing": None, "sizing_error": "bingx_balance_unavailable"}
     if signal.get("source") in {"spike", "smc", "listing"}:
         # These are informational alerts, not complete executable trade plans.
         return {**signal, "sizing": None}
@@ -701,6 +717,7 @@ def metrics(
 @profile_api.get("/api/me")
 def me(x_telegram_init_data: str = Header(default="")):
     user = get_user(x_telegram_init_data)
+    rate_limiter.check("profile", str(user["id"]), limit=60, window_seconds=60)
     require_database(x_telegram_init_data)
     if not DATABASE_URL:
         return demo_profile(user)
@@ -733,11 +750,24 @@ def me(x_telegram_init_data: str = Header(default="")):
         row = cursor.fetchone()
         connection.commit()
 
+    with db() as connection:
+        account = accounts.account_status(connection, user_id)
+        balance_unavailable = False
+        balance = None
+        if account['connected']:
+            try:
+                balance = accounts.refresh_balance(connection, user_id)
+                account = accounts.account_status(connection, user_id)
+            except accounts.AccountUnavailable:
+                balance_unavailable = True
+        selected_groups = groups.load_groups(connection, user_id)
     return {
         "telegram_user_id": user_id,
+        "signal_groups": selected_groups,
+        "bingx_account": {**account, "unavailable": balance_unavailable},
         "first_name": user.get("first_name", "Trader"),
         "language": row[0],
-        "deposit": float(row[1]) if row[1] is not None else None,
+        "deposit": (None if balance_unavailable else balance) if account["connected"] else (float(row[1]) if row[1] is not None else None),
         "risk_pct": float(row[2]),
         "leverage": float(row[3]),
         "margin": row[4],
@@ -762,13 +792,29 @@ def update_settings(payload: SettingsUpdate, x_telegram_init_data: str = Header(
         raise HTTPException(422, "Unsupported language")
     if payload.margin is not None and payload.margin not in {"cross", "isolated"}:
         raise HTTPException(422, "Unsupported margin mode")
+    if 'signal_groups' in payload.model_fields_set:
+        try:
+            groups.validate_groups(payload.signal_groups)
+        except ValueError:
+            raise HTTPException(422, 'Invalid coin groups') from None
     if not DATABASE_URL:
         return {"ok": True}
 
     updates = payload.model_dump(exclude_none=True)
+    if 'signal_groups' in payload.model_fields_set:
+        try:
+            updates['signal_groups'] = groups.validate_groups(payload.signal_groups)
+        except ValueError:
+            raise HTTPException(422, 'Invalid coin groups') from None
+        from psycopg.types.json import Jsonb
+        updates['signal_groups'] = Jsonb(updates['signal_groups']) if updates['signal_groups'] is not None else None
     if not updates:
         return {"ok": True}
-    columns = {"leverage": "leverage", **{key: key for key in ("language", "deposit", "risk_pct", "margin")}}
+    columns = {"leverage": "leverage", **{key: key for key in ("language", "deposit", "risk_pct", "margin", "signal_groups")}}
+    if 'deposit' in updates:
+        with db() as connection:
+            if accounts.account_status(connection, int(user['id']))['connected']:
+                raise HTTPException(409, 'Balance is managed by BingX')
     assignments = ", ".join(f"{columns[key]} = %s" for key in updates)
     values = list(updates.values())
     with db() as connection, connection.cursor() as cursor:
@@ -973,6 +1019,7 @@ def signals(
     x_telegram_init_data: str = Header(default=""),
 ):
     user = get_user(x_telegram_init_data)
+    rate_limiter.check("signals", str(user["id"]), limit=60, window_seconds=60)
     require_database(x_telegram_init_data)
     if not DATABASE_URL:
         profile = demo_profile(user)
@@ -998,13 +1045,35 @@ def signals(
             "risk_pct": float(profile_row[1]),
             "leverage": float(profile_row[2]),
         }
+        selected_groups = groups.load_groups(connection, user_id)
+        try:
+            symbols = [symbol for symbol in universe.top_symbols() if groups.matches(symbol, selected_groups)]
+        except universe.UniverseUnavailable:
+            # Keep existing trades available during a ranking outage.
+            symbols = []
+        cursor.execute("SELECT signal_id,status,execution_state FROM user_trade_tracking WHERE telegram_user_id=%s", (user_id,))
+        tracking_rows = cursor.fetchall()
+        tracking_by_id = {int(r[0]): {'tracking_status': r[1], 'execution_state': r[2]} for r in tracking_rows}
+        active_ids = [int(r[0]) for r in tracking_rows if r[1]=='active']
+        try:
+            fresh_balance = accounts.refresh_balance(connection, user_id)
+            if fresh_balance is not None:
+                profile['deposit'] = fresh_balance
+        except accounts.AccountUnavailable:
+            profile['balance_unavailable'] = True
         paid_until = access[0] if access else None
         has_paid_access = bool(paid_until and paid_until > datetime.now(timezone.utc))
         if has_paid_access:
-            cursor.execute(PAID_SIGNALS_SQL, (user_id,))
+            cursor.execute(PAID_SIGNALS_SQL, (user_id, symbols, active_ids))
         else:
-            cursor.execute(TRIAL_SIGNALS_SQL, (user_id, FREE_TRIAL_SIGNALS))
+            cursor.execute(TRIAL_SIGNALS_SQL, (user_id, symbols, active_ids, FREE_TRIAL_SIGNALS))
         rows = list(cursor.fetchall())
+        for tracked_id in active_ids:
+            if all(int(r[0]) != tracked_id for r in rows):
+                cursor.execute(REQUESTED_SIGNAL_SQL, (user_id, tracked_id))
+                tracked_row = cursor.fetchone()
+                if tracked_row:
+                    rows.insert(0, tracked_row)
         if signal_id and all(int(row[0]) != int(signal_id) for row in rows):
             # A notification can point to a valid signal older than the normal
             # 30-item history. Return it only when this user originally
@@ -1058,6 +1127,7 @@ def signals(
          "reason": row[18],
          "regime": row[19],
          "timeframe": row[20] or ("15m" if row[17] == "spike" else "4h"),
+         **tracking_by_id.get(int(row[0]), {"tracking_status": "none", "execution_state": "unverified"}),
          **lifecycle_by_id.get(int(row[0]), {
              "trade_status": "untracked", "entry_hit_at": None,
              "tp1_hit_at": None, "tp2_hit_at": None, "stop_hit_at": None,
@@ -1144,6 +1214,69 @@ def market(
         raise HTTPException(502, "BingX market data unavailable") from exc
 
 
+
+class BingxCredentials(BaseModel):
+    api_key: SecretStr
+    api_secret: SecretStr
+
+class TrackingUpdate(BaseModel):
+    active: bool
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path == '/api/bingx-account':
+        return JSONResponse(status_code=422, content={'detail':'Invalid API credentials'})
+    from fastapi.exception_handlers import request_validation_exception_handler
+    return await request_validation_exception_handler(request, exc)
+
+@personal_api.post('/api/bingx-account')
+def connect_bingx(payload: BingxCredentials, x_telegram_init_data: str = Header(default='')):
+    user = get_user(x_telegram_init_data)
+    require_database(x_telegram_init_data)
+    if not DATABASE_URL:
+        raise HTTPException(503, 'Account connection is unavailable in demo mode')
+    uid = int(user['id'])
+    rate_limiter.check('connect_account', str(uid), limit=4, window_seconds=60)
+    api_key, secret = payload.api_key.get_secret_value().strip(), payload.api_secret.get_secret_value().strip()
+    if not all(8 <= len(v) <= 256 and v.isascii() and not any(c.isspace() for c in v) for v in (api_key, secret)):
+        raise HTTPException(422, 'Invalid API credentials')
+    try:
+        with db() as connection:
+            accounts.connect_account(connection, uid, api_key, secret)
+            return accounts.account_status(connection, uid)
+    except accounts.AccountUnavailable:
+        raise HTTPException(503, 'Could not connect BingX. Check read permissions or try again later.') from None
+
+@personal_api.delete('/api/bingx-account')
+def disconnect_bingx(x_telegram_init_data: str = Header(default='')):
+    user = get_user(x_telegram_init_data)
+    require_database(x_telegram_init_data)
+    if not DATABASE_URL:
+        raise HTTPException(503, 'Database unavailable')
+    uid = int(user['id'])
+    with db() as connection:
+        connection.execute('DELETE FROM bingx_accounts WHERE telegram_user_id=%s', (uid,))
+        connection.execute("UPDATE user_trade_tracking SET position_id=NULL,tp1_order_id=NULL,execution_state='unverified' WHERE telegram_user_id=%s AND status='active'", (uid,))
+        connection.execute("UPDATE signal_update_deliveries SET status='sent',last_error='account_disconnected' WHERE telegram_user_id=%s AND event_type='tp1_filled' AND status IN ('pending','failed')", (uid,))
+    return {'connected':False}
+
+@personal_api.patch('/api/signals/{signal_id}/tracking')
+def update_tracking(signal_id: int, payload: TrackingUpdate, x_telegram_init_data: str = Header(default='')):
+    user = get_user(x_telegram_init_data)
+    require_database(x_telegram_init_data)
+    if not DATABASE_URL:
+        raise HTTPException(503, 'Tracking is unavailable in demo mode')
+    uid = int(user['id'])
+    rate_limiter.check('tracking', str(uid), limit=30, window_seconds=60)
+    try:
+        with db() as connection:
+            result = tracking.set_tracking(connection, uid, signal_id, payload.active)
+        return result
+    except tracking.TrackingError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
+app.include_router(personal_api)
 app.include_router(profile_api)
 app.include_router(billing_api)
 app.include_router(signals_api)

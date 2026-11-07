@@ -6,6 +6,7 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
+from miniapp import bingx_account as accounts, groups, tracking
 
 logger = logging.getLogger("ucb.state")
 
@@ -501,7 +502,7 @@ def save_alert_signal(
     The source is never ``scanner``, so the row stays out of the shared feed.
     Callers grant access only to users who actually received the alert.
     """
-    if source not in {"spike", "smc", "listing"}:
+    if source != "listing":
         return None
     symbol = normalize_usdt_symbol(symbol)
     if not symbol or not _db_ready():
@@ -544,45 +545,6 @@ def grant_signal_access(user_id: int, signal_id: int) -> None:
                 VALUES (%s, %s) ON CONFLICT DO NOTHING
                 """,
                 (user_id, signal_id),
-            )
-            # A very fast market can reach TP1 while the original Telegram
-            # message is still being delivered. Backfill that recipient's
-            # update atomically so the race cannot lose the BE instruction.
-            connection.execute(
-                """
-                INSERT INTO signal_update_deliveries (
-                    signal_id, telegram_user_id, event_type
-                )
-                SELECT %s, %s, 'tp1_reached'
-                FROM signal_lifecycle
-                WHERE signal_id = %s AND status = 'tp1_reached'
-                ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
-                """,
-                (signal_id, user_id, signal_id),
-            )
-            connection.execute(
-                """
-                INSERT INTO signal_update_deliveries (
-                    signal_id, telegram_user_id, event_type
-                )
-                SELECT %s, %s, 'stop_reached'
-                FROM signal_lifecycle
-                WHERE signal_id = %s AND status = 'stopped'
-                ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
-                """,
-                (signal_id, user_id, signal_id),
-            )
-            connection.execute(
-                """
-                INSERT INTO signal_update_deliveries (
-                    signal_id, telegram_user_id, event_type
-                )
-                SELECT %s, %s, 'cancelled_before_entry'
-                FROM signal_lifecycle
-                WHERE signal_id = %s AND status = 'cancelled_before_entry'
-                ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
-                """,
-                (signal_id, user_id, signal_id),
             )
             connection.commit()
     except Exception as exc:
@@ -704,8 +666,8 @@ def update_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'tp1_reached'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -725,6 +687,10 @@ def update_signal_lifecycle(
                     """,
                     (int(signal_id),),
                 )
+            if outcome['status'] == 'tp2_reached' and 'tp2_reached' in events:
+                connection.execute("""INSERT INTO signal_update_deliveries (signal_id,telegram_user_id,event_type)
+                    SELECT signal_id,telegram_user_id,'tp2_reached' FROM user_trade_tracking
+                    WHERE signal_id=%s AND status='active' ON CONFLICT DO NOTHING""", (int(signal_id),))
             if outcome["status"] == "stopped" and "stop_reached" in events:
                 connection.execute(
                     """
@@ -732,8 +698,8 @@ def update_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'stop_reached'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -748,8 +714,8 @@ def update_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'cancelled_before_entry'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -833,8 +799,8 @@ def replay_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'tp1_reached'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -846,8 +812,8 @@ def replay_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'cancelled_before_entry'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -936,8 +902,8 @@ def audit_waiting_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'tp1_reached'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -949,8 +915,8 @@ def audit_waiting_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'stop_reached'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -962,8 +928,8 @@ def audit_waiting_signal_lifecycle(
                         signal_id, telegram_user_id, event_type
                     )
                     SELECT %s, telegram_user_id, 'cancelled_before_entry'
-                    FROM user_signal_access
-                    WHERE signal_id = %s
+                    FROM user_trade_tracking
+                    WHERE signal_id = %s AND status = 'active'
                     ON CONFLICT (signal_id, telegram_user_id, event_type) DO NOTHING
                     """,
                     (int(signal_id), int(signal_id)),
@@ -989,15 +955,18 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
                 """
                 SELECT d.signal_id, d.telegram_user_id, d.event_type, d.attempts,
                        s.symbol, s.side, s.entry, s.stop, s.tp1, s.created_at,
-                       s.price_unit, l.tp1_hit_at, s.strategy_metadata
+                       s.price_unit, l.tp1_hit_at, s.tp2, s.strategy_metadata
                 FROM signal_update_deliveries d
                 JOIN signals s ON s.id = d.signal_id
                 JOIN signal_lifecycle l ON l.signal_id = d.signal_id
+                JOIN user_trade_tracking t ON t.signal_id=d.signal_id AND t.telegram_user_id=d.telegram_user_id AND t.status='active'
                 WHERE d.status IN ('pending', 'failed')
                   AND d.attempts < 5
                   AND d.next_attempt_at <= NOW()
                   AND (
-                    (d.event_type = 'tp1_reached' AND l.status = 'tp1_reached')
+                    (d.event_type = 'tp1_filled')
+                    OR (d.event_type = 'tp2_reached' AND l.status = 'tp2_reached')
+                    OR (d.event_type = 'tp1_reached' AND l.status = 'tp1_reached')
                     OR (d.event_type = 'stop_reached' AND l.status = 'stopped')
                     OR (
                         d.event_type = 'cancelled_before_entry'
@@ -1012,7 +981,7 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
         keys = (
             "id", "telegram_user_id", "event_type", "attempts", "symbol",
             "side", "entry", "stop", "tp1", "created_at", "price_unit",
-            "tp1_hit_at", "strategy",
+            "tp1_hit_at", "tp2", "strategy",
         )
         return [dict(zip(keys, row)) for row in rows]
     except Exception as exc:
@@ -1082,7 +1051,7 @@ def load_alert_recipients(free_trial_signals: int) -> set[str]:
                 SELECT p.telegram_user_id
                 FROM user_profiles p
                 LEFT JOIN subscriptions s ON s.telegram_user_id = p.telegram_user_id
-                WHERE p.deposit > 0
+                WHERE (p.deposit > 0 OR EXISTS (SELECT 1 FROM bingx_accounts a WHERE a.telegram_user_id=p.telegram_user_id))
                   AND (
                     s.paid_until > NOW()
                     OR COALESCE(s.trial_used, 0) < %s
@@ -1137,3 +1106,48 @@ def mark_cooldown(kind: str, key: str) -> None:
     state = _load()
     state.setdefault("cooldowns", {})[f"{kind}:{key}"] = time.time()
     _save(state)
+
+
+def refresh_user_balance(user_id):
+    if not _db_ready():
+        return None
+    with psycopg.connect(DATABASE_URL) as connection:
+        return accounts.refresh_balance(connection, int(user_id))
+
+
+def user_accepts_symbol(user_id, symbol):
+    if not _db_ready():
+        return groups.matches(symbol, _load().get('user_settings',{}).get(str(user_id),{}).get('signal_groups'))
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            return groups.matches(symbol, groups.load_groups(connection, int(user_id)))
+    except Exception:
+        return False
+
+
+def set_trade_tracking(user_id, signal_id, active):
+    if not _db_ready():
+        raise tracking.TrackingError('database_unavailable')
+    with psycopg.connect(DATABASE_URL) as connection:
+        return tracking.set_tracking(connection, int(user_id), int(signal_id), active)
+
+
+def tracking_is_active(user_id, signal_id):
+    if not _db_ready():
+        return False
+    with psycopg.connect(DATABASE_URL) as connection:
+        return bool(connection.execute("SELECT 1 FROM user_trade_tracking WHERE telegram_user_id=%s AND signal_id=%s AND status='active'", (user_id,signal_id)).fetchone())
+
+
+def tracked_account_users():
+    if not _db_ready():
+        return []
+    with psycopg.connect(DATABASE_URL) as connection:
+        return [int(r[0]) for r in connection.execute("SELECT DISTINCT t.telegram_user_id FROM user_trade_tracking t JOIN bingx_accounts a USING (telegram_user_id) WHERE t.status='active'").fetchall()]
+
+
+def reconcile_account(user_id):
+    if _db_ready():
+        with psycopg.connect(DATABASE_URL) as connection:
+            return tracking.reconcile_user(connection, int(user_id))
+    return 0

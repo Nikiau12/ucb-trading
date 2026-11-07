@@ -105,6 +105,11 @@ def _margin_label(margin) -> str:
 
 def _skip_sentence(lang: str, reasons: list) -> str:
     """One plain sentence. Raw filter codes stay out of the chat."""
+    from trading.group_labels import skip_explanation
+    for reason in reasons:
+        explanation = skip_explanation(lang, reason)
+        if explanation:
+            return esc(explanation)
     blob = " ".join(str(item) for item in reasons).lower()
     if "invalid_plan" in blob or "filters_killed_setup" in blob:
         return _t(lang, "no_setup_levels")

@@ -24,7 +24,7 @@ def database(monkeypatch):
         pytest.skip("Set TEST_DATABASE_URL to a disposable loopback Postgres")
     config=conninfo_to_dict(url)
     assert config.get("host") in ("127.0.0.1","localhost")
-    assert config.get("dbname","").startswith("ucb_group_test")
+    assert config.get("dbname","").startswith("ucb_test")
     name="group_test_"+uuid4().hex
     with psycopg.connect(url,autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(name)))
@@ -83,6 +83,9 @@ def test_new_signal_database_api_lifecycle_and_notification_roundtrip(database,m
     signal_id=state.save_signal(plan,"ETH_USDT","LONG",1)
     assert signal_id and signal_id!=legacy
     state.grant_signal_access(4242,signal_id)
+    from miniapp.tracking import set_tracking
+    with psycopg.connect(url) as connection:
+        set_tracking(connection,4242,signal_id,True)
     loaded=next(s for s in state.load_trackable_signals() if s["id"]==signal_id)
     assert loaded["strategy"]==plan["strategy"]
     assert loaded["max_holding_seconds"]==96*3600
@@ -97,6 +100,7 @@ def test_new_signal_database_api_lifecycle_and_notification_roundtrip(database,m
     from miniapp import app
     monkeypatch.setattr(app,"DATABASE_URL",url)
     monkeypatch.setattr(app,"get_user",lambda *_:{"id":4242})
+    monkeypatch.setattr(app.universe,"top_symbols",lambda *_args,**_kwargs:["BTC_USDT","ETH_USDT","SOL_USDT"])
     api=app.signals(signal_id=signal_id,x_telegram_init_data="test")
     assert len(api)==1 and api[0]["strategy"]==plan["strategy"]
     assert api[0]["trade_status"]=="tp1_reached"
@@ -154,3 +158,46 @@ def test_new_waiting_audit_preserves_stop_entry_and_reconstructs_tp2(database):
     result=state.audit_waiting_signal_lifecycle(signal_id,candles,checked_at=now)
     assert result["status"]=="tp2_reached"
     assert not state.load_pending_signal_updates()  # No stale instruction to move to BE after TP2.
+
+
+def test_scheduled_group_signal_is_persisted_delivered_and_accessible_without_automatic_tracking(database,monkeypatch):
+    import test_user_journey_e2e as journey
+    from core import background_loops
+    bot=journey.bot
+    url,_=database
+    plan=new_plan()
+    class ScanClock(datetime):
+        @classmethod
+        def now(cls,tz=None):
+            return datetime(2026,11,7,20,5,tzinfo=tz)
+    sent=[]
+    async def send(user,text,**kwargs):
+        sent.append((user,text,kwargs))
+        return True
+    record=bot.st.record_runtime_health
+    def finish(name,**kwargs):
+        record(name,**kwargs)
+        raise asyncio.CancelledError()
+    monkeypatch.setattr(background_loops,"datetime",ScanClock)
+    monkeypatch.setattr(bot,"_last_plan_1h_block",-1)
+    monkeypatch.setattr(bot,"refresh_recipients",lambda:None)
+    monkeypatch.setattr(bot.st,"DATABASE_URL",url)
+    monkeypatch.setattr(bot.snap,"top_symbols_by_market_cap",lambda *_:["ETH_USDT"])
+    monkeypatch.setattr(bot.sc,"scan_all",lambda *_args,**_kwargs:[plan])
+    monkeypatch.setattr(bot.core_plan,"prepare_for_publication",lambda p:p)
+    monkeypatch.setattr(bot.notifier,"active_users",{"4242"})
+    monkeypatch.setattr(bot.notifier,"send_message_to_user",send)
+    monkeypatch.setattr(bot.st,"record_runtime_health",finish)
+    monkeypatch.setattr(bot,"get_lang",lambda *_:"ru")
+    monkeypatch.setattr(bot,"MINI_APP_URL","https://example.test")
+    asyncio.run(bot.plan_scanner_loop())
+    assert len(sent)==1 and "Экспериментальная стратегия" in sent[0][1]
+    assert "STOP" in sent[0][1]
+    with psycopg.connect(url) as conn:
+        row=conn.execute("SELECT id,strategy_metadata FROM signals WHERE symbol='ETH_USDT'").fetchone()
+        assert row[1]==plan["strategy"]
+        assert conn.execute("SELECT signal_id FROM user_signal_access WHERE telegram_user_id=4242").fetchone()[0]==row[0]
+        assert conn.execute("SELECT count(*) FROM user_trade_tracking").fetchone()[0]==0
+        assert conn.execute("SELECT symbol FROM signal_alert_state").fetchone()[0]=="ETH_USDT"
+        health=conn.execute("SELECT details FROM runtime_health WHERE component='plan_scanner'").fetchone()[0]
+        assert health["strategy_version"]==VERSION and health["alerts_sent"]==1

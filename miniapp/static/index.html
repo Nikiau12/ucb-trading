@@ -7,9 +7,10 @@
   <title>UCB Trading</title>
   <link rel="stylesheet" href="/static/styles.css?v=20261102-chart-touch-2">
   <link rel="stylesheet" href="/static/home-light.css?v=20261102-chart-touch-2">
-  <link rel="stylesheet" href="/static/home-dark.css?v=20261107-signal-groups-1">
+  <link rel="stylesheet" href="/static/home-dark.css?v=20261107-account-1">
   <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/personal.css?v=20261107-account-1">
 </head>
 <body class="home-light">
   <div class="app-shell">
@@ -80,6 +81,10 @@
           <h2 class="home-section-title" data-i18n="personalSizing">PERSONAL SIZING</h2>
           <div class="plan-numbers" id="plan-numbers"></div>
           <div class="plan-numbers plan-profits" id="plan-profits"></div>
+          <section class="tracking-panel" id="tracking-panel" hidden>
+            <button type="button" class="primary-button" id="tracking-button"></button>
+            <p id="tracking-status" role="status"></p>
+          </section>
           <p id="plan-reason" class="plan-reason"></p>
           <p class="plan-disclaimer" data-i18n="sizeDisclaimer">The bot calculates the size. You place the order.</p>
         </div>
@@ -88,26 +93,52 @@
       <section class="view" id="signals-view" data-view="signals">
         <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
         <div class="signal-group-toolbar">
-          <label class="signal-group-field" for="signal-group"><span data-i18n="coinGroup">Coin group</span><select id="signal-group" aria-describedby="signal-filter-note"><option value="ALL" data-i18n="allGroups">All groups</option></select></label>
+          <details class="signal-group-field"><summary data-i18n="coinGroups">Coin groups</summary><fieldset id="signal-group" aria-describedby="signal-filter-note"><legend class="sr-only" data-i18n="coinGroups">Coin groups</legend></fieldset></details>
           <button type="button" class="secondary-button signal-filter-reset" id="reset-signal-filters" hidden data-i18n="resetFilters">Reset filters</button>
         </div>
-        <p class="signal-filter-note" id="signal-filter-note" data-i18n="groupFilterNote">Filters only change this list, not bot notifications.</p>
-        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="SETUP" data-i18n="filterTrades">Trades</button><button class="filter" data-filter="SCALP" data-i18n="filterScalp">Scalp</button><button class="filter" data-filter="SMC">SMC</button><button class="filter" data-filter="LISTING" data-i18n="listing">Listing</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
+        <p class="signal-filter-note" id="signal-filter-note" data-i18n="groupFilterNote">Selected groups apply to signals and bot notifications.</p>
+        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="SETUP" data-i18n="filterTrades">Trades</button><button class="filter" data-filter="LISTING" data-i18n="listing">Listing</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <p class="signal-filter-count" id="signal-filter-count" role="status" aria-live="polite" aria-atomic="true"></p>
         <div id="signal-history" class="signal-list full"></div>
       </section>
 
       <section class="view" id="settings-view" data-view="settings">
-        <div class="page-heading"><div><p class="eyebrow" data-i18n="riskProfile">RISK PROFILE</p><h1 data-i18n="settings">Settings</h1></div></div>
-        <form id="settings-form" class="settings-form">
-          <label><span data-i18n="depositUsdt">Deposit, USDT</span><input id="deposit-input" type="number" min="1" step="0.01" required></label>
-          <label><span data-i18n="riskPercent">Risk per trade, %</span><input id="risk-input" type="number" min="0.1" max="5" step="0.1" required></label>
-          <label><span data-i18n="leverageX">Leverage</span><input id="leverage-input" type="number" min="1" max="100" step="1" required></label>
-          <label><span data-i18n="languageLabel">Language</span><select id="language" class="language-select" aria-label="Language"><option value="en">EN</option><option value="ru">RU</option><option value="de">DE</option><option value="fr">FR</option><option value="es">ES</option></select></label>
-          <fieldset><legend data-i18n="marginMode">Margin mode</legend><div class="segmented wide"><label><input type="radio" name="margin" value="cross" checked><span data-i18n="cross">Cross</span></label><label><input type="radio" name="margin" value="isolated"><span data-i18n="isolated">Isolated</span></label></div></fieldset>
-          <button class="primary-button" type="submit"><span data-i18n="saveSettings">Save settings</span></button>
-          <p class="form-status" id="form-status" role="status"></p>
-        </form>
+        <div class="page-heading account-heading"><div><p class="eyebrow" data-i18n="workspace">PRIVATE WORKSPACE</p><h1 data-i18n="settings">Account</h1></div></div>
+        <section class="account-overview" aria-labelledby="account-name">
+          <div class="account-identity"><span class="account-avatar" id="account-avatar" aria-hidden="true">U</span><div><h2 id="account-name">—</h2><span class="account-identity-source">Telegram</span></div><span id="account-connection-badge" class="account-connection-badge" role="status"></span></div>
+          <div class="account-balance"><p id="account-balance-label" data-i18n="futuresBalance">Futures balance</p><div class="account-balance-value"><strong id="account-balance">—</strong><span>USDT</span></div><p id="account-balance-note"></p></div>
+          <div class="account-balance-footer"><p id="account-balance-updated"></p><button type="button" class="secondary-button" id="account-refresh" data-i18n="refreshBalance">Refresh balance</button></div>
+        </section>
+        <details class="account-panel" id="account-connection">
+          <summary id="account-connection-title" data-i18n="manageConnection">Manage BingX connection</summary>
+          <div class="account-connection-content">
+            <p data-i18n="accountHelp">Connect a key with read access to your futures balance, positions and orders.</p>
+            <p id="account-status" role="status"></p>
+            <form id="account-form" class="settings-form" autocomplete="off">
+              <label>API Key<input id="account-key" type="password" autocomplete="new-password" minlength="8" maxlength="256" required></label>
+              <label>API Secret<input id="account-secret" type="password" autocomplete="new-password" minlength="8" maxlength="256" required></label>
+              <button type="submit" class="primary-button" id="account-connect" data-i18n="connectAccount">Connect BingX</button>
+            </form>
+            <button type="button" class="secondary-button" id="account-disconnect" hidden data-i18n="disconnectAccount">Disconnect</button>
+          </div>
+        </details>
+        <section class="account-section" aria-labelledby="trade-preferences-title">
+          <h2 id="trade-preferences-title" data-i18n="tradePreferences">Trading parameters</h2>
+          <p class="account-section-note" data-i18n="tradePreferencesNote">Used to calculate new trade plans. Set the order parameters on BingX when entering a trade.</p>
+          <form id="settings-form" class="settings-form account-trading-form">
+            <label id="manual-deposit-field"><span data-i18n="manualDeposit">Calculation deposit, USDT</span><input id="deposit-input" type="number" min="1" step="0.01" required><small data-i18n="manualBalanceNote">Entered manually. Connect BingX to use your actual futures balance.</small></label>
+            <label><span data-i18n="riskPercent">Risk per trade, %</span><input id="risk-input" type="number" min="0.1" max="5" step="0.1" required aria-describedby="account-risk-amount"><small id="account-risk-amount" aria-live="polite"></small></label>
+            <label><span data-i18n="leverageX">Leverage</span><input id="leverage-input" type="number" min="1" max="100" step="1" required></label>
+            <fieldset><legend data-i18n="marginMode">Margin mode</legend><div class="segmented wide"><label><input type="radio" name="margin" value="cross" checked><span data-i18n="cross">Cross</span></label><label><input type="radio" name="margin" value="isolated"><span data-i18n="isolated">Isolated</span></label></div></fieldset>
+            <div class="account-save-row"><button class="primary-button" id="account-save" type="submit" data-i18n="saveSettings">Save changes</button><button class="secondary-button" id="account-discard" type="button" hidden data-i18n="discardChanges">Cancel changes</button></div>
+            <p class="form-status" id="form-status" role="status"></p>
+          </form>
+        </section>
+        <section class="account-section account-preferences" aria-labelledby="app-preferences-title">
+          <h2 id="app-preferences-title" data-i18n="appPreferences">Preferences</h2>
+          <label class="account-preference-row"><span data-i18n="languageLabel">Language</span><select id="language" class="language-select"><option value="en">English</option><option value="ru">Русский</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option></select></label>
+          <div class="account-preference-row"><div><span data-i18n="coinGroups">Coin groups</span><p id="account-group-summary"></p></div><button type="button" class="secondary-button" id="account-groups" data-i18n="chooseGroups">Choose groups</button></div>
+        </section>
         <section class="referral-panel" id="referral-panel">
           <div class="referral-copy">
             <p class="eyebrow" data-i18n="referralOffer">BINGX REFERRAL OFFER</p>
@@ -152,13 +183,13 @@
     <nav class="bottom-nav" aria-label="Primary">
       <button class="active" data-target="overview"><span data-i18n="overview">Overview</span></button>
       <button data-target="signals"><span data-i18n="signals">Signals</span></button>
-      <button data-target="settings"><span data-i18n="settings">Settings</span></button>
+      <button data-target="settings"><span data-i18n="settings">Account</span></button>
       <p class="brand-credit" data-i18n="brandCredit">Mini App developed by YO!BIG Digital Bureau</p>
     </nav>
   </div>
   <div class="toast" id="toast" role="status"></div>
   <script src="/static/asset-icons.js?v=20261029-2"></script>
-  <script src="/static/asset-groups.js?v=20261107-signal-groups-1"></script>
-  <script src="/static/app.js?v=20261107-group-strategies-1"></script>
+  <script src="/static/asset-groups.js?v=20261107-account-1"></script>
+  <script src="/static/app.js?v=20261107-group-strategies-2"></script>
 </body>
 </html>

@@ -1,7 +1,6 @@
 """Commands shown in the Telegram menu. Admin commands stay unlisted.
 
-/setup and /spikes still run when typed. They stay out of this menu so they
-are not listed beside /plan and /scan.
+/setup redirects to the regular plan; /spikes only explains its removal.
 """
 
 from aiogram.types import BotCommand
@@ -14,7 +13,7 @@ PUBLIC_COMMANDS = (
     ("scan", "Scan liquid markets"),
     ("digest", "Market digest on request"),
     ("set", "Deposit, risk, leverage, margin"),
-    ("settings", "Show saved settings"),
+    ("account", "Account and trading parameters"),
     ("referral", "BingX referral price"),
     ("subscribe", "USDT TRC20 payment instructions"),
     ("paid", "Submit a payment hash"),
@@ -31,7 +30,7 @@ _MENU_TEXT = {
         "scan": "Скан ликвидных рынков",
         "digest": "Дайджест рынка по запросу",
         "set": "Депозит, риск, плечо, маржа",
-        "settings": "Сохранённые настройки",
+        "account": "Аккаунт и параметры торговли",
         "referral": "Цена для рефералов BingX",
         "subscribe": "Оплата USDT TRC20",
         "paid": "Отправить хеш оплаты",
@@ -44,7 +43,7 @@ _MENU_TEXT = {
         "scan": "Liquide Märkte scannen",
         "digest": "Marktdigest auf Abruf",
         "set": "Kapital, Risiko, Hebel, Margin",
-        "settings": "Gespeicherte Einstellungen",
+        "account": "Konto und Handelsparameter",
         "referral": "BingX-Empfehlungspreis",
         "subscribe": "USDT-TRC20-Zahlung",
         "paid": "Zahlungs-Hash senden",
@@ -57,7 +56,7 @@ _MENU_TEXT = {
         "scan": "Scanner les marchés liquides",
         "digest": "Digest du marché à la demande",
         "set": "Dépôt, risque, levier, marge",
-        "settings": "Réglages enregistrés",
+        "account": "Compte et paramètres de trading",
         "referral": "Tarif parrainé BingX",
         "subscribe": "Paiement USDT TRC20",
         "paid": "Envoyer le hash de paiement",
@@ -70,7 +69,7 @@ _MENU_TEXT = {
         "scan": "Escanear mercados líquidos",
         "digest": "Resumen del mercado",
         "set": "Depósito, riesgo, apalancamiento",
-        "settings": "Ajustes guardados",
+        "account": "Cuenta y parámetros de trading",
         "referral": "Precio para referidos BingX",
         "subscribe": "Pago USDT TRC20",
         "paid": "Enviar el hash del pago",

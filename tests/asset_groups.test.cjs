@@ -61,5 +61,10 @@ test('display catalog is loaded before the app and new assets are versioned',()=
   assert.match(html,/id="signal-group"/);
   assert.match(html,/id="reset-signal-filters"/);
   assert.match(html,/id="signal-filter-count" role="status"/);
-  assert.match(html,/home-dark.css\?v=20261107-signal-groups-1/);
+  assert.match(html,/home-dark.css\?v=20261107-account-1/);
+});
+
+test('server and browser use the exact same group membership',()=>{
+  const server=JSON.parse(fs.readFileSync(path.join(root,'miniapp/asset_groups.json'),'utf8'));
+  assert.deepEqual(Object.fromEntries(Array.from(catalog.groups,g=>[g.id,Array.from(g.symbols)])),server);
 });

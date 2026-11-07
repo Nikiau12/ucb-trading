@@ -1,6 +1,7 @@
 """Deliver queued trade lifecycle updates independently of market decisions."""
 
 import logging
+from trading.personal_notifications import render_update
 
 from trading.signal_updates import (
     render_cancelled_before_entry_update,
@@ -26,13 +27,10 @@ async def deliver_pending_signal_updates(
     for update in deliveries:
         user_id = int(update["telegram_user_id"])
         lang = language_for_user(user_id)
-        event_type = update["event_type"]
-        if event_type == "stop_reached":
-            message = render_stop_update(update, lang=lang)
-        elif event_type == "cancelled_before_entry":
-            message = render_cancelled_before_entry_update(update, lang=lang)
-        else:
-            message = render_tp1_update(update, lang=lang)
+        if not await loop.run_in_executor(None, state.tracking_is_active, user_id, int(update['id'])):
+            continue
+        event_type = update['event_type']
+        message = render_update(update, lang)
 
         try:
             sent = await notifier.send_message_to_user(

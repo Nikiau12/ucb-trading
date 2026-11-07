@@ -43,3 +43,23 @@ def cancellation_reason(signal, lang, legacy):
     if (signal.get("strategy") or {}).get("entry_type") == "stop":
         return COPY.get(lang, COPY["en"])[4]
     return legacy
+
+
+def skip_explanation(lang, reason):
+    if reason == "unclassified_symbol_no_group_fallback":
+        return {
+            "ru":"Для этой монеты пока не зафиксирована групповая стратегия.",
+            "en":"No group strategy is registered for this coin yet.",
+            "de":"Für diesen Coin ist noch keine Gruppenstrategie registriert.",
+            "fr":"Aucune stratégie de groupe n’est encore définie pour cette monnaie.",
+            "es":"Aún no hay una estrategia de grupo registrada para esta moneda.",
+        }.get(lang, "No group strategy is registered for this coin yet.")
+    if reason == "group_signal_not_saved":
+        return {
+            "ru":"Новый сетап не опубликован: уже есть открытая сделка, условия изменились или запись недоступна. Проверьте историю сигналов.",
+            "en":"No new setup published: a trade is already open, conditions changed or storage is unavailable. Check signal history.",
+            "de":"Kein neues Setup: Trade bereits offen, Bedingungen geändert oder Speicherung nicht verfügbar. Prüfe den Signalverlauf.",
+            "fr":"Pas de nouveau setup : position déjà ouverte, conditions modifiées ou sauvegarde indisponible. Consultez l’historique.",
+            "es":"No hay nuevo setup: operación abierta, condiciones modificadas o guardado no disponible. Revisa el historial.",
+        }.get(lang, "Setup unavailable. Check signal history.")
+    return None

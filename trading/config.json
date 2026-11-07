@@ -6,7 +6,7 @@
   },
   "scanner": {
     "min_confidence": 0.60,
-    "top_n_symbols": 80,
+    "top_n_symbols": 100,
     "scan_delay_after_4h_close_min": 5,
     "daily_digest_utc_hour": 8,
     "workers": 8
