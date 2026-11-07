@@ -65,7 +65,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                             if not services.st.should_send_alert(symbol, side, conf, plan):
                                 continue
 
-                            signal_id = services.st.save_signal(plan, symbol, side, conf, source="scanner")
+                            signal_id = await services._save_plan_signal(plan, symbol, side, conf, source="scanner")
                             if signal_id is None:
                                 # Another cycle may have claimed this market after the read-only precheck.
                                 continue
@@ -130,6 +130,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                                 "failed": len(symbols) - len(results),
                                 "stale": sum(bool(result.get("used_cache")) for result in results),
                                 "alerts_sent": sent,
+                                "strategy_version": services.core_plan.VERSION,
                             },
                         )
                     except Exception as e:

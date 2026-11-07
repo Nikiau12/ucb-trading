@@ -93,6 +93,7 @@ def personal_text(lang, key):
     return _COPY.get(lang, _COPY['en'])[key]
 
 def render_update(signal, lang):
+    from trading.group_labels import strategy_notice, cancellation_reason
     event = signal['event_type']
     if event not in ('tp1_reached','tp2_reached','tp1_filled','stop_reached','cancelled_before_entry'):
         raise ValueError('unsupported_event')
@@ -104,12 +105,15 @@ def render_update(signal, lang):
     lines = [f"<b>{html.escape(title)}</b>", identity, f"{key.upper()}: <code>{html.escape(str(value))}</code>", html.escape(note)]
     if event in ('tp1_reached','tp1_filled'):
         lines.append(html.escape(personal_text(lang, 'be')))
-    return '\n\n'.join(lines)
+    if event=='cancelled_before_entry' and (signal.get('strategy') or {}).get('entry_type')=='stop':
+        lines.append(html.escape(cancellation_reason(signal,lang,'')))
+    return '\n\n'.join(lines) + strategy_notice(signal,lang,details=False)
 
 def render_unpriced_signal(plan, lang, *, empty_balance=False):
+    from trading.group_labels import strategy_notice
     primary = plan['primary']
     lines = [f"<b>{html.escape(str(plan['symbol']))} · {html.escape(str(primary['side']).upper())}</b>"]
     for label,value in [('Entry',primary.get('entry')),('Stop',primary.get('stop')),*[(f'TP{i+1}',tp.get('price')) for i,tp in enumerate(primary.get('tps',[]))]]:
         lines.append(f'{label}: <code>{html.escape(str(value))}</code>')
     lines.append(personal_text(lang,'empty_balance' if empty_balance else 'balance_unavailable'))
-    return '\n'.join(lines)
+    return '\n'.join(lines) + strategy_notice(plan,lang)

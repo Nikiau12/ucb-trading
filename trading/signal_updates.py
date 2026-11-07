@@ -6,6 +6,7 @@ import html
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
+from trading.group_labels import strategy_notice, cancellation_reason
 
 
 TRACKABLE_STATUSES = {"waiting_entry", "active", "tp1_reached"}
@@ -40,9 +41,12 @@ def _level_transition(signal: dict, status: str, high: float, low: float) -> dic
     events: list[str] = []
     side = str(signal.get("side") or "").upper()
     if status == "waiting_entry":
+        stop_entry = (signal.get("strategy") or {}).get("entry_type") == "stop"
         if _touched(side, high, low, signal.get("tp1"), rising=True):
             return {"status": "cancelled_before_entry", "events": ["cancelled_before_entry"]}
-        if not _touched(side, high, low, signal.get("entry"), rising=False):
+        if stop_entry and _touched(side, high, low, signal.get("stop"), rising=False):
+            return {"status": "cancelled_before_entry", "events": ["cancelled_before_entry"]}
+        if not _touched(side, high, low, signal.get("entry"), rising=stop_entry):
             return {"status": status, "events": events}
         status = "active"
         events.append("entry_reached")
@@ -67,7 +71,8 @@ def _level_transition(signal: dict, status: str, high: float, low: float) -> dic
 def advance_lifecycle(signal: dict, price: Any, now: datetime) -> dict:
     """Return the next lifecycle state without performing I/O.
 
-    Entry is treated as a limit level. Stop checks are conservative and take
+    Legacy entry is a limit; versioned group signals use a stop trigger.
+    Stop checks are conservative and take
     precedence over targets. A direct jump to TP2 is terminal and intentionally
     does not enqueue a stale break-even instruction.
     """
@@ -356,6 +361,7 @@ def render_tp1_update(signal: dict, *, lang: str) -> str:
         f"• {html.escape(words['move'])}\n"
         f"• {html.escape(words['be'])}: <code>{html.escape(entry)}</code>\n\n"
         f"<i>{html.escape(words['actual'])}</i>"
+        + strategy_notice(signal, lang, details=False)
     )
 
 
@@ -383,6 +389,7 @@ def render_stop_update(signal: dict, *, lang: str) -> str:
         f"• {html.escape(words['cancel'])}\n"
         f"• {html.escape(words['wait'])}\n\n"
         f"<i>{html.escape(level_label)}: {html.escape(level)}</i>"
+        + strategy_notice(signal, lang, details=False)
     )
 
 
@@ -403,6 +410,7 @@ def render_cancelled_before_entry_update(signal: dict, *, lang: str) -> str:
         f"Entry: <code>{html.escape(entry)}</code>\n"
         f"TP1: <code>{html.escape(tp1)}</code>\n\n"
         f"• {html.escape(words['entry_not_reached'])}\n"
-        f"• {html.escape(words['tp1_first'])}\n\n"
+        f"• {html.escape(cancellation_reason(signal, lang, words['tp1_first']))}\n\n"
         f"<b>{html.escape(words['do_not_enter'])}</b>"
+        + strategy_notice(signal, lang, details=False)
     )

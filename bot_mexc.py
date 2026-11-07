@@ -69,7 +69,7 @@ if _TRADING_DIR not in sys.path:
     sys.path.insert(0, _TRADING_DIR)
 
 import bingx_snapshot as snap
-import trade_plan as core_plan
+from trading import group_plan as core_plan
 import scanner as sc
 import state as st
 from i18n import LANG_BUTTONS, t as _t
@@ -617,6 +617,16 @@ async def require_deposit(message: types.Message) -> bool:
     return False
 
 
+async def _save_plan_signal(plan, symbol, side, confidence, *, source):
+    def persist():
+        checked = core_plan.prepare_for_publication(plan)
+        if checked is None:
+            return None
+        plan.update(checked)
+        return st.save_signal(plan, symbol, side, confidence, source=source)
+    return await asyncio.get_running_loop().run_in_executor(None, persist)
+
+
 async def _send_plan_and_record(message: types.Message, plan: dict, deposit: float, risk_pct: float, lang: str) -> bool:
     symbol = plan.get("symbol", "")
     side = str((plan.get("primary") or {}).get("side", "skip")).upper()
@@ -631,7 +641,9 @@ async def _send_plan_and_record(message: types.Message, plan: dict, deposit: flo
         float(plan.get("lev") or plan.get("requested_lev") or 10),
         lang=lang,
     )
-    signal_id = st.save_signal(plan, symbol, side, _conf(plan), source="manual")
+    signal_id = await _save_plan_signal(plan, symbol, side, _conf(plan), source="manual")
+    if plan.get("strategy") and not signal_id:
+        return False
     if signal_id:
         st.grant_signal_access(message.from_user.id, signal_id)
         text = _with_signal_identity(text, signal_id, symbol, side, lang)
@@ -767,7 +779,9 @@ async def _run_digest(chat_id, settings, lang, *, status_msg=None, detail_limit=
                 float(plan.get("lev") or settings.get("lev") or 10),
                 lang=lang,
             )
-            signal_id = st.save_signal(plan, plan.get("symbol", ""), side, _conf(plan), source="manual")
+            signal_id = await _save_plan_signal(plan, plan.get("symbol", ""), side, _conf(plan), source="manual")
+            if plan.get("strategy") and not signal_id:
+                continue
             if signal_id and user_id:
                 st.grant_signal_access(user_id, signal_id)
                 card = _with_signal_identity(

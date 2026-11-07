@@ -65,7 +65,11 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
         try:
             loop     = asyncio.get_event_loop()
             snapshot = await loop.run_in_executor(None, services.snap.build_snapshot_with_fallback, symbol)
-            plan     = services.core_plan.make_plan(snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin)
+            plan = await loop.run_in_executor(
+                None, lambda: services.core_plan.make_plan(
+                    snapshot, deposit=deposit, risk_pct=risk_pct, lev=lev, margin=margin,
+                ),
+            )
             side = str((plan.get("primary") or {}).get("side", "skip")).upper()
             signal_id = None
             markup = None
@@ -76,9 +80,20 @@ def bind_trading_handlers(router: Router, services) -> SimpleNamespace:
                 text = services.render_setup(
                     plan, symbol, side, services._conf(plan), deposit, risk_pct, lev, lang=lang,
                 )
-                signal_id = services.st.save_signal(plan, symbol, side, services._conf(plan), source="manual")
+                signal_id = await services._save_plan_signal(plan, symbol, side, services._conf(plan), source="manual")
+                if plan.get("strategy") and not signal_id:
+                    # Never display executable levels without a persisted,
+                    # trackable signal (including an existing open-trade lock).
+                    side = "SKIP"
+                    plan = {**plan, "side": "skip", "primary": None,
+                            "reasons": ["group_signal_not_saved"]}
+                    text = services.render_telegram_plan(plan, deposit=deposit, risk_pct=risk_pct, lang=lang)
                 if signal_id:
                     services.st.grant_signal_access(uid, signal_id)
+                    if plan.get("strategy"):
+                        text = services.render_setup(
+                            plan, symbol, side, services._conf(plan), deposit, risk_pct, lev, lang=lang,
+                        )
                     text = services._with_signal_identity(text, signal_id, symbol, side, lang)
                 markup = services._trade_keyboard(signal_id, lang)
             await status_msg.edit_text(

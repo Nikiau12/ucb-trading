@@ -5,6 +5,7 @@ does not print the raw tokens entry, midrange, or deposit.
 """
 
 from __future__ import annotations
+from trading.group_labels import strategy_notice
 
 import html
 
@@ -181,7 +182,7 @@ def render_setup(
         lines.append(_t(lang, "alert_lev_capped"))
     if uses_reference_deposit:
         lines.append(_t(lang, "alert_reference"))
-    return "\n".join(lines)
+    return "\n".join(lines) + strategy_notice(plan, lang)
 
 
 def render_alert_block(
