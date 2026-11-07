@@ -452,7 +452,8 @@ def load_report(*, database_url=None, days=30, min_complete=MIN_COMPLETE_SAMPLE)
                    s.strategy_metadata->>'version',s.strategy_metadata->>'catalog_version',
                    s.strategy_metadata->>'group',LOWER(s.side),l.entry_hit_at,
                    r.closed_at,r.outcome,r.cost_status,r.net_r,l.status,
-                   l.tp1_hit_at,l.tp2_hit_at,l.stop_hit_at,l.expired_at
+                   l.tp1_hit_at,l.tp2_hit_at,l.stop_hit_at,l.expired_at,
+                   r.lifecycle_updated_at,l.updated_at,r.lifecycle_status
             FROM signals s JOIN signal_lifecycle l ON l.signal_id=s.id
             LEFT JOIN group_shadow_results r ON r.signal_id=s.id AND r.model_version=%s
             WHERE s.strategy_metadata->>'version' LIKE 'group-rules-%%'
@@ -461,8 +462,19 @@ def load_report(*, database_url=None, days=30, min_complete=MIN_COMPLETE_SAMPLE)
             (MODEL_VERSION, days)).fetchall()
     keys = ("signal_id","created_at","strategy_version","catalog_version","asset_group",
             "side","entered_at","closed_at","outcome","cost_status","net_r",
-            "lifecycle_status","tp1_hit_at","tp2_hit_at","stop_hit_at","expired_at")
-    return {"days":days, **summarize([dict(zip(keys,row)) for row in raw],min_complete=min_complete)}
+            "lifecycle_status","tp1_hit_at","tp2_hit_at","stop_hit_at","expired_at",
+            "shadow_updated_at","lifecycle_updated_at","shadow_status")
+    rows = [dict(zip(keys,row)) for row in raw]
+    for row in rows:
+        # Never display a prior accounting snapshot after the live lifecycle
+        # advances. Derive the current outcome now; leave costs NULL until the
+        # independent hourly worker catches up.
+        fresh = (row["shadow_updated_at"] is not None
+                 and row["shadow_updated_at"] >= row["lifecycle_updated_at"]
+                 and row["shadow_status"] == row["lifecycle_status"])
+        if not fresh:
+            row.update(outcome=None, cost_status=None, net_r=None, closed_at=None)
+    return {"days":days, **summarize(rows,min_complete=min_complete)}
 
 
 def markdown_report(report):

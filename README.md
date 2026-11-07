@@ -398,7 +398,9 @@ setups but excludes them from complete net-return denominators. Below 20
 complete after-cost outcomes per group/direction it explicitly says
 `insufficient_data`; 20 is only a provisional display threshold, not proof of
 profitability. The reported drawdown is the cumulative closed-trade R curve,
-not account-equity drawdown. A manual `--sync` command is available for a
+not account-equity drawdown. If a lifecycle advances between hourly accounting
+cycles, the report shows the new outcome immediately but leaves its net R
+unknown until the accounting row catches up. A manual `--sync` command is available for a
 controlled backfill; the worker normally runs it automatically.
 
 ## Portfolio context

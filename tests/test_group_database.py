@@ -286,6 +286,12 @@ def test_group_shadow_sync_is_per_signal_idempotent_and_read_only_to_trades(data
     assert state.update_signal_lifecycle(signal_id, 100)["status"] == "active"
     assert state.update_signal_lifecycle(signal_id, 108)["status"] == "tp1_reached"
     assert state.update_signal_lifecycle(signal_id, 100)["status"] == "stopped"
+    stale_report = shadow.load_report(database_url=url)
+    stale_group = next(r for r in stale_report["rows"] if r["group"] == "core_eth"
+                       and r["side"] == "long" and r["catalog_version"] == registry()["version"])
+    assert stale_group["outcomes"] == {"tp1_then_be": 1}
+    assert stale_group["closed_entered"] == stale_group["not_yet_synced"] == 1
+    assert stale_group["complete_net"] == 0 and stale_group["net_r_mean"] is None
     monkeypatch.setattr(shadow, "funding_history", lambda *_args, **_kwargs: ([], True))
     completed = shadow.sync_pending(database_url=url)
     assert completed["examined"] == completed["complete"] == 1
