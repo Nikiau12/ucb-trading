@@ -11,6 +11,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ucb_test
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: ucb_group_tests
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ucb_test -d ucb_group_tests"
+          --health-interval 5s --health-timeout 5s --health-retries 10
 
     steps:
       - name: Check out repository
@@ -32,6 +44,8 @@ jobs:
         run: python -m compileall -q bot.py bot_mexc.py bingx core evaluation mexc miniapp trading
 
       - name: Run tests
+        env:
+          TEST_DATABASE_URL: postgresql://ucb_test:local-test-only@127.0.0.1:5432/ucb_group_tests
         run: python -m pytest -q
 
       - name: Validate Mini App JavaScript and display catalogs

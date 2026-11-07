@@ -1,0 +1,308 @@
+{
+  "schema_version": 1,
+  "version": "2026-11-07-v1",
+  "frozen_at_utc": "2026-11-07T13:31:50Z",
+  "scope": "Research universe from the 2026-11-07 13:36 Europe/Paris entered-signals PDF; not the full BingX exchange universe.",
+  "runtime_effect": "None. This registry is not loaded by the live scanner and does not change trading eligibility.",
+  "groups": [
+    {
+      "id": "core_btc",
+      "name_ru": "BTC",
+      "symbols": [
+        "BTC_USDT"
+      ]
+    },
+    {
+      "id": "core_eth",
+      "name_ru": "ETH",
+      "symbols": [
+        "ETH_USDT"
+      ]
+    },
+    {
+      "id": "core_sol",
+      "name_ru": "SOL",
+      "symbols": [
+        "SOL_USDT"
+      ]
+    },
+    {
+      "id": "l1",
+      "name_ru": "Базовые сети L1/L0",
+      "symbols": [
+        "ADA_USDT",
+        "APT_USDT",
+        "ARK_USDT",
+        "BNB_USDT",
+        "CFX_USDT",
+        "DOT_USDT",
+        "ETC_USDT",
+        "HBAR_USDT",
+        "ICP_USDT",
+        "INJ_USDT",
+        "IOST_USDT",
+        "KAS_USDT",
+        "SEI_USDT",
+        "SUI_USDT",
+        "XPL_USDT"
+      ]
+    },
+    {
+      "id": "scaling",
+      "name_ru": "L2 и модульная инфраструктура",
+      "symbols": [
+        "ALT_USDT",
+        "DYM_USDT",
+        "MERL_USDT",
+        "OP_USDT",
+        "SOON_USDT",
+        "STRK_USDT",
+        "STX_USDT",
+        "TIA_USDT"
+      ]
+    },
+    {
+      "id": "privacy",
+      "name_ru": "Приватные платежи",
+      "symbols": [
+        "XMR_USDT",
+        "ZEC_USDT"
+      ]
+    },
+    {
+      "id": "payments",
+      "name_ru": "Платёжные сети",
+      "symbols": [
+        "DASH_USDT",
+        "LTC_USDT",
+        "XLM_USDT",
+        "XRP_USDT"
+      ]
+    },
+    {
+      "id": "defi",
+      "name_ru": "Кредитование, стейкинг и доходность DeFi",
+      "symbols": [
+        "AAVE_USDT",
+        "APR_USDT",
+        "BR_USDT",
+        "CAP_USDT",
+        "ENA_USDT",
+        "EVAA_USDT",
+        "FLUID_USDT",
+        "JTO_USDT",
+        "PENDLE_USDT"
+      ]
+    },
+    {
+      "id": "trading",
+      "name_ru": "DEX, торговые сервисы и launchpad",
+      "symbols": [
+        "1INCH_USDT",
+        "ASTER_USDT",
+        "BANANA_USDT",
+        "COW_USDT",
+        "CRV_USDT",
+        "HYPE_USDT",
+        "ORDER_USDT",
+        "PUMP_USDT",
+        "RUNE_USDT",
+        "UNI_USDT"
+      ]
+    },
+    {
+      "id": "ai",
+      "name_ru": "AI и вычисления",
+      "symbols": [
+        "AGT_USDT",
+        "ATH_USDT",
+        "DNA_USDT",
+        "FET_USDT",
+        "JCT_USDT",
+        "RENDER_USDT",
+        "UAI_USDT"
+      ]
+    },
+    {
+      "id": "data",
+      "name_ru": "Хранение данных и распределённые сервисы",
+      "symbols": [
+        "FIL_USDT",
+        "HOT_USDT",
+        "IRYS_USDT",
+        "JASMY_USDT",
+        "NIL_USDT",
+        "WAL_USDT"
+      ]
+    },
+    {
+      "id": "oracles",
+      "name_ru": "Оракулы и межсетевая инфраструктура",
+      "symbols": [
+        "LINK_USDT",
+        "ON_USDT",
+        "PYTH_USDT",
+        "QNT_USDT",
+        "TRB_USDT"
+      ]
+    },
+    {
+      "id": "meme",
+      "name_ru": "Мемы и community-токены",
+      "symbols": [
+        "1000BONK_USDT",
+        "1000PEPE_USDT",
+        "BULLA_USDT",
+        "DOGE_USDT",
+        "FARTCOIN_USDT",
+        "PENGU_USDT",
+        "PONS_USDT",
+        "WIF_USDT"
+      ]
+    },
+    {
+      "id": "games",
+      "name_ru": "Игры, NFT и развлечения",
+      "symbols": [
+        "AKE_USDT",
+        "BEAM_USDT",
+        "BEAT_USDT",
+        "BLUR_USDT",
+        "DOOD_USDT",
+        "IDOL_USDT",
+        "NOT_USDT"
+      ]
+    },
+    {
+      "id": "apps",
+      "name_ru": "Пользовательские приложения и аналитика",
+      "symbols": [
+        "AVA_USDT",
+        "BAT_USDT",
+        "BMT_USDT",
+        "WLD_USDT"
+      ]
+    },
+    {
+      "id": "rwa",
+      "name_ru": "Токенизированное золото",
+      "symbols": [
+        "XAUT_USDT"
+      ]
+    }
+  ],
+  "secondary_tags": {
+    "DOGE_USDT": [
+      "L1",
+      "payments"
+    ],
+    "HYPE_USDT": [
+      "L1"
+    ],
+    "INJ_USDT": [
+      "DeFi"
+    ],
+    "RUNE_USDT": [
+      "L1"
+    ],
+    "DOT_USDT": [
+      "L0"
+    ],
+    "DYM_USDT": [
+      "L1",
+      "modular settlement"
+    ],
+    "TIA_USDT": [
+      "data availability",
+      "not a generic L2 execution chain"
+    ],
+    "ALT_USDT": [
+      "rollup infrastructure"
+    ],
+    "MERL_USDT": [
+      "Bitcoin scaling"
+    ],
+    "STX_USDT": [
+      "Bitcoin scaling"
+    ],
+    "SOON_USDT": [
+      "SVM rollup infrastructure"
+    ],
+    "PENGU_USDT": [
+      "NFT/IP ecosystem"
+    ],
+    "DOOD_USDT": [
+      "NFT/IP ecosystem",
+      "community"
+    ],
+    "AKE_USDT": [
+      "AI"
+    ],
+    "BEAT_USDT": [
+      "AI",
+      "music"
+    ],
+    "IDOL_USDT": [
+      "AI",
+      "entertainment"
+    ],
+    "JCT_USDT": [
+      "DePIN",
+      "AI infrastructure"
+    ],
+    "NIL_USDT": [
+      "privacy compute"
+    ],
+    "DASH_USDT": [
+      "optional transaction privacy"
+    ],
+    "XAUT_USDT": [
+      "gold",
+      "RWA",
+      "not a crypto-sector altcoin"
+    ]
+  },
+  "identity_notes": {
+    "DNA_USDT": "NeoSoul (DNA), not a same-ticker legacy token.",
+    "CAP_USDT": "Cap (CAP), credit protocol; not Capverse or a legacy same-ticker CAP.",
+    "BEAM_USDT": "Gaming ecosystem formerly Merit Circle, not Beam privacy coin.",
+    "AGT_USDT": "Alaya AI.",
+    "ON_USDT": "Orochi Network.",
+    "APR_USDT": "aPriori.",
+    "AKE_USDT": "AKEDO.",
+    "BEAT_USDT": "Audiera.",
+    "IDOL_USDT": "MEET48.",
+    "JCT_USDT": "Janction.",
+    "UAI_USDT": "UnifAI.",
+    "PONS_USDT": "Pons.",
+    "1000BONK_USDT": "Keep the exact BingX contract ticker and its quoted unit; do not divide prices or multiply order-book amounts by 1000.",
+    "1000PEPE_USDT": "Keep the exact BingX contract ticker and its quoted unit; do not substitute PEPE spot."
+  },
+  "sources": [
+    "https://zips.z.cash/protocol/protocol.pdf",
+    "https://ethereum.org/developers/docs/scaling/",
+    "https://docs.celestia.org/learn/celestia-101/data-availability-faq/",
+    "https://hyperliquid.gitbook.io/hyperliquid-docs",
+    "https://pump.fun/pump-token",
+    "https://gold.tether.to/Tether%20Gold%20Whitepaper.pdf",
+    "https://bingx.com/en/support/articles/18020643427471",
+    "https://bingx.com/en/support/articles/18152757605391",
+    "https://bingx.com/es/support/articles/24913279261081",
+    "https://bingx.com/en/support/articles/17341263777935",
+    "https://docs.orochi.network/additional-info/on-token/",
+    "https://docs.janction.ai/token/tokenomics",
+    "https://docs.unifai.network/tokenomics/token-utility/",
+    "https://docs.audiera.fi/",
+    "https://www.apr.io/whitepaper.pdf"
+  ],
+  "review_thresholds": {
+    "note": "Provisional screening thresholds for measured market quality, not validated strategy rules. Never filter historical trades by today's liquidity.",
+    "max_spread_bps": 10,
+    "min_depth_50bps_usdt_per_side": 10000,
+    "max_1000usdt_impact_bps": 10,
+    "min_24h_quote_volume_usdt": 1000000,
+    "required_orderbook_samples": 3,
+    "requested_completed_daily_bars": 30,
+    "max_orderbook_age_seconds": 120
+  }
+}

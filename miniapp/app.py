@@ -444,11 +444,11 @@ def subscription_fields(user_id: int | None = None, *, exact: bool = False) -> d
 PAID_SIGNALS_SQL = f"""
 SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
        price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, min_notional,
-       created_at, source, reason, regime, timeframe
+       created_at, source, reason, regime, timeframe, strategy_metadata
 FROM (
     SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
            price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, min_notional,
-           created_at, source, reason, regime, timeframe
+           created_at, source, reason, regime, timeframe, strategy_metadata
     FROM signals
     WHERE source = 'scanner'
       AND UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'
@@ -456,7 +456,7 @@ FROM (
     SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
            s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
            s.min_vol, s.max_vol, s.max_leverage, s.min_notional, s.created_at, s.source,
-           s.reason, s.regime, s.timeframe
+           s.reason, s.regime, s.timeframe, s.strategy_metadata
     FROM signals s
     JOIN user_signal_access a ON a.signal_id = s.id
     WHERE a.telegram_user_id = %s
@@ -471,7 +471,7 @@ TRIAL_SIGNALS_SQL = f"""
 SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
        s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
        s.min_vol, s.max_vol, s.max_leverage, s.min_notional, s.created_at, s.source,
-       s.reason, s.regime, s.timeframe
+       s.reason, s.regime, s.timeframe, s.strategy_metadata
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
@@ -484,7 +484,7 @@ REQUESTED_SIGNAL_SQL = f"""
 SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
        s.stop, s.tp1, s.tp2, s.price_unit, s.contract_size, s.vol_unit,
        s.min_vol, s.max_vol, s.max_leverage, s.min_notional, s.created_at, s.source,
-       s.reason, s.regime, s.timeframe
+       s.reason, s.regime, s.timeframe, s.strategy_metadata
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
@@ -1054,6 +1054,7 @@ def signals(
          "min_notional": float(row[15]) if row[15] is not None else None,
          "created_at": row[16].isoformat(),
          "source": row[17] or "scanner",
+         "strategy": row[21] if len(row) > 21 else None,
          "reason": row[18],
          "regime": row[19],
          "timeframe": row[20] or ("15m" if row[17] == "spike" else "4h"),

@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 
 import bingx_snapshot as snap
-import trade_plan as core
+from trading import group_plan as core
 
 logger = logging.getLogger(__name__)
 

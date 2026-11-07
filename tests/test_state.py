@@ -180,7 +180,7 @@ def test_personal_alerts_are_not_published_to_the_scanner_feed(monkeypatch):
 
     monkeypatch.setattr(state, "plan_payload_errors", lambda _plan: [])
     state.save_signal({"primary": {}}, "ETH_USDT", "LONG", 0.78, source="manual")
-    assert connection.calls[1][1][-1] == "manual"
+    assert connection.calls[1][1][-2:] == ("manual", None)
 
 
 def test_signal_context_stores_reason_regime_and_timeframe():
@@ -218,11 +218,12 @@ def test_save_signal_persists_setup_context(monkeypatch):
         source="manual",
     )
     params = connection.calls[0][1]
-    assert params[-1] == "manual"
-    assert params[-2] == "4h"
-    assert params[-3] == "1d=up;4h=down;regime=trend"
-    assert "trend_1d=up" in params[-4]
-    assert "entry" not in params[-4]
+    assert params[-1] is None  # Legacy plans get no new policy.
+    assert params[-2] == "manual"
+    assert params[-3] == "4h"
+    assert params[-4] == "1d=up;4h=down;regime=trend"
+    assert "trend_1d=up" in params[-5]
+    assert "entry" not in params[-5]
 
 
 def test_runtime_health_records_scanner_metrics(monkeypatch):

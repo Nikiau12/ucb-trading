@@ -123,6 +123,13 @@ def _signal_contract_rules(plan: Optional[dict]) -> dict:
 def _signal_lifecycle_durations(plan: Optional[dict]) -> tuple[int, int]:
     """Return entry-validity and maximum-holding durations in seconds."""
     primary = (plan or {}).get("primary") or {}
+    strategy = (plan or {}).get("strategy") or {}
+    if strategy.get("entry_type") == "stop":
+        remaining = int(float(strategy["entry_expires_at"]) - time.time())
+        holding = int(strategy["max_holding_seconds"])
+        if not 0 < remaining <= 8 * 3600 or not 0 < holding <= 4 * 86400:
+            raise ValueError("Invalid or expired group lifecycle policy")
+        return remaining, holding
     try:
         entry_bars = max(1, int(primary.get("entry_expiry_bars") or 3))
     except (TypeError, ValueError):
@@ -164,7 +171,7 @@ def _alert_is_allowed(previous: Optional[dict], side: str, levels: dict, now: fl
     return True
 
 
-def _scanner_signal_is_allowed(connection, symbol: str, side: str, levels: dict, now: float) -> bool:
+def _scanner_signal_is_allowed(connection, symbol: str, side: str, levels: dict, now: float, *, all_sources=False) -> bool:
     """Reject overlapping positions and recently recycled levels, even if no alert marker was saved."""
     rows = connection.execute(
         """
@@ -172,14 +179,14 @@ def _scanner_signal_is_allowed(connection, symbol: str, side: str, levels: dict,
                EXTRACT(EPOCH FROM s.created_at), l.status
         FROM signals s
         LEFT JOIN signal_lifecycle l ON l.signal_id = s.id
-        WHERE s.symbol = %s AND s.source = 'scanner'
+        WHERE s.symbol = %s AND (s.source = 'scanner' OR %s)
           AND (
               s.created_at >= NOW() - (%s * INTERVAL '1 second')
               OR l.status IN ('replay_pending', 'waiting_entry', 'active', 'tp1_reached')
           )
         ORDER BY s.created_at DESC
         """,
-        (symbol, SIGNAL_SETUP_REUSE_SECS),
+        (symbol, all_sources, SIGNAL_SETUP_REUSE_SECS),
     ).fetchall()
     for old_side, entry, stop, tp1, tp2, created_at, status in rows:
         if status in OPEN_SIGNAL_STATUSES:
@@ -405,19 +412,34 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
     primary = plan.get("primary") or {}
     tps = primary.get("tps") or []
     rules = _signal_contract_rules(plan)
-    entry_expiry_seconds, max_holding_seconds = _signal_lifecycle_durations(plan)
     reason, regime, timeframe = signal_context(plan)
     origin = source if source in {"scanner", "manual"} else "manual"
     try:
+        entry_expiry_seconds, max_holding_seconds = _signal_lifecycle_durations(plan)
+        strategy = plan.get("strategy")
+        if strategy and not 0 <= time.time() - float(strategy.get("verified_at", 0)) <= 60:
+            return None
         with psycopg.connect(DATABASE_URL) as connection:
-            if origin == "scanner":
+            if origin == "scanner" or strategy:
                 # Serialize all scanner inserts for this market, including across workers.
                 connection.execute(
                     "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
                     (20261102, symbol),
                 )
+                if strategy:
+                    same = connection.execute(
+                        """SELECT s.id, l.status FROM signals s
+                           JOIN signal_lifecycle l ON l.signal_id = s.id
+                           WHERE s.strategy_metadata->>'version' = %s
+                             AND s.strategy_metadata->>'decision_key' = %s""",
+                        (strategy["version"], strategy["decision_key"]),
+                    ).fetchone()
+                    if same:
+                        # Manual lookups may open this exact saved setup;
+                        # scanners must not rebroadcast the same decision.
+                        return same[0] if origin == "manual" and same[1] == "waiting_entry" else None
                 if not _scanner_signal_is_allowed(
-                    connection, symbol, side, _plan_levels(plan), time.time()
+                    connection, symbol, side, _plan_levels(plan), time.time(), all_sources=bool(strategy)
                 ):
                     return None
             row = connection.execute(
@@ -426,9 +448,9 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                     symbol, side, confidence, price, entry, stop, tp1, tp2,
                     price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage,
                     min_notional,
-                    reason, regime, timeframe, source
+                    reason, regime, timeframe, source, strategy_metadata
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 RETURNING id
                 """,
                 (symbol, side.upper(), confidence, plan.get("price"), primary.get("entry"),
@@ -437,7 +459,8 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                  rules["price_unit"], rules["contract_size"], rules["vol_unit"],
                  rules["min_vol"], rules["max_vol"], rules["max_leverage"],
                  rules["min_notional"],
-                 reason, regime, timeframe, origin),
+                 reason, regime, timeframe, origin,
+                 json.dumps(strategy, allow_nan=False) if strategy else None),
             ).fetchone()
             if row:
                 connection.execute(
@@ -577,7 +600,7 @@ def load_trackable_signals(limit: int = 200) -> list[dict]:
                 SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
                        s.created_at, s.price_unit, l.status, l.entry_expires_at,
                        l.holding_expires_at, l.max_holding_seconds,
-                       l.entry_path_checked_at
+                       l.entry_path_checked_at, s.strategy_metadata
                 FROM signal_lifecycle l
                 JOIN signals s ON s.id = l.signal_id
                 WHERE l.status IN ('replay_pending', 'waiting_entry', 'active', 'tp1_reached')
@@ -593,7 +616,7 @@ def load_trackable_signals(limit: int = 200) -> list[dict]:
         keys = (
             "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
             "created_at", "price_unit", "status", "entry_expires_at",
-            "holding_expires_at", "max_holding_seconds", "entry_path_checked_at",
+            "holding_expires_at", "max_holding_seconds", "entry_path_checked_at", "strategy",
         )
         return [dict(zip(keys, row)) for row in rows]
     except Exception as exc:
@@ -621,7 +644,7 @@ def update_signal_lifecycle(
                        s.created_at, s.price_unit, l.status, l.entry_expires_at,
                        l.holding_expires_at, l.max_holding_seconds, l.entry_hit_at,
                        l.tp1_hit_at, l.tp2_hit_at, l.stop_hit_at, l.expired_at,
-                       l.cancelled_at
+                       l.cancelled_at, s.strategy_metadata
                 FROM signal_lifecycle l
                 JOIN signals s ON s.id = l.signal_id
                 WHERE s.id = %s
@@ -636,7 +659,7 @@ def update_signal_lifecycle(
                 "created_at", "price_unit", "status", "entry_expires_at",
                 "holding_expires_at", "max_holding_seconds", "entry_hit_at",
                 "tp1_hit_at", "tp2_hit_at", "stop_hit_at", "expired_at",
-                "cancelled_at",
+                "cancelled_at", "strategy",
             )
             signal = dict(zip(keys, row))
             outcome = advance_lifecycle(signal, price, now)
@@ -757,7 +780,7 @@ def replay_signal_lifecycle(
                 """
                 SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
                        s.created_at, s.price_unit, l.status, l.entry_expires_at,
-                       l.holding_expires_at, l.max_holding_seconds
+                       l.holding_expires_at, l.max_holding_seconds, s.strategy_metadata
                 FROM signal_lifecycle l
                 JOIN signals s ON s.id = l.signal_id
                 WHERE s.id = %s AND l.status = 'replay_pending'
@@ -770,7 +793,7 @@ def replay_signal_lifecycle(
             keys = (
                 "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
                 "created_at", "price_unit", "status", "entry_expires_at",
-                "holding_expires_at", "max_holding_seconds",
+                "holding_expires_at", "max_holding_seconds", "strategy",
             )
             signal = dict(zip(keys, row))
             restored = replay_lifecycle(
@@ -858,7 +881,7 @@ def audit_waiting_signal_lifecycle(
                 """
                 SELECT s.id, s.symbol, s.side, s.entry, s.stop, s.tp1, s.tp2,
                        s.created_at, s.price_unit, l.status, l.entry_expires_at,
-                       l.holding_expires_at, l.max_holding_seconds
+                       l.holding_expires_at, l.max_holding_seconds, s.strategy_metadata
                 FROM signal_lifecycle l
                 JOIN signals s ON s.id = l.signal_id
                 WHERE s.id = %s AND l.status = 'waiting_entry'
@@ -871,7 +894,7 @@ def audit_waiting_signal_lifecycle(
             keys = (
                 "id", "symbol", "side", "entry", "stop", "tp1", "tp2",
                 "created_at", "price_unit", "status", "entry_expires_at",
-                "holding_expires_at", "max_holding_seconds",
+                "holding_expires_at", "max_holding_seconds", "strategy",
             )
             signal = dict(zip(keys, row))
             restored = replay_lifecycle(
@@ -966,7 +989,7 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
                 """
                 SELECT d.signal_id, d.telegram_user_id, d.event_type, d.attempts,
                        s.symbol, s.side, s.entry, s.stop, s.tp1, s.created_at,
-                       s.price_unit, l.tp1_hit_at
+                       s.price_unit, l.tp1_hit_at, s.strategy_metadata
                 FROM signal_update_deliveries d
                 JOIN signals s ON s.id = d.signal_id
                 JOIN signal_lifecycle l ON l.signal_id = d.signal_id
@@ -989,7 +1012,7 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
         keys = (
             "id", "telegram_user_id", "event_type", "attempts", "symbol",
             "side", "entry", "stop", "tp1", "created_at", "price_unit",
-            "tp1_hit_at",
+            "tp1_hit_at", "strategy",
         )
         return [dict(zip(keys, row)) for row in rows]
     except Exception as exc:

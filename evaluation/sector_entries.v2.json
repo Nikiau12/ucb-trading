@@ -1,0 +1,26 @@
+{
+  "version": "2026-11-07-v2-entry-1",
+  "mode": "offline_research_only",
+  "live_eligible": false,
+  "status": "implemented_candidates_not_validated",
+  "timeframes": ["4h", "1d"],
+  "indicators": {"ema_seed": "first_period_sma", "wilder_seed": "first_14_deltas_sma", "adx_first_index": 27, "percentile": "linear_previous_90_excludes_current"},
+  "groups": {
+    "core_btc": {"long": "T", "short": "T", "btc": "none", "rs": false, "rv_long": 0, "rv_short": 0, "trend_age": [2,20], "volatility_long": false, "max_hours": 96},
+    "core_eth": {"long": "TR", "short": "TR", "btc": "not_opposite", "rs": true, "rv_long": 0, "rv_short": 0, "volatility_long": false, "max_hours": 96},
+    "core_sol": {"long": "T", "short": "B", "btc": "same", "rs": true, "rv_long": 0, "rv_short": 1.5, "volatility_long": true, "max_hours": 96},
+    "l1": {"long": "T", "short": "B", "btc": "same", "rs": true, "rv_long": 1.2, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "scaling": {"long": "B", "short": "B", "btc": "same", "rs": true, "rv_long": 1.5, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "privacy": {"long": "B", "short": "B", "btc": "not_opposite", "rs": true, "rv_long": 1.5, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "payments": {"long": "R", "short": "R", "btc": "not_opposite", "rs": false, "rv_long": 0, "rv_short": 0, "volatility_long": false, "max_hours": 72},
+    "defi": {"long": "T", "short": "B", "btc": "same", "rs": true, "rv_long": 1.2, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "trading": {"long": "T", "short": "B", "btc": "same", "rs": true, "rv_long": 1.2, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "ai": {"long": "B", "short": "B", "btc": "same", "rs": true, "rv_long": 2, "rv_short": 2, "volatility_long": true, "max_hours": 96},
+    "data": {"long": "B", "short": "B", "btc": "same", "rs": true, "rv_long": 1.5, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "oracles": {"long": "T", "short": "B", "btc": "same", "rs": true, "rv_long": 1.2, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "meme": {"long": "B", "short": "B", "btc": "same", "rs": true, "rv_long": 2, "rv_short": 2, "volatility_long": true, "max_hours": 72},
+    "games": {"long": "B", "short": "B", "btc": "same", "rs": true, "rv_long": 2, "rv_short": 2, "volatility_long": false, "max_hours": 72},
+    "apps": {"long": "B", "short": "B", "btc": "same", "rs": true, "rv_long": 1.5, "rv_short": 1.5, "volatility_long": false, "max_hours": 96},
+    "rwa": {"long": "T", "short": "T", "btc": "none", "rs": false, "rv_long": 0, "rv_short": 0, "volatility_long": false, "max_hours": 96}
+  }
+}

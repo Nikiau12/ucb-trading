@@ -5,6 +5,7 @@ does not print the raw tokens entry, midrange, or deposit.
 """
 
 from __future__ import annotations
+from trading.group_labels import strategy_notice
 
 import html
 
@@ -171,7 +172,7 @@ def render_setup(
         lines.append(ratio)
     if why:
         lines.append(why)
-    return "\n".join(lines)
+    return "\n".join(lines) + strategy_notice(plan, lang)
 
 
 def render_alert_block(
@@ -221,7 +222,7 @@ def render_alert_block(
         lines.append(_t(lang, "alert_min_contract"))
     elif leverage_limited:
         lines.append(_t(lang, "alert_lev_capped"))
-    return "\n".join(lines[:8])
+    return "\n".join(lines[:8]) + strategy_notice(plan, lang)
 
 
 def _reward_risk(entry, stop, tp1) -> str | None:
@@ -272,4 +273,4 @@ def render_scan_card(
         lines.append(ratio)
     if position_usdt is not None:
         lines.append(f"{_t(lang, 'alert_position')}: <b>{_fmt_usdt(position_usdt)} USDT</b>")
-    return "\n".join(lines[:6])
+    return "\n".join(lines[:6]) + strategy_notice(plan, lang)

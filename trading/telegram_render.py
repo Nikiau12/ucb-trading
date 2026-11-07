@@ -5,7 +5,10 @@ import math
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-from i18n import t as _t
+try:
+    from .i18n import t as _t
+except ImportError:
+    from i18n import t as _t
 
 
 def esc(value: Any) -> str:

@@ -222,7 +222,31 @@ function profitValue(value){
 }
 
 function confidenceLabel(signal){
+  if(signal.strategy?.experimental)return groupStrategyLabel(signal);
   return `${Math.round(clamp(signal.confidence,0,1)*100)}%`;
+}
+
+function groupStrategyLabel(signal,details=false){
+  if(!signal.strategy?.experimental)return '';
+  const labels={
+    ru:['Экспериментальная стратегия','Вход по пробою (STOP), не лимитный ордер. Прибыльность не подтверждена.'],
+    en:['Experimental strategy','Breakout entry (STOP), not a limit order. Profitability is unverified.'],
+    de:['Experimentelle Strategie','Ausbruchseinstieg (STOP), keine Limit-Order. Profitabilität unbestätigt.'],
+    fr:['Stratégie expérimentale','Entrée à la cassure (STOP), pas un ordre limite. Rentabilité non validée.'],
+    es:['Estrategia experimental','Entrada por ruptura (STOP), no una orden límite. Rentabilidad no validada.'],
+  };
+  const words=labels[language]||labels.en;
+  return details?`${words[0]} · 4H / 1D. ${words[1]}`:words[0];
+}
+
+function groupCancellationReason(){
+  return ({
+    ru:'Вход не подтверждён: достигнут уровень отмены или порядок касаний неизвестен.',
+    en:'Entry unconfirmed: an invalidation level was reached or touch order is unknown.',
+    de:'Einstieg unbestätigt: Ungültigkeitsniveau erreicht oder Reihenfolge unklar.',
+    fr:'Entrée non confirmée : niveau d’invalidation atteint ou ordre des contacts inconnu.',
+    es:'Entrada sin confirmar: nivel de invalidación alcanzado u orden de contactos desconocido.',
+  })[language]||'Entry unconfirmed: setup invalidated.';
 }
 
 function rewardRisk(signal){
@@ -271,7 +295,7 @@ function signalCard(signal){
   const alert=!isSetup(signal);
   const group=AssetGroups.classify(signal.symbol,signal.asset_type);
   const direction=signal.source==='listing'?'':`<span class="side ${side.toLowerCase()}">${side}</span>`;
-  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}" data-group="${group}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${alert?escapeHtml(alertLabel(signal)):escapeHtml(state.label||signalAge(signal))}</small><span class="signal-group-badge">${escapeHtml(AssetGroups.label(group,language))}</span></button>`;
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}" data-group="${group}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${alert?escapeHtml(alertLabel(signal)):escapeHtml(state.label||signalAge(signal))}</small><span class="signal-group-badge">${escapeHtml(AssetGroups.label(group,language))}${signal.strategy?.experimental?` · ${escapeHtml(groupStrategyLabel(signal))}`:''}</span></button>`;
 }
 
 function emptySignals(filterOnly){
@@ -580,7 +604,7 @@ function renderHome(){
   const priceNode=$('#plan-price');
   if(priceNode)priceNode.textContent=signal.price==null?'—':`${fmt(signal.price)} USDT`;
   const confidence=$('#plan-confidence');
-  if(confidence)confidence.textContent=`${tr('confidence')} ${confidenceLabel(signal)} · ${tr('confidenceNote')}`;
+  if(confidence)confidence.textContent=signal.strategy?.experimental?groupStrategyLabel(signal,true):`${tr('confidence')} ${confidenceLabel(signal)} · ${tr('confidenceNote')}`;
   const reference=$('#plan-reference');
   if(reference)reference.textContent=`${tr('tradeNumber')} #${Number(signal.id)} · ${tr('signalFrom')} ${signalDate(signal)}`;
   const headingCoin=$('#plan-heading-coin');
@@ -634,7 +658,7 @@ function renderHome(){
     if(kicker)kicker.textContent=cancelledBeforeEntry?tr('signalCancelled'):(stopped?tr('tradeClosed'):tr('actionNow'));
     if(status)status.textContent=state.label;
     if(steps)steps.innerHTML=cancelledBeforeEntry
-      ?`<li>${escapeHtml(tr('entryWasNotReached'))}</li><li>${escapeHtml(tr('tp1ReachedFirst'))}</li><li>${escapeHtml(tr('cancelledWaitNew'))}</li>`
+      ?`${signal.strategy?.entry_type==='stop'?`<li>${escapeHtml(groupCancellationReason())}</li>`:`<li>${escapeHtml(tr('entryWasNotReached'))}</li><li>${escapeHtml(tr('tp1ReachedFirst'))}</li>`}<li>${escapeHtml(tr('cancelledWaitNew'))}</li>`
       :(stopped
         ?`<li>${escapeHtml(tr('tradeCancelled'))}</li><li>${escapeHtml(tr('waitNewSignal'))}</li>`
         :`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`);
