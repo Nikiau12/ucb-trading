@@ -4,6 +4,9 @@ import asyncio
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from uuid import uuid4
+
+from trading.scan_diagnostics import summarize_scan
 
 
 def bind_background_loops(services) -> SimpleNamespace:
@@ -38,6 +41,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                     services._last_plan_1h_block = block
                     services.logger.info("plan scanner 1h block %02d:00 starting", block)
                     scan_started_at = time.monotonic()
+                    scan_id = uuid4().hex
                     try:
                         services.refresh_recipients()
                         loop = asyncio.get_event_loop()
@@ -57,6 +61,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                             ),
                         )
                         sent = 0
+                        persisted = 0
                         for plan in services._rank_actionable_plans(results):
                             conf   = services._conf(plan)
                             symbol = plan.get("symbol", "")
@@ -69,6 +74,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                             if signal_id is None:
                                 # Another cycle may have claimed this market after the read-only precheck.
                                 continue
+                            persisted += 1
                             delivered_count = 0
                             for chat_id in list(services.notifier.active_users):
                                 try:
@@ -120,18 +126,19 @@ def bind_background_loops(services) -> SimpleNamespace:
                                 sent += 1
                             await asyncio.sleep(0.5)
                         services.logger.info("plan scanner done: scanned=%s alerts=%s", len(results), sent)
+                        summary, decisions = summarize_scan(
+                            symbols, results, strategy_version=services.core_plan.VERSION,
+                        )
+                        summary.update(alerts_sent=sent, signals_persisted=persisted)
+                        journal_saved = await loop.run_in_executor(
+                            None, services.st.record_scan_run, scan_id, now, summary, decisions,
+                        )
+                        summary["journal_saved"] = journal_saved
                         services.st.record_runtime_health(
                             "plan_scanner",
-                            success=True,
+                            success=summary["failed"] == 0 and journal_saved,
                             duration_seconds=time.monotonic() - scan_started_at,
-                            details={
-                                "requested": len(symbols),
-                                "completed": len(results),
-                                "failed": len(symbols) - len(results),
-                                "stale": sum(bool(result.get("used_cache")) for result in results),
-                                "alerts_sent": sent,
-                                "strategy_version": services.core_plan.VERSION,
-                            },
+                            details=summary,
                         )
                     except Exception as e:
                         services.st.record_runtime_health(

@@ -1,0 +1,39 @@
+{
+  "version": "2026-11-07-runtime-2",
+  "reviewed_on": "2026-11-07",
+  "scope": "Runtime classification only. Frozen research membership and trading thresholds are unchanged. Classification is not economic admission or proof of profitability.",
+  "exchange_source": "https://open-api.bingx.com/openApi/swap/v2/quote/contracts",
+  "additions": [
+    {"symbol":"TRX_USDT","group":"l1","source":"https://developers.tron.network/","basis":"TRON smart-contract network; native TRX, not a stablecoin."},
+    {"symbol":"BCH_USDT","group":"payments","source":"https://bitcoincash.org/","basis":"Peer-to-peer electronic cash."},
+    {"symbol":"NEAR_USDT","group":"l1","source":"https://near.org/blockchain","basis":"Native asset of the sharded NEAR blockchain; AI applications do not change its primary network role."},
+    {"symbol":"AVAX_USDT","group":"l1","source":"https://support.avax.network/en/articles/4135427-avalanche-platform-overview","basis":"Native Avalanche network asset."},
+    {"symbol":"1000SHIB_USDT","group":"meme","source":"https://shib.io/","basis":"SHIB community token; the exact BingX contract is 1000SHIB. No stripping prefixes or rescaling quotes."},
+    {"symbol":"TAO_USDT","group":"ai","source":"https://www.bittensor.com/docs","basis":"Bittensor compute and inference incentives."},
+    {"symbol":"CRO_USDT","group":"l1","source":"https://docs.cronos.com/","basis":"Gas and network asset of Cronos chains; primary network role rather than exchange branding."},
+    {"symbol":"PAXG_USDT","group":"rwa","source":"https://www.paxos.com/assets/paxg","basis":"Gold-backed PAXG. This group is specifically gold, not all RWA governance tokens."},
+    {"symbol":"SKY_USDT","group":"defi","source":"https://sky.money/","basis":"Sky protocol governance, stablecoin lending and savings ecosystem; SKY is not USDS."},
+    {"symbol":"MNT_USDT","group":"scaling","source":"https://docs.mantle.xyz/network","basis":"Mantle Ethereum scaling network."},
+    {"symbol":"MORPHO_USDT","group":"defi","source":"https://docs.morpho.org/get-started/","basis":"Lending and borrowing protocol governance."},
+    {"symbol":"JST_USDT","group":"defi","source":"https://docs.justlend.org/governance/tokenomics/","basis":"JustLend governance; not the underlying TRON network asset."},
+    {"symbol":"ARB_USDT","group":"scaling","source":"https://docs.arbitrum.io/get-started/arbitrum-introduction","basis":"Arbitrum Ethereum scaling ecosystem."},
+    {"symbol":"VVV_USDT","group":"ai","source":"https://docs.venice.ai/overview/about-venice","basis":"Venice AI inference ecosystem, not a privacy-payment coin."},
+    {"symbol":"POL_USDT","group":"scaling","source":"https://docs.polygon.technology/pos/concepts/tokens/pol","basis":"Polygon scaling ecosystem. Polygon PoS is not described here as an Ethereum rollup; no MATIC price alias."},
+    {"symbol":"ALGO_USDT","group":"l1","source":"https://dev.algorand.co/","basis":"Native Algorand blockchain asset."},
+    {"symbol":"PI_USDT","group":"l1","source":"https://minepi.com/white-paper/","basis":"Pi blockchain native asset; classification does not certify supply or liquidity."},
+    {"symbol":"JUP_USDT","group":"trading","source":"https://developers.jup.ag/","basis":"Jupiter exchange and routing ecosystem."},
+    {"symbol":"ATOM_USDT","group":"l1","source":"https://docs.cosmos.network/hub/latest","basis":"Cosmos Hub staking and governance asset."},
+    {"symbol":"ZRO_USDT","group":"oracles","source":"https://docs.layerzero.network/v2/get-started/overview","basis":"Cross-chain messaging infrastructure, not a price oracle."},
+    {"symbol":"CAKE_USDT","group":"trading","source":"https://docs.pancakeswap.finance/","basis":"PancakeSwap decentralized-exchange ecosystem."},
+    {"symbol":"ETHFI_USDT","group":"defi","source":"https://governance.ether.fi/t/ether-fi-governance/13","basis":"Ether.fi staking protocol governance; not ETH or its liquid staking receipt."}
+  ],
+  "pending": {
+    "CC_USDT": "identity_and_group_review_required",
+    "OKB_USDT": "exchange_and_network_token_policy_review_required",
+    "M_USDT": "identity_and_group_review_required",
+    "BTW_USDT": "identity_and_group_review_required",
+    "ONDO_USDT": "non_gold_rwa_policy_review_required",
+    "WLFI_USDT": "economic_role_and_group_review_required",
+    "NIGHT_USDT": "privacy_network_policy_review_required"
+  }
+}

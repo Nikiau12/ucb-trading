@@ -10,10 +10,14 @@
   ],
   "l1": [
     "ADA_USDT",
+    "ALGO_USDT",
     "APT_USDT",
     "ARK_USDT",
+    "ATOM_USDT",
+    "AVAX_USDT",
     "BNB_USDT",
     "CFX_USDT",
+    "CRO_USDT",
     "DOT_USDT",
     "ETC_USDT",
     "HBAR_USDT",
@@ -21,15 +25,21 @@
     "INJ_USDT",
     "IOST_USDT",
     "KAS_USDT",
+    "NEAR_USDT",
+    "PI_USDT",
     "SEI_USDT",
     "SUI_USDT",
+    "TRX_USDT",
     "XPL_USDT"
   ],
   "scaling": [
     "ALT_USDT",
+    "ARB_USDT",
     "DYM_USDT",
     "MERL_USDT",
+    "MNT_USDT",
     "OP_USDT",
+    "POL_USDT",
     "SOON_USDT",
     "STRK_USDT",
     "STX_USDT",
@@ -40,6 +50,7 @@
     "ZEC_USDT"
   ],
   "payments": [
+    "BCH_USDT",
     "DASH_USDT",
     "LTC_USDT",
     "XLM_USDT",
@@ -51,18 +62,24 @@
     "BR_USDT",
     "CAP_USDT",
     "ENA_USDT",
+    "ETHFI_USDT",
     "EVAA_USDT",
     "FLUID_USDT",
     "JTO_USDT",
-    "PENDLE_USDT"
+    "JST_USDT",
+    "MORPHO_USDT",
+    "PENDLE_USDT",
+    "SKY_USDT"
   ],
   "trading": [
     "1INCH_USDT",
     "ASTER_USDT",
     "BANANA_USDT",
+    "CAKE_USDT",
     "COW_USDT",
     "CRV_USDT",
     "HYPE_USDT",
+    "JUP_USDT",
     "ORDER_USDT",
     "PUMP_USDT",
     "RUNE_USDT",
@@ -75,7 +92,9 @@
     "FET_USDT",
     "JCT_USDT",
     "RENDER_USDT",
-    "UAI_USDT"
+    "TAO_USDT",
+    "UAI_USDT",
+    "VVV_USDT"
   ],
   "data": [
     "FIL_USDT",
@@ -90,11 +109,13 @@
     "ON_USDT",
     "PYTH_USDT",
     "QNT_USDT",
-    "TRB_USDT"
+    "TRB_USDT",
+    "ZRO_USDT"
   ],
   "meme": [
     "1000BONK_USDT",
     "1000PEPE_USDT",
+    "1000SHIB_USDT",
     "BULLA_USDT",
     "DOGE_USDT",
     "FARTCOIN_USDT",
@@ -118,6 +139,7 @@
     "WLD_USDT"
   ],
   "rwa": [
+    "PAXG_USDT",
     "XAUT_USDT"
   ]
 }

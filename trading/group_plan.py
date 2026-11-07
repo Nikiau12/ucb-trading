@@ -12,12 +12,19 @@ import math
 import threading
 import time
 
-from evaluation.sector_entries import candidate, load_entries, load_passports
+from evaluation.sector_entries import load_entries, load_passports
 from evaluation.sector_data import FOUR_HOURS, digest
+from trading.group_candidates import candidate
+from trading.group_catalog import registry
 from trading.trade_plan import (normalize_for_contract, parse_bars, plan_payload_errors,
                                 last_price_from_snapshot)
 
 VERSION = "group-rules-v1-2026-11-07"
+MARKET_FILTER_REASONS = frozenset({
+    "group_liquidity_turnover", "group_spread", "group_depth", "group_depth_notional",
+    "group_price_impact", "group_estimated_fee_impact_cost",
+    "group_trigger_already_used_or_invalidated", "group_setup_expired",
+})
 logger = logging.getLogger(__name__)
 _history_lock = threading.Lock()
 _histories = {}
@@ -25,8 +32,8 @@ _histories = {}
 
 @lru_cache(maxsize=1)
 def catalog():
-    definitions, mapping = load_entries()
-    return definitions, mapping, load_passports()
+    definitions, _ = load_entries()
+    return definitions, registry()["mapping"], load_passports()
 
 
 def _public():
@@ -167,6 +174,7 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
     definitions, mapping, passports = catalog()
     group = mapping.get(symbol)
     strategy = {"version":VERSION,"group":group,"experimental":True,"entry_type":"stop",
+        "catalog_version":registry()["version"],"catalog_sha256":registry()["sha256"],
         "timeframes":["4h","1d"],"definitions_sha256":digest(definitions),
         "confidence_is_probability":False,"profitability_validated":False,
         "economic_admission":"not_independently_verified",
@@ -203,16 +211,20 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
         for benchmark in required:
             if benchmark not in market:
                 market[benchmark] = history(benchmark,as_of)
-        choices, reasons = [], []
+        choices, reasons, decisions = [], [], []
         feature_cache = {}
         for side in ("long","short"):
             result = candidate(symbol,side,market,as_of=as_of,tick=tick,passport=passport,_feature_cache=feature_cache)
+            decisions.append({"side":side,"status":result["status"],"reason":result.get("reason")})
             if result["status"] == "technical_candidate_not_admitted":
                 choices.append(result)
             else:
                 reasons.append(result.get("reason","no_group_setup"))
         if len(choices) != 1:
-            return skip("conflicting_group_directions" if choices else "group_no_setup:"+"/".join(reasons))
+            prefix = "group_data_unavailable:" if any(d["status"]=="blocked_data" for d in decisions) else "group_no_setup:"
+            rejected = skip("conflicting_group_directions" if choices else prefix+"/".join(reasons))
+            rejected["direction_decisions"] = decisions
+            return rejected
         raw = choices[0]
         normalized = normalize_for_contract(snapshot, raw["side"], raw["entry"],raw["stop"],raw["tp1"],raw["tp2"],deposit,risk_pct,lev)
         if normalized["errors"]:
@@ -244,10 +256,13 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
         logger.info("group_plan symbol=%s group=%s family=%s side=%s version=%s result=candidate",symbol,group,raw["family"],raw["side"],VERSION)
         return plan
     except (ValueError, TypeError, KeyError, IndexError, ArithmeticError) as exc:
-        return skip("group_data_rejected:"+str(exc)[:160])
+        reason = str(exc)
+        return skip(reason if reason in MARKET_FILTER_REASONS else "group_data_rejected:"+reason[:160])
     except Exception as exc:
-        logger.warning("group market data unavailable symbol=%s error=%s",symbol,type(exc).__name__)
-        return skip("group_market_unavailable")
+        logger.warning("group market data unavailable symbol=%s error=%s code=%s",symbol,type(exc).__name__,getattr(exc,"code",None))
+        rejected = skip("group_market_unavailable")
+        rejected.update(error_type=type(exc).__name__,error_code=getattr(exc,"code",None))
+        return rejected
 
 
 def prepare_for_publication(plan):

@@ -157,14 +157,15 @@ def test_disclosure_and_stop_entry_are_present_in_all_telegram_formats(market, l
     assert strategy_notice(legacy,lang)==""
 
 
-def test_scanner_and_manual_command_use_same_adapter(market, monkeypatch):
+@pytest.mark.parametrize("symbol", ["BTC_USDT", "AVAX_USDT", "1000SHIB_USDT"])
+def test_scanner_and_manual_command_use_same_adapter(market, monkeypatch, symbol):
     import test_user_journey_e2e as journey
     bot=journey.bot
     assert bot.core_plan is group and bot.sc.core is group
-    monkeypatch.setattr(bot.snap,"top_symbols_by_market_cap",lambda *_:["BTC_USDT"])
+    monkeypatch.setattr(bot.snap,"top_symbols_by_market_cap",lambda *_:[symbol])
     monkeypatch.setattr(bot.st,"user_accepts_symbol",lambda *_:True)
-    monkeypatch.setattr(bot.snap,"build_snapshot_with_fallback",lambda symbol: snapshot(symbol))
-    scan=bot.sc.scan_symbol("BTC_USDT",300,2,10,"cross")
+    monkeypatch.setattr(bot.snap,"build_group_snapshot",lambda symbol: snapshot(symbol))
+    scan=bot.sc.scan_symbol(symbol,300,2,10,"cross")
     saved=[]
     async def access(_message): return "paid"
     monkeypatch.setattr(bot,"require_deposit",access)
@@ -176,7 +177,7 @@ def test_scanner_and_manual_command_use_same_adapter(market, monkeypatch):
     monkeypatch.setattr(bot.st,"grant_signal_access",lambda *_:None)
     monkeypatch.setattr(bot,"debit_trial",lambda *_:None)
     monkeypatch.setattr(bot,"MINI_APP_URL","https://example.test")
-    message=journey.FakeMessage("/plan BTC_USDT")
+    message=journey.FakeMessage("/plan " + symbol)
     asyncio.run(bot.cmd_plan(message))
     assert saved and saved[0]["strategy"]==scan["strategy"]
     assert "Экспериментальная стратегия" in message.replies[0].text
@@ -194,7 +195,7 @@ def test_failed_group_persistence_does_not_issue_an_untracked_plan_or_debit_tria
     monkeypatch.setattr(bot,"is_admin",lambda *_:False)
     monkeypatch.setattr(bot,"get_lang",lambda *_:"ru")
     monkeypatch.setattr(bot.st,"get_user_settings",lambda *_:{"deposit":300,"risk_pct":2,"lev":10,"margin":"cross"})
-    monkeypatch.setattr(bot.snap,"build_snapshot_with_fallback",lambda symbol:snapshot(symbol))
+    monkeypatch.setattr(bot.snap,"build_group_snapshot",lambda symbol:snapshot(symbol))
     monkeypatch.setattr(bot.st,"save_signal",lambda *_args,**_kwargs:None)
     monkeypatch.setattr(bot,"debit_trial",lambda *_:pytest.fail("Unstored plan consumed trial"))
     message=journey.FakeMessage("/plan BTC_USDT")

@@ -152,7 +152,7 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     monkeypatch.setattr(bot.st, "language_is_chosen", lambda _user_id: True)
     monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: 77)
     monkeypatch.setattr(bot.st, "grant_signal_access", lambda user_id, signal_id: granted_signals.append((user_id, signal_id)))
-    monkeypatch.setattr(bot.snap, "build_snapshot_with_fallback", lambda _symbol: {"symbol": "BTC_USDT"})
+    monkeypatch.setattr(bot.snap, "build_group_snapshot", lambda _symbol: {"symbol": "BTC_USDT"})
     monkeypatch.setattr(bot.core_plan, "make_plan", lambda *_args, **_kwargs: _actionable_plan())
     monkeypatch.setattr(bot, "render_telegram_plan", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
     monkeypatch.setattr(bot, "render_auto_alert", lambda *_args, **_kwargs: "EXECUTABLE SIGNAL")
@@ -576,7 +576,8 @@ def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
     assert bot._last_plan_1h_block == 15
     assert calls[0] == "recipients"
     assert calls[1][0] == "plan_scanner"
-    assert calls[1][1]["success"] is True
+    assert calls[1][1]["success"] is False  # A requested coin returned no result.
+    assert calls[1][1]["details"]["failed"] == 1
     assert calls[1][1]["details"]["requested"] == 1
     assert calls[1][1]["details"]["alerts_sent"] == 0
 

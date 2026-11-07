@@ -99,6 +99,27 @@ def record_runtime_health(
         logger.warning("runtime health write failed: %s", type(exc).__name__)
 
 
+def record_scan_run(run_id: str, started_at: datetime, summary: dict, decisions: list) -> bool:
+    """Append operational evidence independently of signal/lifecycle persistence."""
+    if not _db_ready():
+        return False
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=5) as connection:
+            connection.execute("SET LOCAL statement_timeout = '5s'")
+            connection.execute(
+                """INSERT INTO scanner_runs
+                   (run_id,started_at,strategy_version,catalog_version,summary,decisions)
+                   VALUES (%s,%s,%s,%s,%s::jsonb,%s::jsonb)
+                   ON CONFLICT (run_id) DO NOTHING""",
+                (run_id, started_at, summary["strategy_version"], summary["catalog_version"],
+                 json.dumps(summary), json.dumps(decisions)),
+            )
+        return True
+    except Exception as exc:
+        logger.warning("scan journal write failed error=%s", type(exc).__name__)
+        return False
+
+
 def _plan_levels(plan: Optional[dict]) -> dict:
     primary = (plan or {}).get("primary") or {}
     targets = primary.get("tps") or []
