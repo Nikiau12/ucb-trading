@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from evaluation import sector_entries as research
-from trading import group_candidates
+from trading import group_candidates, group_plan
 from trading.group_catalog import registry, coverage
 from trading.scan_diagnostics import summarize_scan, summarize_trade_outcomes, trade_bucket
 from trading.analytics.structure import Bar
@@ -134,7 +134,8 @@ def test_scan_statistics_keep_failures_cancellations_and_no_setups_distinct():
     ]
     before = copy.deepcopy(plans)
     summary, rows = summarize_scan(symbols, plans, strategy_version="test")
-    assert summary["outcomes"] == {"candidate": 1, "no_setup": 1, "blocked_catalog": 1, "blocked_market": 1, "data_unavailable": 2}
+    assert summary["outcomes"] == {"candidate": 1, "no_setup": 1, "blocked_catalog": 1,
+                                    "blocked_market": 1, "insufficient_history": 0, "data_unavailable": 2}
     assert summary["failed"] == 2 and summary["completed"] == 4
     assert summary["strategy_evaluated"] == 3 and summary["pending_catalog_review"] == 1
     assert summary["by_group_direction"] == {"core_btc:long": {"candidate": 1}, "core_eth:long": {"no_setup": 1}}
@@ -145,6 +146,38 @@ def test_scan_statistics_keep_failures_cancellations_and_no_setups_distinct():
 def test_stale_data_is_not_a_successful_no_setup():
     summary, _ = summarize_scan(["BTC_USDT"], [{"symbol": "BTC_USDT", "used_cache": True}], strategy_version="test")
     assert summary["failed"] == summary["stale"] == 1
+
+
+def test_short_listed_history_is_distinct_from_stale_or_failed_data():
+    short = {"symbol": "JST_USDT", "side": "skip",
+             "reasons": ["group_data_rejected:insufficient_group_history"]}
+    summary, rows = summarize_scan(["JST_USDT"], [short], strategy_version="test")
+    assert summary["schema_version"] == 2
+    assert summary["failed"] == summary["strategy_evaluated"] == 0
+    assert summary["outcomes"]["insufficient_history"] == 1
+    assert summary["history_not_ready"] == [{"symbol": "JST_USDT", "group": "defi",
+        "outcome": "insufficient_history", "reasons": ["group_data_rejected"],
+        "detail_code": "insufficient_group_history"}]
+    assert rows == summary["history_not_ready"]
+    stale = {"symbol": "JST_USDT", "side": "skip",
+             "reasons": ["group_data_rejected:stale_group_history"]}
+    unavailable, _ = summarize_scan(["JST_USDT"], [stale], strategy_version="test")
+    assert unavailable["failed"] == 1 and unavailable["outcomes"]["insufficient_history"] == 0
+
+
+def test_group_history_keeps_short_listing_and_stale_response_separate(monkeypatch):
+    from types import SimpleNamespace
+    as_of = 120000 * group_plan.FOUR_HOURS
+    rows = [SimpleNamespace(ts=as_of - group_plan.FOUR_HOURS)] * 725
+    monkeypatch.setattr(group_plan, "_public", lambda: SimpleNamespace(
+        futures_kline=lambda *_args: {"data": []}))
+    monkeypatch.setattr(group_plan, "parse_bars", lambda *_args: rows)
+    group_plan._histories.clear()
+    with pytest.raises(ValueError, match="insufficient_group_history"):
+        group_plan.history("JST_USDT", as_of)
+    rows = [SimpleNamespace(ts=as_of - group_plan.FOUR_HOURS - 1)] * 726
+    with pytest.raises(ValueError, match="stale_group_history"):
+        group_plan.history("JST_USDT", as_of)
 
 
 def test_frozen_research_registry_is_not_rewritten():
