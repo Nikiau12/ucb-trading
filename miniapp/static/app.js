@@ -54,11 +54,11 @@ const taglines={
 };
 
 const brandCredits={
-  en:'Made by YoBig Digital Bureau',
-  ru:'Сделано диджитал бюро YoBig',
-  de:'Entwickelt vom Digitalbüro YoBig',
-  fr:'Créé par le bureau digital YoBig',
-  es:'Creado por el estudio digital YoBig'
+  en:'Mini App developed by YO!BIG Digital Bureau',
+  ru:'Mini App разработано диджитал бюро YO!BIG',
+  de:'Mini App entwickelt vom Digitalbüro YO!BIG',
+  fr:'Mini App développée par le bureau digital YO!BIG',
+  es:'Mini App desarrollada por el estudio digital YO!BIG'
 };
 for(const [lang,credit] of Object.entries(brandCredits))translations[lang].brandCredit=credit;
 

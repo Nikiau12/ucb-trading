@@ -37,7 +37,7 @@ const alerts=[
     assert.match(await page.locator('#alert-note').textContent(),/не готовый торговый план/);
     assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(11, 16, 25)');
     assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#chart')).touchAction),'none');
-    assert.equal(await page.locator('.brand-credit').textContent(),'Сделано диджитал бюро YoBig');
+    assert.equal(await page.locator('.brand-credit').textContent(),'Mini App разработано диджитал бюро YO!BIG');
     await page.click('[data-target=signals]');
     for(const [filter,count] of [['ALL',4],['SETUP',1],['SCALP',1],['SMC',1],['LISTING',1],['LONG',3],['SHORT',1]]){
       await page.click(`[data-filter="${filter}"]`);
@@ -53,16 +53,17 @@ const alerts=[
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.click('[data-target=settings]');
     for(const [lang,copy] of Object.entries({
-      ru:'Сделано диджитал бюро YoBig',
-      en:'Made by YoBig Digital Bureau',
-      de:'Entwickelt vom Digitalbüro YoBig',
-      fr:'Créé par le bureau digital YoBig',
-      es:'Creado por el estudio digital YoBig'
+      ru:'Mini App разработано диджитал бюро YO!BIG',
+      en:'Mini App developed by YO!BIG Digital Bureau',
+      de:'Mini App entwickelt vom Digitalbüro YO!BIG',
+      fr:'Mini App développée par le bureau digital YO!BIG',
+      es:'Mini App desarrollada por el estudio digital YO!BIG'
     })){
       await page.selectOption('#language',lang);
       await page.waitForFunction(value=>document.documentElement.lang===value,lang);
       assert.equal(await page.locator('.brand-credit').textContent(),copy);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      assert.equal(await page.locator('.brand-credit').evaluate(node=>node.scrollHeight<=node.clientHeight+1),true,`${lang}: credit clipped`);
     }
     assert.deepEqual(errors,[]);
     console.log('PASS dark theme, linked alerts, all filters, localized footer, 320px');
