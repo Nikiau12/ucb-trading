@@ -752,3 +752,32 @@ def test_set_replies_saved_and_opens_the_panel(monkeypatch):
         signals = client.get("/api/signals")
         assert signals.status_code == 200
         assert signals.json()[0]["sizing"]["tradable"] is True
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_account_command_refreshes_balance_and_distinguishes_zero_from_failure(monkeypatch, unavailable):
+    from miniapp.bingx_account import AccountUnavailable
+    settings = {"deposit": 1500, "risk_pct": 1, "lev": 10, "margin": "cross"}
+    refreshed = []
+    def refresh(uid):
+        refreshed.append(uid)
+        if unavailable:
+            raise AccountUnavailable("unavailable")
+        settings["deposit"] = 0
+        return 0
+    monkeypatch.setattr(bot.st, "refresh_user_balance", refresh)
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda _uid: dict(settings))
+    monkeypatch.setattr(bot, "get_lang", lambda _uid: "ru")
+    monkeypatch.setattr(bot, "_access_status_text", lambda *_: "")
+    monkeypatch.setattr(bot, "_settings_keyboard", lambda *_: None)
+    message = FakeMessage("/account")
+    asyncio.run(bot.cmd_settings(message))
+    text = message.replies[0].text
+    assert refreshed == [4242]
+    assert "Аккаунт" in text
+    if unavailable:
+        assert "недоступен" in text
+        assert "1,500" not in text
+    else:
+        assert "0.00 USDT" in text
+        assert "не установлен" not in text

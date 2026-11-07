@@ -44,7 +44,7 @@ The public production entry point is
 - `/plan BTC_USDT` creates a structured plan for one market.
 - `/scan` reviews the configured market universe and ranks actionable setups.
 - `/digest` returns a compact market overview.
-- `/set` and `/settings` manage deposit, risk, leverage, and margin preferences.
+- `/account` opens the account summary and Mini App; `/settings` remains an alias. `/set` edits calculation preferences.
 - Automatic workers monitor priority markets, broader market conditions, and
   new BingX listings.
 

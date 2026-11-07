@@ -61,7 +61,7 @@ test('display catalog is loaded before the app and new assets are versioned',()=
   assert.match(html,/id="signal-group"/);
   assert.match(html,/id="reset-signal-filters"/);
   assert.match(html,/id="signal-filter-count" role="status"/);
-  assert.match(html,/home-dark.css\?v=20261107-personal-bingx-1/);
+  assert.match(html,/home-dark.css\?v=20261107-account-1/);
 });
 
 test('server and browser use the exact same group membership',()=>{
