@@ -217,15 +217,19 @@ def test_scan_journal_report_is_versioned_and_read_only(database, monkeypatch, c
         summary, decisions = summarize_scan(["BTC_USDT"], [{"symbol": "BTC_USDT", "side": "skip",
             "reasons": ["group_no_setup:daily_regime/daily_regime"]}], strategy_version=version)
         assert state.record_scan_run(version, datetime.now(timezone.utc), summary, decisions)
+    assert state.record_scan_run("version-a-old-schema", datetime.now(timezone.utc),
+                                 {**summary, "strategy_version": "version-a", "schema_version": 1}, decisions)
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setattr("sys.argv", ["scan_diagnostics", "--hours", "24"])
     main()
     report = json.loads(capsys.readouterr().out)
     assert report["unit"] == "scanner_attempts_not_trades"
     assert {r["strategy_version"] for r in report["versions"]} == {"version-a", "version-b"}
+    assert {r["diagnostics_schema_version"] for r in report["versions"]} == {1, 2}
+    assert len(report["versions"]) == 3
     assert all(r["runs"] == 1 and r["outcomes"]["no_setup"] == 1 for r in report["versions"])
     with psycopg.connect(url) as conn:
-        assert conn.execute("SELECT count(*) FROM scanner_runs").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM scanner_runs").fetchone()[0] == 3
         assert conn.execute("SELECT count(*) FROM signals").fetchone()[0] == 1  # Only legacy fixture.
 
 

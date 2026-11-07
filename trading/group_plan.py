@@ -57,8 +57,10 @@ def history(symbol, as_of, snapshot=None):
         if key not in _histories:
             rows = _public().futures_kline(symbol, "4h", 1440)
             bars = parse_bars({"kline_4h": rows}, "kline_4h")
-            if len(bars) < 726 or max(b.ts for b in bars) < as_of-FOUR_HOURS:
+            if len(bars) < 726:
                 raise ValueError("insufficient_group_history")
+            if max(b.ts for b in bars) < as_of-FOUR_HOURS:
+                raise ValueError("stale_group_history")
             for old in list(_histories):
                 if old[1] != as_of:
                     _histories.pop(old)

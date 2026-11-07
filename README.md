@@ -338,9 +338,11 @@ the worker indefinitely. Public calls never carry private API credentials.
 Migration `013_scanner_runs.sql` only creates an operational journal; it does not
 update existing signals, users or lifecycle rows. Each hourly scanner run records
 per-group outcomes and sanitized per-symbol decisions: candidate, no setup,
-catalog review, market rejection, or unavailable data. Missing results are
-failures, not successful no-setups. `completed` includes catalog-review skips;
-`strategy_evaluated` excludes them and unavailable data. Journal writes cannot change a trading
+catalog review, market rejection, insufficient listed history, or unavailable
+data. Missing results and stale data are failures, not successful no-setups;
+too little listed history is a separate safe eligibility skip. `completed`
+includes catalog-review/history skips; `strategy_evaluated` excludes them and
+unavailable data. Journal writes cannot change a trading
 decision; failed writes and partial scans are visible in `runtime_health`.
 
 Read-only diagnostic commands (no orders, notifications or signal persistence):
@@ -353,7 +355,7 @@ python -m trading.scan_diagnostics --outcomes --hours 24
 ```
 
 The last two commands use `DATABASE_URL` in a read-only transaction. The journal
-groups by strategy **and** catalog version; its counts are scanner attempts, not
+groups by strategy, catalog **and diagnostics schema** version; its counts are scanner attempts, not
 unique trades. The outcome command separately counts distinct new-strategy
 signals by group, direction and version: cancellations/expired before entry,
 stops before TP1, TP1 then model stop, model TP2, and still-open signals. Its

@@ -13,13 +13,19 @@ import os
 
 from trading.group_catalog import coverage, registry
 
-OUTCOMES = ("candidate", "no_setup", "blocked_catalog", "blocked_market", "data_unavailable")
+OUTCOMES = ("candidate", "no_setup", "blocked_catalog", "blocked_market",
+            "insufficient_history", "data_unavailable")
 
 
 def decision(plan):
-    reasons = [str(r).split(":", 1)[0] for r in plan.get("reasons", [])]
+    raw_reasons = [str(r) for r in plan.get("reasons", [])]
+    reasons = [r.split(":", 1)[0] for r in raw_reasons]
     if "unclassified_symbol_no_group_fallback" in reasons:
         outcome = "blocked_catalog"
+    elif "group_data_rejected:insufficient_group_history" in raw_reasons:
+        # Too few listed 4H bars is an expected eligibility gate, not a broken
+        # BingX request. A stale 4H response remains data_unavailable below.
+        outcome = "insufficient_history"
     elif plan.get("used_cache") or any(r in reasons for r in (
         "group_market_unavailable", "group_data_rejected", "group_data_unavailable",
         "stale_market_data", "scan_result_missing",
@@ -51,7 +57,7 @@ def summarize_scan(symbols, results, *, strategy_version):
         reasons.update(set(codes))
         by_group[group][outcome] += 1
         row = {"symbol": symbol, "group": group, "outcome": outcome, "reasons": codes}
-        if outcome == "data_unavailable":
+        if outcome in ("data_unavailable", "insufficient_history"):
             detail = str(next(iter(plan.get("reasons", [])), "")).partition(":")[2]
             if detail.isidentifier():
                 row["detail_code"] = detail
@@ -80,7 +86,7 @@ def summarize_scan(symbols, results, *, strategy_version):
         if symbol in catalog["pending"]:
             row["review_reason"] = catalog["pending"][symbol]
         rows.append(row)
-    summary = {"schema_version": 1, "strategy_version": strategy_version,
+    summary = {"schema_version": 2, "strategy_version": strategy_version,
                "catalog_version": catalog["version"], "requested": len(symbols),
                "completed": len(symbols) - outcomes["data_unavailable"],
                "failed": outcomes["data_unavailable"],
@@ -92,6 +98,7 @@ def summarize_scan(symbols, results, *, strategy_version):
                "by_group_direction": {g: dict(v) for g, v in directions.items()},
                "reason_counts_by_group_direction": {g: dict(v) for g, v in direction_reasons.items()},
                "data_failures": [row for row in rows if row["outcome"] == "data_unavailable"],
+               "history_not_ready": [row for row in rows if row["outcome"] == "insufficient_history"],
                "coverage": coverage(symbols)}
     return summary, rows
 
@@ -192,7 +199,7 @@ def main():
     # Versions stay separate. These are scanner attempts, not unique trades or a win rate.
     totals = {}
     for version, catalog_version, summary in rows:
-        key = (version, catalog_version)
+        key = (version, catalog_version, summary.get("schema_version", 1))
         item = totals.setdefault(key, {"runs": 0, "outcomes": Counter(), "reasons": Counter(),
                                        "by_group": defaultdict(Counter), "by_group_direction": defaultdict(Counter),
                                        "reason_counts_by_group_direction": defaultdict(Counter)})
@@ -206,8 +213,9 @@ def main():
         for direction, counts in summary.get("reason_counts_by_group_direction", {}).items():
             item["reason_counts_by_group_direction"][direction].update(counts)
     print(json.dumps({"hours": args.hours, "unit": "scanner_attempts_not_trades",
-                      "versions": [{"strategy_version": v, "catalog_version": c, **data}
-                                   for (v, c), data in totals.items()]}, ensure_ascii=False, indent=2))
+                      "versions": [{"strategy_version": v, "catalog_version": c,
+                                    "diagnostics_schema_version": schema, **data}
+                                   for (v, c, schema), data in totals.items()]}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
