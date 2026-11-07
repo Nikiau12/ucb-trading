@@ -71,7 +71,10 @@ const groupFilterCopy={
 };
 for(const [lang,copy] of Object.entries(groupFilterCopy))Object.assign(translations[lang],copy);
 
-let profile=null,signals=[],language='en',activeFilter='ALL',activeGroup='ALL',selectedSignal=null;
+const personalCopy={"en": {"coinGroups": "Coin groups", "groupFilterNote": "Selected groups apply to signals and bot notifications.", "bingxAccount": "BingX futures account", "accountHelp": "Connect a key with read access to your futures balance, positions and orders.", "connectAccount": "Connect BingX", "disconnectAccount": "Disconnect", "accountConnected": "Connected", "accountDisconnected": "Not connected", "accountFailed": "Could not connect BingX. Check the keys and read permissions.", "balanceUnavailable": "BingX balance unavailable. Position calculation is paused.", "enterTrade": "I’m in the trade", "exitTrade": "I’ve exited", "trackingOn": "Trade updates are enabled.", "trackingOff": "Trade updates stopped.", "trackingFailed": "Could not change tracking. Open a current signal and try again.", "orderLinked": "TP1 order linked to BingX.", "orderFilled": "TP1 execution confirmed by BingX.", "orderUnverified": "Price updates enabled; a matching TP1 order has not yet been linked."}, "ru": {"coinGroups": "Группы монет", "groupFilterNote": "Выбранные группы применяются к сигналам и уведомлениям бота.", "bingxAccount": "Фьючерсный аккаунт BingX", "accountHelp": "Подключите ключ с доступом на чтение фьючерсного баланса, позиций и ордеров.", "connectAccount": "Подключить BingX", "disconnectAccount": "Отключить", "accountConnected": "Подключён", "accountDisconnected": "Не подключён", "accountFailed": "Не удалось подключить BingX. Проверьте ключи и разрешения на чтение.", "balanceUnavailable": "Баланс BingX недоступен. Расчёт позиции приостановлен.", "enterTrade": "Я в сделке", "exitTrade": "Я вышел", "trackingOn": "Сопровождение сделки включено.", "trackingOff": "Сопровождение сделки прекращено.", "trackingFailed": "Не удалось изменить сопровождение. Откройте актуальный сигнал и попробуйте снова.", "orderLinked": "Ордер TP1 связан с BingX.", "orderFilled": "Исполнение TP1 подтверждено BingX.", "orderUnverified": "Обновления по цене включены; соответствующий ордер TP1 ещё не связан."}, "de": {"coinGroups": "Coin-Gruppen", "groupFilterNote": "Ausgewählte Gruppen gelten für Signale und Bot-Benachrichtigungen.", "bingxAccount": "BingX-Futures-Konto", "accountHelp": "Verbinde einen Schlüssel mit Lesezugriff auf Futures-Guthaben, Positionen und Orders.", "connectAccount": "BingX verbinden", "disconnectAccount": "Trennen", "accountConnected": "Verbunden", "accountDisconnected": "Nicht verbunden", "accountFailed": "BingX konnte nicht verbunden werden. Prüfe Schlüssel und Leserechte.", "balanceUnavailable": "BingX-Guthaben nicht verfügbar. Positionsberechnung pausiert.", "enterTrade": "Ich bin im Trade", "exitTrade": "Ich bin ausgestiegen", "trackingOn": "Trade-Updates sind aktiviert.", "trackingOff": "Trade-Updates beendet.", "trackingFailed": "Tracking konnte nicht geändert werden. Öffne ein aktuelles Signal.", "orderLinked": "TP1-Order mit BingX verknüpft.", "orderFilled": "TP1-Ausführung durch BingX bestätigt.", "orderUnverified": "Preis-Updates aktiviert; eine passende TP1-Order ist noch nicht verknüpft."}, "fr": {"coinGroups": "Groupes de monnaies", "groupFilterNote": "Les groupes sélectionnés s’appliquent aux signaux et aux notifications du bot.", "bingxAccount": "Compte futures BingX", "accountHelp": "Connectez une clé avec accès en lecture au solde futures, aux positions et aux ordres.", "connectAccount": "Connecter BingX", "disconnectAccount": "Déconnecter", "accountConnected": "Connecté", "accountDisconnected": "Non connecté", "accountFailed": "Connexion BingX impossible. Vérifiez les clés et les droits de lecture.", "balanceUnavailable": "Solde BingX indisponible. Calcul de position suspendu.", "enterTrade": "Je suis en position", "exitTrade": "Je suis sorti", "trackingOn": "Suivi du trade activé.", "trackingOff": "Suivi du trade arrêté.", "trackingFailed": "Impossible de modifier le suivi. Ouvrez un signal actuel.", "orderLinked": "Ordre TP1 associé à BingX.", "orderFilled": "Exécution de TP1 confirmée par BingX.", "orderUnverified": "Suivi des prix activé ; aucun ordre TP1 correspondant n’est encore associé."}, "es": {"coinGroups": "Grupos de monedas", "groupFilterNote": "Los grupos seleccionados se aplican a señales y notificaciones del bot.", "bingxAccount": "Cuenta de futuros BingX", "accountHelp": "Conecta una clave con acceso de lectura al saldo de futuros, posiciones y órdenes.", "connectAccount": "Conectar BingX", "disconnectAccount": "Desconectar", "accountConnected": "Conectada", "accountDisconnected": "No conectada", "accountFailed": "No se pudo conectar BingX. Revisa las claves y los permisos de lectura.", "balanceUnavailable": "Saldo BingX no disponible. Cálculo de posición pausado.", "enterTrade": "Estoy en la operación", "exitTrade": "He salido", "trackingOn": "Seguimiento activado.", "trackingOff": "Seguimiento detenido.", "trackingFailed": "No se pudo cambiar el seguimiento. Abre una señal actual.", "orderLinked": "Orden TP1 vinculada a BingX.", "orderFilled": "Ejecución de TP1 confirmada por BingX.", "orderUnverified": "Seguimiento de precios activado; aún no hay una orden TP1 vinculada."}};
+for(const [lang,copy] of Object.entries(personalCopy))Object.assign(translations[lang],copy);
+let groupBusy=false,trackingBusy=false,accountBusy=false;
+let profile=null,signals=[],language='en',activeFilter='ALL',activeGroups=null,selectedSignal=null;
 const pinnedNoSetup=(()=>{const raw=new URLSearchParams(window.location.search).get('no_setup')||'';const symbol=raw.trim().toUpperCase();return /^[A-Z0-9]{2,20}_USDT$/.test(symbol)?symbol:'';})();
 const HOME_CHART_SYMBOL='BTC_USDT';
 const CHART_INTERVAL_SECONDS={'15m':900,'1h':3600,'4h':14400,'1d':86400};
@@ -129,6 +132,8 @@ function paywalled(){
 }
 
 function renderProfile(){
+  renderAccount();
+  if(profile&&!groupBusy)activeGroups=profile.signal_groups??null;
   if(!profile)return;
   const set=(selector,value)=>{const node=$(selector);if(node)node.textContent=value;};
   set('#first-name',profile.first_name||'Trader');
@@ -362,26 +367,21 @@ function syncSymbolPicker(){
 
 function renderSignalFilters(shown){
   const picker=$('#signal-group');
-  if(picker&&picker.dataset.language!==language){
-    const options=[['ALL',tr('allGroups')],...AssetGroups.groups.map(group=>[group.id,AssetGroups.label(group.id,language)]),['ungrouped',AssetGroups.label('ungrouped',language)]];
-    picker.innerHTML=options.map(([value,label])=>`<option value="${value}">${escapeHtml(label)}</option>`).join('');
-    picker.dataset.language=language;
-  }
-  if(picker)picker.value=activeGroup;
+  const options=[['ALL',tr('allGroups')],...AssetGroups.groups.map(g=>[g.id,AssetGroups.label(g.id,language)]),['ungrouped',AssetGroups.label('ungrouped',language)]];
+  picker.innerHTML=options.map(([id,label])=>`<label><input type="checkbox" data-group-id="${id}" ${((id==='ALL'&&activeGroups===null)||(id!=='ALL'&&activeGroups?.includes(id)))?'checked':''} ${groupBusy?'disabled':''}><span>${escapeHtml(label)}</span></label>`).join('');
   const reset=$('#reset-signal-filters');
-  if(reset)reset.hidden=activeGroup==='ALL'&&activeFilter==='ALL';
+  reset.hidden=activeGroups===null&&activeFilter==='ALL';reset.disabled=groupBusy;
   document.querySelectorAll('[data-filter]').forEach(button=>{
     const selected=button.dataset.filter===activeFilter;
-    button.classList.toggle('selected',selected);
-    button.setAttribute('aria-pressed',String(selected));
+    button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
   });
   const count=$('#signal-filter-count');
   if(count)count.textContent=tr('filteredSignalCount').replace('{shown}',String(shown)).replace('{total}',String(signals.length));
 }
 
 function renderSignals(){
-  const filtered=signals.filter(signal=>AssetGroups.matches(signal,activeGroup)&&(activeFilter==='ALL'||signal.side===activeFilter||(activeFilter==='SETUP'&&isSetup(signal))||(activeFilter==='SCALP'&&signal.source==='spike')||signal.source===activeFilter.toLowerCase()));
-  const filterOnly=activeFilter!=='ALL'||activeGroup!=='ALL';
+  const filtered=signals.filter(signal=>(signal.tracking_status==='active'||activeGroups===null||activeGroups.includes(AssetGroups.classify(signal.symbol,signal.asset_type)))&&(activeFilter==='ALL'||signal.side===activeFilter||(activeFilter==='SETUP'&&isSetup(signal))||signal.source===activeFilter.toLowerCase()));
+  const filterOnly=activeFilter!=='ALL'||activeGroups!==null;
   renderSignalFilters(filtered.length);
   const history=$('#signal-history');
   if(history)history.innerHTML=filtered.length?filtered.map(signalCard).join(''):emptySignals(filterOnly);
@@ -482,11 +482,11 @@ async function api(path,options={}){
   return response.json();
 }
 
-const ALERT_SOURCES=new Set(['spike','smc','listing']);
+const ALERT_SOURCES=new Set(['listing']);
 const TERMINAL_TRADE_STATUSES=new Set(['stopped','tp2_reached','expired','cancelled_before_entry']);
-const alertLabels={en:['Scalp alert','SMC setup','Listing','Market observation, not a complete trade plan. Do not trade without your own risk levels.','Trades','Scalp'],ru:['Скальп','SMC-сетап','Листинг','Это наблюдение за рынком, а не готовый торговый план. Не открывайте сделку без собственных уровней риска.','Сделки','Скальп'],de:['Scalp-Alarm','SMC-Setup','Listing','Marktbeobachtung, kein vollständiger Handelsplan.','Trades','Scalp'],fr:['Alerte scalp','Setup SMC','Listing','Observation du marché, pas un plan de trading complet.','Trades','Scalp'],es:['Alerta scalp','Setup SMC','Listado','Observación del mercado, no un plan de trading completo.','Operaciones','Scalp']};
-for(const [lang,copy] of Object.entries(alertLabels))Object.assign(translations[lang],{alertSpike:copy[0],alertSmc:copy[1],alertListing:copy[2],alertCaution:copy[3],filterTrades:copy[4],filterScalp:copy[5]});
-function alertLabel(signal){return tr({spike:'alertSpike',smc:'alertSmc',listing:'alertListing'}[String(signal?.source||'').toLowerCase()]||'tradeSetup');}
+const alertLabels={en:['Listing','Market observation','Trades'],ru:['Листинг','Наблюдение за рынком','Сделки'],de:['Listing','Marktbeobachtung','Trades'],fr:['Listing','Observation du marché','Trades'],es:['Listado','Observación del mercado','Operaciones']};
+for(const [lang,copy] of Object.entries(alertLabels))Object.assign(translations[lang],{alertListing:copy[0],alertCaution:copy[1],filterTrades:copy[2]});
+function alertLabel(signal){return tr({listing:'alertListing'}[String(signal?.source||'').toLowerCase()]||'tradeSetup');}
 function isSetup(signal){
   return !ALERT_SOURCES.has(String(signal?.source||'').toLowerCase());
 }
@@ -561,13 +561,14 @@ function renderHome(){
   if(body)body.hidden=!signal||!isSetup(signal);
   const alertBody=$('#alert-body');
   if(alertBody)alertBody.hidden=!signal||isSetup(signal);
+  renderTracking(signal);
   if(!signal)return;
   if(!isSetup(signal)){
     const type=$('#alert-type');if(type)type.textContent=alertLabel(signal);
     const symbol=$('#alert-symbol');if(symbol)symbol.textContent=displaySymbol(signal.symbol);
     const reference=$('#alert-reference');if(reference)reference.textContent=`#${Number(signal.id)} · ${signalDate(signal)} · ${String(signal.timeframe||'').toUpperCase()}`;
     const levels=$('#alert-levels');
-    const fields=signal.source==='spike'?[['price',tr('currentPrice')]]:signal.source==='smc'?[['entry',tr('entry')],['stop',tr('stop')],['tp1',tr('tp1')]]:[['price',tr('currentPrice')]];
+    const fields=[['price',tr('currentPrice')]];
     if(levels)levels.innerHTML=fields.filter(([key])=>Number(signal[key])>0).map(([key,label])=>detailMetric(label,fmt(signal[key]),key)).join('');
     const note=$('#alert-note');if(note)note.textContent=tr('alertCaution');
     return;
@@ -587,6 +588,7 @@ function renderHome(){
   if(headingCoin){headingCoin.innerHTML=coinIconMarkup(signal.symbol,signal.asset_type);hydrateCoinIcons(headingCoin);}
   const sizing=signal.sizing||{};
   const notes=[];
+  if(signal.sizing_error)notes.push(tr('balanceUnavailable'));
   const requested=Number(sizing.requested_leverage);
   const effective=Number(sizing.effective_leverage);
   if(Number.isFinite(requested)&&Number.isFinite(effective)&&effective<requested)notes.push(tr('levCapped'));
@@ -712,7 +714,7 @@ async function load(){
     const requested=pinnedNoSetup?0:signalIdFromLocation();
     const signalsUrl=requested?`/api/signals?signal_id=${encodeURIComponent(requested)}`:'/api/signals';
     [profile,signals]=await Promise.all([api('/api/me'),api(signalsUrl)]);
-    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&!['spike','smc','scalp'].includes(signal.source));
     language=profile.language||'en';
     selectedSignal=requested?signals.find(signal=>Number(signal.id)===requested)||null:null;
     chartFollowsSelectedSignal=Boolean(requested&&selectedSignal);
@@ -727,7 +729,7 @@ async function refreshLiveData(){
   if(document.hidden)return;
   try{
     [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
-    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&!['spike','smc','scalp'].includes(signal.source));
     if(selectedSignal){
       const previous=selectedSignal;
       const refreshed=signals.find(signal=>String(signal.id)===String(previous.id))||null;
@@ -748,13 +750,26 @@ async function refreshLiveData(){
     renderMajorMarkets();
     renderHome();
     await loadHomeChart();
-  }catch(error){}
+  }catch(error){
+    if(profile?.bingx_account?.connected){
+      profile.bingx_account.unavailable=true;
+      for(const signal of signals){signal.sizing=null;signal.sizing_error='bingx_balance_unavailable';}
+      if(selectedSignal){selectedSignal.sizing=null;selectedSignal.sizing_error='bingx_balance_unavailable';}
+      renderProfile();renderHome();
+    }
+  }
 }
 document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',async()=>{showView(button.dataset.target);if(button.dataset.target==='overview'&&chartFollowsSelectedSignal){chartFollowsSelectedSignal=false;selectedSignal=preferredSignal();selectTimeframe('4h');renderHome();await loadHomeChart();}}));
 document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.go)));
 document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;renderSignals()}));
-$('#signal-group').addEventListener('change',event=>{activeGroup=event.target.value;renderSignals()});
-$('#reset-signal-filters').addEventListener('click',()=>{activeGroup='ALL';activeFilter='ALL';renderSignals()});
+$('#signal-group').addEventListener('change',event=>{
+  const id=event.target.dataset.groupId;if(!id)return;
+  if(id==='ALL'){saveGroups(event.target.checked?null:[]);return;}
+  const selected=new Set(activeGroups||[]);
+  if(event.target.checked)selected.add(id);else selected.delete(id);
+  saveGroups([...selected]);
+});
+$('#reset-signal-filters').addEventListener('click',()=>{activeFilter='ALL';saveGroups(null)});
 const symbolPicker=$('#symbol-picker');
 if(symbolPicker)symbolPicker.addEventListener('click',async event=>{const button=event.target.closest('button[data-symbol]');if(!button)return;overviewSymbol=button.dataset.symbol;document.querySelectorAll('#symbol-picker button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()});
 document.querySelectorAll('#overview-timeframe button').forEach(button=>button.addEventListener('click',async()=>{overviewTimeframe=button.dataset.timeframe;document.querySelectorAll('#overview-timeframe button').forEach(item=>item.classList.toggle('selected',item===button));await loadHomeChart()}));
@@ -771,7 +786,7 @@ document.querySelectorAll('#detail-timeframe button').forEach(button=>button.add
 const signalBack=$('#signal-back');
 if(signalBack)signalBack.addEventListener('click',()=>showView('signals'));
 $('#language').addEventListener('change',async event=>{const previous=language;const next=event.target.value;language=next;applyLanguage();try{await api('/api/settings',{method:'PATCH',body:JSON.stringify({language:next})})}catch(error){language=previous;applyLanguage();showToast(tr('saveFailed'))}});
-$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol));selectedSignal=pinnedNoSetup&&!selectedId?null:(selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||(pinnedNoSetup?null:preferredSignal()):preferredSignal());renderProfile();renderSignals();renderMajorMarkets();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
+$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={...(profile?.bingx_account?.connected?{}:{deposit:Number($('#deposit-input').value)}),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol));selectedSignal=pinnedNoSetup&&!selectedId?null:(selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||(pinnedNoSetup?null:preferredSignal()):preferredSignal());renderProfile();renderSignals();renderMajorMarkets();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
 $('#bingx-referral-link').addEventListener('click',openBingxReferral);
 $('#referral-form').addEventListener('submit',submitReferral);
 function setPaymentState(state, until=''){
@@ -914,3 +929,74 @@ tg?.setHeaderColor?.('#0b1019');
 tg?.setBackgroundColor?.('#0b1019');
 load();
 setInterval(refreshLiveData,60000);
+
+
+async function saveGroups(next){
+  if(groupBusy)return;
+  groupBusy=true;renderSignals();
+  try{
+    await api('/api/settings',{method:'PATCH',body:JSON.stringify({signal_groups:next})});
+    activeGroups=next;profile.signal_groups=next;
+    signals=await api('/api/signals');
+    selectedSignal=signals.find(s=>s.id===selectedSignal?.id)||preferredSignal();
+    showToast(tr('saved'));
+  }catch(error){showToast(tr('saveFailed'));}
+  finally{groupBusy=false;renderSignals();renderHome();renderMajorMarkets();}
+}
+
+function renderAccount(){
+  if(!profile)return;
+  const account=profile.bingx_account||{};
+  const status=$('#account-status');
+  status.textContent=account.unavailable?tr('balanceUnavailable'):(account.connected?`${tr('accountConnected')} · ••••${account.key_hint||''}`:tr('accountDisconnected'));
+  $('#account-disconnect').hidden=!account.connected;
+  $('#account-disconnect').disabled=accountBusy;
+  $('#account-connect').disabled=accountBusy;
+  $('#deposit-input').disabled=Boolean(account.connected);
+}
+
+$('#account-form').addEventListener('submit',async event=>{
+  event.preventDefault();if(accountBusy)return;
+  const payload={api_key:$('#account-key').value,api_secret:$('#account-secret').value};
+  // Clear secrets immediately; never put them in application storage or profile state.
+  $('#account-key').value='';$('#account-secret').value='';
+  accountBusy=true;renderAccount();
+  try{
+    const account=await api('/api/bingx-account',{method:'POST',body:JSON.stringify(payload)});
+    profile.bingx_account=account;profile.deposit=account.balance;
+    signals=await api('/api/signals');selectedSignal=signals.find(s=>s.id===selectedSignal?.id)||preferredSignal();
+    renderProfile();renderHome();showToast(tr('accountConnected'));
+  }catch(error){showToast(tr('accountFailed'));}
+  finally{payload.api_key='';payload.api_secret='';accountBusy=false;renderAccount();}
+});
+
+$('#account-disconnect').addEventListener('click',async()=>{
+  if(accountBusy)return;accountBusy=true;renderAccount();
+  try{
+    await api('/api/bingx-account',{method:'DELETE'});
+    profile.bingx_account={connected:false};showToast(tr('accountDisconnected'));
+  }catch(error){showToast(tr('saveFailed'));}
+  finally{accountBusy=false;renderAccount();}
+});
+
+function renderTracking(signal){
+  const panel=$('#tracking-panel');
+  panel.hidden=!signal||!isSetup(signal);if(panel.hidden)return;
+  const button=$('#tracking-button');
+  const active=signal.tracking_status==='active';
+  const exited=signal.tracking_status==='exited';
+  button.textContent=tr(active?'exitTrade':'enterTrade');
+  button.disabled=trackingBusy||exited||(!active&&!['waiting_entry','active','tp1_reached'].includes(signal.trade_status));
+  $('#tracking-status').textContent=active?`${tr('trackingOn')} ${tr(signal.execution_state==='tp1_filled'?'orderFilled':signal.execution_state==='order_linked'?'orderLinked':'orderUnverified')}`:(exited?tr('trackingOff'):'');
+}
+
+$('#tracking-button').addEventListener('click',async()=>{
+  const signal=homeSignal();if(!signal||trackingBusy)return;
+  const active=signal.tracking_status!=='active';
+  trackingBusy=true;renderTracking(signal);
+  try{
+    const result=await api(`/api/signals/${Number(signal.id)}/tracking`,{method:'PATCH',body:JSON.stringify({active})});
+    Object.assign(signal,result);showToast(tr(active?'trackingOn':'trackingOff'));
+  }catch(error){showToast(tr('trackingFailed'));}
+  finally{trackingBusy=false;renderTracking(signal);renderSignals();}
+});

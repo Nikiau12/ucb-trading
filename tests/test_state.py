@@ -166,7 +166,7 @@ def test_personal_alerts_are_not_published_to_the_scanner_feed(monkeypatch):
         "BTC/USDT",
         "SHORT",
         1.4,
-        source="spike",
+        source="listing",
         price=10,
         entry=10,
     )
@@ -175,7 +175,7 @@ def test_personal_alerts_are_not_published_to_the_scanner_feed(monkeypatch):
     assert params[0] == "BTC_USDT"
     assert params[1] == "SHORT"
     assert params[2] == 1.0
-    assert params[-2] == "spike"
+    assert params[-2] == "listing"
     assert params[-1] is None
 
     monkeypatch.setattr(state, "plan_payload_errors", lambda _plan: [])

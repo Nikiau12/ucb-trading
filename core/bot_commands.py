@@ -1,7 +1,6 @@
 """Commands shown in the Telegram menu. Admin commands stay unlisted.
 
-/setup and /spikes still run when typed. They stay out of this menu so they
-are not listed beside /plan and /scan.
+/setup redirects to the regular plan; /spikes only explains its removal.
 """
 
 from aiogram.types import BotCommand

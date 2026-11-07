@@ -45,25 +45,7 @@ def bind_free_text_handler(router: Router, services) -> SimpleNamespace:
             if not coin:
                 await message.reply(services._t(lang, "another_symbol_prompt"), parse_mode="HTML")
                 return
-            mode = await services.gate_access(message)
-            if not mode:
-                return
-            lang = services.get_lang(message.from_user.id)
-            symbol = await services.exchange.validate_symbol(coin)
-            if not symbol:
-                await message.reply(services._t(lang, "coin_missing", coin=html.escape(coin)), parse_mode="HTML")
-                return
-            await message.reply(services._t(lang, "analysis_running", symbol=html.escape(symbol)), parse_mode="HTML")
-            try:
-                dfs = await services._fetch_mtf(symbol)
-                analyses = {tf: services.smc_analyzer.analyze_tf(df) for tf, df in dfs.items() if df is not None}
-                verdict = services.mtf_engine.analyze(dfs)
-                msg = services.notifier.format_full_analysis(symbol, analyses, verdict, lang=lang)
-                await message.reply(msg, parse_mode="HTML")
-            except Exception as exc:
-                await message.reply(services._t(lang, "command_error", error=html.escape(str(exc))), parse_mode="HTML")
-                return
-            services.debit_trial(services._user_id(message), mode)
+            await services.cmd_plan(services._CommandView(message, message.from_user, '/plan ' + coin))
         elif any(kw in text for kw in ("сетап", "setup", "сигнал", "signal")):
             if not coin:
                 await message.reply(services._t(lang, "another_symbol_prompt"), parse_mode="HTML")

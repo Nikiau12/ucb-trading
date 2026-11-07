@@ -412,6 +412,11 @@ def _load_top_symbols() -> list:
         return []
 
 
+def top_symbols_by_market_cap(n: int = 100) -> list:
+    from miniapp.universe import top_symbols
+    return top_symbols(n)
+
+
 def top_symbols_by_volume(n: int = 250) -> list:
     try:
         items = futures_all_tickers().get("data", [])

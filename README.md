@@ -21,13 +21,16 @@ subscription access into one Telegram-native workflow.
 
 A user can:
 
-- scan liquid BingX Perpetual Futures markets for actionable setups;
+- scan BingX USDT futures available among the global top 100 coins by market capitalization;
+- save several coin groups for both the signal feed and new-signal notifications;
+- connect personal read-only BingX keys and size positions from the current futures balance;
 - request a plan for a specific USDT pair;
 - inspect live candlestick charts inside a Telegram Mini App;
 - review entry, stop-loss, TP1, TP2, and confidence;
 - calculate position size and required margin from a personal risk profile;
 - receive deduplicated automatic alerts;
-- receive lifecycle updates when TP1, Stop, or a pre-entry cancellation occurs;
+- opt into individual trades with “I’m in the trade”, and stop their updates with “I’ve exited”;
+- distinguish signal-price events from confirmed execution of a linked personal TP1 order;
 - use the interface in English, Russian, German, French, or Spanish;
 - start with a limited trial and activate monthly access with USDT TRC20.
 
@@ -100,7 +103,7 @@ runtime.
 - PostgreSQL-backed profiles, subscriptions, signal history, and per-user
   signal access.
 - Multi-timeframe fusion across `15m`, `1h`, `4h`, `1d`, and `1w`.
-- Market-regime, price-structure, momentum, SMC, and spike analysis.
+- Market-regime, price-structure and momentum analysis; scalp and standalone SMC signals are retired.
 - Persistent alert deduplication across deployments.
 - Per-user position sizing based on deposit, risk percentage, leverage, and
   margin mode.
@@ -139,6 +142,13 @@ runtime.
     ├── state.py
     └── i18n.py
 ```
+
+## Personal BingX accounts and trade tracking
+
+The implementation, deployment configuration, failure behavior and acceptance
+checks are documented in [Personal signals](docs/PERSONAL_SIGNALS.md).
+The existing sizing formula is unchanged. API calls in the personal integration
+are read-only; users place and manage their orders on BingX themselves.
 
 ## Local setup
 

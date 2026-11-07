@@ -9,103 +9,22 @@ from types import SimpleNamespace
 def bind_background_loops(services) -> SimpleNamespace:
     """Build loops with the entrypoint's shared services resolved at call time."""
 
-    async def market_scanner_loop():
-        """Реалтайм сканер: спайки (15m) + SMC сетапы (4h/1d)."""
+    async def account_tracker_loop():
         while True:
             try:
-                cycle_started_at = time.monotonic()
-                services.refresh_recipients()
-                symbols = [symbol for symbol in await services.exchange.get_top_pairs() if services._is_usdt_pair(symbol)]
-
-                for i, symbol in enumerate(symbols):
-                    target_symbols = [f"{coin}/USDT" for coin in services.TARGET_COINS]
-                    is_smc = (i < services.TOP_COINS_LIMIT) or (symbol in target_symbols)
-
-                    for tf in ["15m", "4h", "1d"]:
-                        df = await services.exchange.fetch_ohlcv(symbol, tf)
-                        if df.empty:
-                            continue
-
-                        if tf == "15m":
-                            ticker = await services.exchange.fetch_ticker_cached(symbol)
-                            spike = services.spike_scanner.scan(df, ticker=ticker)
-                            if spike:
-                                if spike.get("score", 0) < services.SMART_SPIKE_MIN_SCORE:
-                                    continue
-                                if spike.get("quote_volume", 0) and spike["quote_volume"] < services.SMART_SPIKE_MIN_QUOTE_VOLUME:
-                                    continue
-                                key = f"{symbol}_{tf}_{spike['direction']}"
-                                coin_info = await services.coin_info_svc.get_coin_info(symbol)
-                                await services._deliver_localized(
-                                    "spike",
-                                    key,
-                                    services.SPIKE_COOLDOWN,
-                                    lambda lang, _symbol=symbol, _tf=tf, _spike=spike, _info=coin_info: (
-                                        services.notifier.format_spike_alert(_symbol, _tf, _spike, coin_info=_info, lang=lang)
-                                    ),
-                                    alert=lambda _symbol=symbol, _spike=spike: {
-                                        "symbol": _symbol,
-                                        "side": "LONG" if _spike.get("direction") == "up" else "SHORT",
-                                        "confidence": float(_spike.get("score") or 0) / 100.0,
-                                        "source": "spike",
-                                        "timeframe": "15m",
-                                        "price": _spike.get("current_price"),
-                                        "entry": _spike.get("current_price"),
-                                    },
-                                )
-
-                        if tf in ["4h", "1d"] and is_smc:
-                            smc_res = services.smc_analyzer.analyze_tf(df)
-                            setup = services.smc_analyzer.find_setup(smc_res)
-                            if setup:
-                                score = services.smart_engine.analyze_context(df, symbol, setup["type"])
-                                if score.signal == services.SignalType.NO_TRADE:
-                                    continue
-                                dfs = await services._fetch_mtf(symbol)
-                                verdict = services.mtf_engine.analyze(dfs)
-                                if verdict.setup_type.name == "NO_TRADE":
-                                    continue
-                                key = f"{symbol}_{tf}_{setup['type']}"
-                                await services._deliver_localized(
-                                    "smc",
-                                    key,
-                                    services.SETUP_COOLDOWN,
-                                    lambda lang, _symbol=symbol, _tf=tf, _setup=setup, _score=score, _verdict=verdict: (
-                                        services.notifier.format_smc_setup(
-                                            _symbol, _tf, _setup, _score, _verdict, lang=lang
-                                        )
-                                    ),
-                                    alert=lambda _symbol=symbol, _setup=setup, _score=score, _tf=tf: {
-                                        "symbol": _symbol,
-                                        "side": "LONG" if _setup.get("type") == "LONG" else "SHORT",
-                                        "confidence": float(getattr(_score, "confidence", 0) or 0) / 100.0,
-                                        "source": "smc",
-                                        "timeframe": _tf,
-                                        "price": _setup.get("entry"),
-                                        "entry": _setup.get("entry"),
-                                        "stop": _setup.get("stop_loss"),
-                                        "tp1": _setup.get("take_profit"),
-                                    },
-                                )
-
-                    await asyncio.sleep(0.5)
-
-                services.st.record_runtime_health(
-                    "market_scanner",
-                    success=True,
-                    duration_seconds=time.monotonic() - cycle_started_at,
-                    details={"symbols": len(symbols)},
-                )
-                services.logger.info("market scanner cycle finished; sleeping 60s")
-                await asyncio.sleep(60)
-
+                loop = asyncio.get_running_loop()
+                users = await loop.run_in_executor(None, services.st.tracked_account_users)
+                for user_id in users:
+                    try:
+                        await loop.run_in_executor(None, services.st.reconcile_account, user_id)
+                    except Exception as exc:
+                        services.logger.warning('account tracking unavailable: %s', type(exc).__name__)
+                    await asyncio.sleep(1)
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                services.st.record_runtime_health("market_scanner", success=False, details={"error": type(exc).__name__})
-                services.logger.warning("market_scanner_loop error: %s", type(exc).__name__)
-                await asyncio.sleep(10)
-
+                services.logger.warning('account tracker failed: %s', type(exc).__name__)
+            await asyncio.sleep(30)
 
     async def plan_scanner_loop():
         """Refresh 4H/1D plans hourly; state.py prevents overlapping or recycled setups."""
@@ -123,7 +42,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                         services.refresh_recipients()
                         loop = asyncio.get_event_loop()
                         symbols = await loop.run_in_executor(
-                            None, services.snap.top_symbols_by_volume, services.SCAN_CFG["top_n_symbols"]
+                            None, services.snap.top_symbols_by_market_cap, services.SCAN_CFG["top_n_symbols"]
                         )
                         symbols = services._scan_symbols(symbols)
                         results = await loop.run_in_executor(
@@ -156,14 +75,22 @@ def bind_background_loops(services) -> SimpleNamespace:
                                     user_id = int(chat_id)
                                 except (TypeError, ValueError):
                                     continue
+                                if not services.st.user_accepts_symbol(user_id, symbol):
+                                    continue
+                                balance_unavailable = False
+                                connected_balance = None
+                                try:
+                                    connected_balance = await loop.run_in_executor(None, services.st.refresh_user_balance, user_id)
+                                except Exception:
+                                    balance_unavailable = True
                                 settings = services.st.get_user_settings(user_id)
                                 saved_deposit = settings.get("deposit")
                                 try:
                                     saved_deposit = float(saved_deposit)
                                 except (TypeError, ValueError):
                                     saved_deposit = 0
-                                uses_reference = saved_deposit <= 0
-                                deposit = services.SCAN_REFERENCE_DEPOSIT if uses_reference else saved_deposit
+                                uses_reference = saved_deposit <= 0 and not balance_unavailable and connected_balance is None
+                                deposit = 0 if balance_unavailable else (services.SCAN_REFERENCE_DEPOSIT if uses_reference else saved_deposit)
                                 alert = services.render_auto_alert(
                                     plan,
                                     symbol,
@@ -175,6 +102,8 @@ def bind_background_loops(services) -> SimpleNamespace:
                                     lang=services.get_lang(user_id),
                                     uses_reference_deposit=uses_reference,
                                 )
+                                if balance_unavailable or connected_balance == 0:
+                                    alert = services.render_unpriced_signal(plan, services.get_lang(user_id), empty_balance=connected_balance == 0)
                                 alert = services._with_signal_identity(
                                     alert, signal_id, symbol, side, services.get_lang(user_id),
                                 )
@@ -442,7 +371,7 @@ def bind_background_loops(services) -> SimpleNamespace:
                 await asyncio.sleep(60)
 
     return SimpleNamespace(
-        market_scanner_loop=market_scanner_loop,
+        account_tracker_loop=account_tracker_loop,
         plan_scanner_loop=plan_scanner_loop,
         signal_lifecycle_loop=signal_lifecycle_loop,
         listing_watcher_loop=listing_watcher_loop,
