@@ -53,6 +53,15 @@ const taglines={
   es:'Setups, riesgo y ejecución — en una sola pantalla.'
 };
 
+const brandCredits={
+  en:'Made by YoBig Digital Bureau',
+  ru:'Сделано диджитал бюро YoBig',
+  de:'Entwickelt vom Digitalbüro YoBig',
+  fr:'Créé par le bureau digital YoBig',
+  es:'Creado por el estudio digital YoBig'
+};
+for(const [lang,credit] of Object.entries(brandCredits))translations[lang].brandCredit=credit;
+
 let profile=null,signals=[],language='en',activeFilter='ALL',selectedSignal=null;
 const pinnedNoSetup=(()=>{const raw=new URLSearchParams(window.location.search).get('no_setup')||'';const symbol=raw.trim().toUpperCase();return /^[A-Z0-9]{2,20}_USDT$/.test(symbol)?symbol:'';})();
 const HOME_CHART_SYMBOL='BTC_USDT';
