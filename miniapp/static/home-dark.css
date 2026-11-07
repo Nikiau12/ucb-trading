@@ -19,8 +19,10 @@ body.home-light{
 .home-light .plan-numbers{background:var(--panel)}
 .home-light .plan-numbers .detail-metric+.detail-metric{border-color:var(--line)}
 .home-light .side.long{background:#163e36}.home-light .side.short{background:#4a2632}
-.home-light .bottom-nav{background:rgba(11,16,25,.97);border-color:var(--line)}
+.home-light .app-shell{padding-bottom:calc(112px + var(--safe-bottom))}
+.home-light .bottom-nav{height:calc(106px + var(--safe-bottom));padding:8px 16px calc(8px + var(--safe-bottom));grid-template-rows:minmax(44px,1fr) 20px;row-gap:4px;background:rgba(11,16,25,.97);border-color:var(--line)}
 .home-light .bottom-nav button.active{background:#20365a;color:#b8d0ff}
+.home-light .brand-credit{grid-column:1/-1;grid-row:2;margin:0;align-self:center;color:var(--muted);font-size:11px;line-height:20px;letter-spacing:.01em;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .home-light .trial-paywall,.home-light .subscription-panel{background:#17243a;border-color:#304364}
 .home-light .referral-panel{background:#173027;border-color:#2b5a48}
 .home-light .secondary-button,.home-light #payment-copy{background:#243650;color:#b9d1ff;border-color:#36537d}

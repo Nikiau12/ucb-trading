@@ -104,6 +104,19 @@ def test_dark_theme_and_alert_filters_are_wired():
     assert "--bg:#0b1019" in dark
 
 
+def test_brand_credit_is_inside_app_and_localized():
+    root = ROOT_DIR / "miniapp" / "static"
+    html = (root / "index.html").read_text()
+    js = (root / "app.js").read_text()
+    css = (root / "home-dark.css").read_text()
+    assert 'class="brand-credit" data-i18n="brandCredit"' in html
+    assert html.index('data-target="settings"') < html.index('class="brand-credit"') < html.index("</nav>")
+    assert "ru:'Сделано на диджитал бюро YoBig'" in js
+    assert all(f"{lang}:" in js.split("const brandCredits={", 1)[1].split("};", 1)[0]
+               for lang in ("en", "ru", "de", "fr", "es"))
+    assert ".home-light .brand-credit" in css
+
+
 @pytest.mark.parametrize("requested_symbol", ["HBAR_USDT", "BTC_USDT"])
 def test_requested_old_signal_is_added_only_through_user_access(
     monkeypatch, requested_symbol,
