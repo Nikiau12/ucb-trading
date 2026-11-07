@@ -471,6 +471,7 @@ def save_alert_signal(
     stop=None,
     tp1=None,
     tp2=None,
+    timeframe=None,
 ):
     """Store a spike, SMC, or listing alert for one user's history.
 
@@ -494,12 +495,13 @@ def save_alert_signal(
             row = connection.execute(
                 """
                 INSERT INTO signals (
-                    symbol, side, confidence, price, entry, stop, tp1, tp2, source
+                    symbol, side, confidence, price, entry, stop, tp1, tp2, source, timeframe
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (symbol, direction, stored_confidence, price, entry, stop, tp1, tp2, source),
+                (symbol, direction, stored_confidence, price, entry, stop, tp1, tp2, source,
+                 timeframe if timeframe in {"15m", "1h", "4h", "1d"} else None),
             ).fetchone()
             connection.commit()
             return row[0] if row else None

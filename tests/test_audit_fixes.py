@@ -444,8 +444,9 @@ def test_paid_feed_is_scanner_only_and_trial_feed_is_granted_only():
     assert "user_signal_access" in miniapp.PAID_SIGNALS_SQL
     assert "user_signal_access" in miniapp.TRIAL_SIGNALS_SQL
     assert "source = 'scanner'" not in miniapp.TRIAL_SIGNALS_SQL
-    assert "NOT IN ('spike', 'smc', 'listing')" in miniapp.PAID_SIGNALS_SQL
-    assert "NOT IN ('spike', 'smc', 'listing')" in miniapp.TRIAL_SIGNALS_SQL
+    assert "NOT IN ('spike', 'smc', 'listing')" not in miniapp.PAID_SIGNALS_SQL
+    assert "NOT IN ('spike', 'smc', 'listing')" not in miniapp.TRIAL_SIGNALS_SQL
+    assert "s.id = %s" in miniapp.REQUESTED_SIGNAL_SQL
     assert "INSERT INTO user_signal_access" not in inspect.getsource(miniapp.signals)
 
 

@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f7fb">
+  <meta name="theme-color" content="#0b1019">
   <title>UCB Trading</title>
   <link rel="stylesheet" href="/static/styles.css?v=20261102-chart-touch-2">
   <link rel="stylesheet" href="/static/home-light.css?v=20261102-chart-touch-2">
+  <link rel="stylesheet" href="/static/home-dark.css?v=20261107-1">
   <script src="/static/telegram-web-app.js"></script>
   <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js" integrity="sha384-qQnpH1Chlwm0r93GZ6NgZoEehIelWkhwbBtJMWh0P5wPqySGEt8UjETGKMF0GUdn" crossorigin="anonymous"></script>
 </head>
@@ -52,6 +53,13 @@
           <p data-i18n="noSignals">No signals yet</p>
           <button type="button" class="primary-button empty-action" data-empty-action="plan" data-i18n="requestPlan">Request a plan</button>
         </div>
+        <div id="alert-body" class="alert-body" hidden>
+          <p class="home-kicker" id="alert-type"></p>
+          <h1 id="alert-symbol"></h1>
+          <p id="alert-reference" class="plan-reference"></p>
+          <div id="alert-levels" class="plan-levels"></div>
+          <p id="alert-note" class="plan-disclaimer"></p>
+        </div>
         <div id="plan-body">
           <div class="plan-head">
             <p class="home-kicker" data-i18n="tradeSetup">TRADE SETUP</p>
@@ -79,7 +87,7 @@
 
       <section class="view" id="signals-view" data-view="signals">
         <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
-        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
+        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="SETUP" data-i18n="filterTrades">Trades</button><button class="filter" data-filter="SCALP" data-i18n="filterScalp">Scalp</button><button class="filter" data-filter="SMC">SMC</button><button class="filter" data-filter="LISTING" data-i18n="listing">Listing</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <div id="signal-history" class="signal-list full"></div>
       </section>
 
@@ -143,6 +151,6 @@
   </div>
   <div class="toast" id="toast" role="status"></div>
   <script src="/static/asset-icons.js?v=20261029-2"></script>
-  <script src="/static/app.js?v=20261102-chart-switch-3"></script>
+  <script src="/static/app.js?v=20261107-alerts-dark-1"></script>
 </body>
 </html>

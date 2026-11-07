@@ -441,8 +441,6 @@ def subscription_fields(user_id: int | None = None, *, exact: bool = False) -> d
     }
 
 
-_SETUP_ONLY = "source NOT IN ('spike', 'smc', 'listing')"
-
 PAID_SIGNALS_SQL = f"""
 SELECT id, symbol, side, confidence, price, entry, stop, tp1, tp2,
        price_unit, contract_size, vol_unit, min_vol, max_vol, max_leverage, min_notional,
@@ -453,7 +451,6 @@ FROM (
            created_at, source, reason, regime, timeframe
     FROM signals
     WHERE source = 'scanner'
-      AND {_SETUP_ONLY}
       AND UPPER(symbol) ~ '(_USDT|/USDT)(:USDT)?$'
     UNION
     SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
@@ -464,7 +461,6 @@ FROM (
     JOIN user_signal_access a ON a.signal_id = s.id
     WHERE a.telegram_user_id = %s
       AND s.source <> 'scanner'
-      AND s.{_SETUP_ONLY}
       AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 ) history
 ORDER BY created_at DESC
@@ -479,7 +475,6 @@ SELECT s.id, s.symbol, s.side, s.confidence, s.price, s.entry,
 FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
-  AND s.{_SETUP_ONLY}
   AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 ORDER BY s.created_at DESC
 LIMIT %s
@@ -494,7 +489,6 @@ FROM signals s
 JOIN user_signal_access a ON a.signal_id = s.id
 WHERE a.telegram_user_id = %s
   AND s.id = %s
-  AND s.{_SETUP_ONLY}
   AND UPPER(s.symbol) ~ '(_USDT|/USDT)(:USDT)?$'
 LIMIT 1
 """
@@ -553,6 +547,9 @@ def _target_profit_usdt(
 
 
 def attach_personal_sizing(signal: dict, profile: dict) -> dict:
+    if signal.get("source") in {"spike", "smc", "listing"}:
+        # These are informational alerts, not complete executable trade plans.
+        return {**signal, "sizing": None}
     sizing = position_size_for_contract(
         signal,
         signal.get("entry"),
@@ -1059,7 +1056,7 @@ def signals(
          "source": row[17] or "scanner",
          "reason": row[18],
          "regime": row[19],
-         "timeframe": row[20] or "4h",
+         "timeframe": row[20] or ("15m" if row[17] == "spike" else "4h"),
          **lifecycle_by_id.get(int(row[0]), {
              "trade_status": "untracked", "entry_hit_at": None,
              "tp1_hit_at": None, "tp2_hit_at": None, "stop_hit_at": None,

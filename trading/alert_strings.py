@@ -238,7 +238,7 @@ ALERT_STRINGS = {
         "alert_min_contract": "Минимальный контракт BingX слишком велик для этого риска. Сделку открывать не нужно.",
         "alert_reference": "Расчёт на примере 1 000 USDT. Укажи свой депозит через /start.",
         "alert_more": "Подробнее:",
-        "spike_title": "СПАЙК",
+        "spike_title": "СКАЛЬП",
         "spike_long": "🟢 LONG (памп)",
         "spike_short": "🔴 SHORT (дамп)",
         "spike_direction": "Направление",

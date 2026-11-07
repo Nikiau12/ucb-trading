@@ -250,7 +250,9 @@ function signalCard(signal){
   const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
   const symbol=escapeHtml(displaySymbol(signal.symbol));
   const state=signalStatus(signal);
-  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span><span class="side ${side.toLowerCase()}">${side}</span><b>${escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${escapeHtml(state.label||signalAge(signal))}</small></button>`;
+  const alert=!isSetup(signal);
+  const direction=signal.source==='listing'?'':`<span class="side ${side.toLowerCase()}">${side}</span>`;
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${alert?escapeHtml(alertLabel(signal)):escapeHtml(state.label||signalAge(signal))}</small></button>`;
 }
 
 function emptySignals(filterOnly){
@@ -281,7 +283,7 @@ function preferredSignal(){
 }
 
 function chartContext(){
-  if(chartFollowsSelectedSignal&&selectedSignal&&isSetup(selectedSignal)){
+  if(chartFollowsSelectedSignal&&selectedSignal){
     return{symbol:String(selectedSignal.symbol).toUpperCase(),signal:isOpenSetup(selectedSignal)?selectedSignal:null};
   }
   return{symbol:HOME_CHART_SYMBOL,signal:latestMajorSignal(HOME_CHART_SYMBOL,{activeOnly:true})};
@@ -340,9 +342,8 @@ function syncSymbolPicker(){
 }
 
 function renderSignals(){
-  const setups=signals.filter(isSetup);
-  const filtered=setups.filter(signal=>activeFilter==='ALL'||signal.side===activeFilter);
-  const filterOnly=activeFilter!=='ALL'&&setups.length>0;
+  const filtered=signals.filter(signal=>activeFilter==='ALL'||signal.side===activeFilter||(activeFilter==='SETUP'&&isSetup(signal))||(activeFilter==='SCALP'&&signal.source==='spike')||signal.source===activeFilter.toLowerCase());
+  const filterOnly=activeFilter!=='ALL'&&signals.length>0;
   const history=$('#signal-history');
   if(history)history.innerHTML=filtered.length?filtered.map(signalCard).join(''):emptySignals(filterOnly);
   syncSymbolPicker();
@@ -353,10 +354,10 @@ function chartBundle(container){
   if(typeof LightweightCharts==='undefined')throw new Error('Chart library unavailable');
   const chart=LightweightCharts.createChart(container,{
     width:container.clientWidth,height:container.clientHeight||290,
-    layout:{background:{type:'solid',color:'#ffffff'},textColor:'#65738a',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:11},
-    grid:{vertLines:{visible:false},horzLines:{color:'#f0f3f8'}},
+    layout:{background:{type:'solid',color:'#101722'},textColor:'#a9b7ca',fontFamily:'-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',fontSize:11},
+    grid:{vertLines:{visible:false},horzLines:{color:'#263343'}},
     rightPriceScale:{borderVisible:false,scaleMargins:{top:.08,bottom:.25}},
-    timeScale:{borderColor:'#edf0f5',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},
+    timeScale:{borderColor:'#35455b',timeVisible:true,secondsVisible:false,rightOffset:5,barSpacing:7,minBarSpacing:3},
     crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#aab6cb',width:1,style:2,labelBackgroundColor:'#526482'},horzLine:{color:'#aab6cb',width:1,style:2,labelBackgroundColor:'#526482'}},
     handleScale:{mouseWheel:true,pinch:true,axisPressedMouseMove:true},
     handleScroll:{mouseWheel:false,pressedMouseMove:true,horzTouchDrag:true,vertTouchDrag:false}
@@ -444,6 +445,9 @@ async function api(path,options={}){
 
 const ALERT_SOURCES=new Set(['spike','smc','listing']);
 const TERMINAL_TRADE_STATUSES=new Set(['stopped','tp2_reached','expired','cancelled_before_entry']);
+const alertLabels={en:['Scalp alert','SMC setup','Listing','Market observation, not a complete trade plan. Do not trade without your own risk levels.','Trades','Scalp'],ru:['Скальп','SMC-сетап','Листинг','Это наблюдение за рынком, а не готовый торговый план. Не открывайте сделку без собственных уровней риска.','Сделки','Скальп'],de:['Scalp-Alarm','SMC-Setup','Listing','Marktbeobachtung, kein vollständiger Handelsplan.','Trades','Scalp'],fr:['Alerte scalp','Setup SMC','Listing','Observation du marché, pas un plan de trading complet.','Trades','Scalp'],es:['Alerta scalp','Setup SMC','Listado','Observación del mercado, no un plan de trading completo.','Operaciones','Scalp']};
+for(const [lang,copy] of Object.entries(alertLabels))Object.assign(translations[lang],{alertSpike:copy[0],alertSmc:copy[1],alertListing:copy[2],alertCaution:copy[3],filterTrades:copy[4],filterScalp:copy[5]});
+function alertLabel(signal){return tr({spike:'alertSpike',smc:'alertSmc',listing:'alertListing'}[String(signal?.source||'').toLowerCase()]||'tradeSetup');}
 function isSetup(signal){
   return !ALERT_SOURCES.has(String(signal?.source||'').toLowerCase());
 }
@@ -451,7 +455,7 @@ function isOpenSetup(signal){
   return isSetup(signal)&&!TERMINAL_TRADE_STATUSES.has(String(signal?.trade_status||'untracked'));
 }
 function homeSignal(){
-  if(selectedSignal&&isSetup(selectedSignal))return selectedSignal;
+  if(selectedSignal)return selectedSignal;
   if(pinnedNoSetup)return null;
   return preferredSignal();
 }
@@ -515,8 +519,20 @@ function renderHome(){
       if(action)action.hidden=false;
     }
   }
-  if(body)body.hidden=!signal;
+  if(body)body.hidden=!signal||!isSetup(signal);
+  const alertBody=$('#alert-body');
+  if(alertBody)alertBody.hidden=!signal||isSetup(signal);
   if(!signal)return;
+  if(!isSetup(signal)){
+    const type=$('#alert-type');if(type)type.textContent=alertLabel(signal);
+    const symbol=$('#alert-symbol');if(symbol)symbol.textContent=displaySymbol(signal.symbol);
+    const reference=$('#alert-reference');if(reference)reference.textContent=`#${Number(signal.id)} · ${signalDate(signal)} · ${String(signal.timeframe||'').toUpperCase()}`;
+    const levels=$('#alert-levels');
+    const fields=signal.source==='spike'?[['price',tr('currentPrice')]]:signal.source==='smc'?[['entry',tr('entry')],['stop',tr('stop')],['tp1',tr('tp1')]]:[['price',tr('currentPrice')]];
+    if(levels)levels.innerHTML=fields.filter(([key])=>Number(signal[key])>0).map(([key,label])=>detailMetric(label,fmt(signal[key]),key)).join('');
+    const note=$('#alert-note');if(note)note.textContent=tr('alertCaution');
+    return;
+  }
   const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const sideNode=$('#plan-side');
   if(sideNode){sideNode.textContent=side;sideNode.className=`side ${side.toLowerCase()}`;}
@@ -616,7 +632,7 @@ function detailMetric(label,value,accent=''){
   return `<div class="detail-metric ${escapeHtml(accent)}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 async function openSignalDetail(signalId){
-  selectedSignal=signals.find(signal=>String(signal.id)===String(signalId)&&isSetup(signal));
+  selectedSignal=signals.find(signal=>String(signal.id)===String(signalId));
   if(!selectedSignal)return;
   chartFollowsSelectedSignal=true;
   selectTimeframe(selectedSignal.timeframe||'4h');
@@ -657,7 +673,7 @@ async function load(){
     const requested=pinnedNoSetup?0:signalIdFromLocation();
     const signalsUrl=requested?`/api/signals?signal_id=${encodeURIComponent(requested)}`:'/api/signals';
     [profile,signals]=await Promise.all([api('/api/me'),api(signalsUrl)]);
-    signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
     language=profile.language||'en';
     selectedSignal=requested?signals.find(signal=>Number(signal.id)===requested)||null:null;
     chartFollowsSelectedSignal=Boolean(requested&&selectedSignal);
@@ -672,7 +688,7 @@ async function refreshLiveData(){
   if(document.hidden)return;
   try{
     [profile,signals]=await Promise.all([api('/api/me'),api('/api/signals')]);
-    signals=signals.filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));
+    signals=signals.filter(signal=>isUsdtPair(signal.symbol));
     if(selectedSignal){
       const previous=selectedSignal;
       const refreshed=signals.find(signal=>String(signal.id)===String(previous.id))||null;
@@ -682,7 +698,7 @@ async function refreshLiveData(){
         selectedSignal=signals.find(signal=>String(signal.symbol||'').toUpperCase()===previousSymbol&&isOpenSetup(signal))||previous;
       }else selectedSignal=null;
     }
-    if(chartFollowsSelectedSignal&&selectedSignal&&!isOpenSetup(selectedSignal)){
+    if(chartFollowsSelectedSignal&&selectedSignal&&isSetup(selectedSignal)&&!isOpenSetup(selectedSignal)){
       const stoppedSymbol=String(selectedSignal.symbol||'').toUpperCase();
       const replacement=signals.find(signal=>String(signal.symbol||'').toUpperCase()===stoppedSymbol&&isOpenSetup(signal));
       if(replacement){selectedSignal=replacement;selectTimeframe(replacement.timeframe||'4h');}
@@ -695,7 +711,7 @@ async function refreshLiveData(){
     await loadHomeChart();
   }catch(error){}
 }
-document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',async()=>{showView(button.dataset.target);if(button.dataset.target==='overview'&&chartFollowsSelectedSignal){chartFollowsSelectedSignal=false;selectTimeframe('4h');renderHome();await loadHomeChart();}}));
+document.querySelectorAll('.bottom-nav button').forEach(button=>button.addEventListener('click',async()=>{showView(button.dataset.target);if(button.dataset.target==='overview'&&chartFollowsSelectedSignal){chartFollowsSelectedSignal=false;selectedSignal=preferredSignal();selectTimeframe('4h');renderHome();await loadHomeChart();}}));
 document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.go)));
 document.querySelectorAll('.filter').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.filter;document.querySelectorAll('.filter').forEach(item=>item.classList.toggle('selected',item===button));renderSignals()}));
 const symbolPicker=$('#symbol-picker');
@@ -714,7 +730,7 @@ document.querySelectorAll('#detail-timeframe button').forEach(button=>button.add
 const signalBack=$('#signal-back');
 if(signalBack)signalBack.addEventListener('click',()=>showView('signals'));
 $('#language').addEventListener('change',async event=>{const previous=language;const next=event.target.value;language=next;applyLanguage();try{await api('/api/settings',{method:'PATCH',body:JSON.stringify({language:next})})}catch(error){language=previous;applyLanguage();showToast(tr('saveFailed'))}});
-$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol)&&isSetup(signal));selectedSignal=pinnedNoSetup&&!selectedId?null:(selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||(pinnedNoSetup?null:preferredSignal()):preferredSignal());renderProfile();renderSignals();renderMajorMarkets();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
+$('#settings-form').addEventListener('submit',async event=>{event.preventDefault();const payload={deposit:Number($('#deposit-input').value),risk_pct:Number($('#risk-input').value),leverage:Number($('#leverage-input').value),margin:document.querySelector('input[name=margin]:checked').value};const status=$('#form-status');try{await api('/api/settings',{method:'PATCH',body:JSON.stringify(payload)});Object.assign(profile,payload);const selectedId=selectedSignal?.id;signals=(await api('/api/signals')).filter(signal=>isUsdtPair(signal.symbol));selectedSignal=pinnedNoSetup&&!selectedId?null:(selectedId?signals.find(signal=>Number(signal.id)===Number(selectedId))||(pinnedNoSetup?null:preferredSignal()):preferredSignal());renderProfile();renderSignals();renderMajorMarkets();renderHome();status.classList.remove('error');status.textContent=tr('saved');showToast(tr('saved'))}catch(error){status.classList.add('error');status.textContent=tr('saveFailed');showToast(tr('saveFailed'))}});
 $('#bingx-referral-link').addEventListener('click',openBingxReferral);
 $('#referral-form').addEventListener('submit',submitReferral);
 function setPaymentState(state, until=''){
@@ -853,7 +869,7 @@ document.addEventListener('keydown',event=>{
 });
 $('#refresh').addEventListener('click',async()=>{await load()});
 window.addEventListener('resize',()=>resizeChart(overviewChart));
-tg?.setHeaderColor?.('#f5f7fb');
-tg?.setBackgroundColor?.('#f5f7fb');
+tg?.setHeaderColor?.('#0b1019');
+tg?.setBackgroundColor?.('#0b1019');
 load();
 setInterval(refreshLiveData,60000);
