@@ -169,7 +169,7 @@ def check_unused_trigger(plan, now, current):
             raise ValueError("group_trigger_already_used_or_invalidated")
 
 
-def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=None):
+def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=None, market_checks=True):
     """A single deterministic group route for both entrypoints, with no legacy fallback."""
     realtime = now is None
     now = int(time.time()) if now is None else int(now)
@@ -224,6 +224,11 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
                 choices.append(result)
             else:
                 reasons.append(result.get("reason","no_group_setup"))
+        # Strict group setups win over lower-threshold journal ideas. Opposing
+        # strict setups (or two opposing ideas) remain ambiguous and are skipped.
+        strict = [choice for choice in choices if not choice["family"].startswith("journal_")]
+        if len(strict) == 1:
+            choices = strict
         if len(choices) != 1:
             prefix = "group_data_unavailable:" if any(d["status"]=="blocked_data" for d in decisions) else "group_no_setup:"
             rejected = skip("conflicting_group_directions" if choices else prefix+"/".join(reasons))
@@ -238,15 +243,40 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
             return skip("group_contract_rounding_changed_levels")
         # Market requests can take seconds. Check the observation clock after
         # fetching, while keeping an injected clock deterministic in tests.
-        execution = check_execution_market(snapshot,raw,normalized,None if realtime else now)
+        if market_checks:
+            execution = check_execution_market(snapshot,raw,normalized,None if realtime else now)
+        else:
+            # Scanner ranking must not request a full depth book and 1m path
+            # for every candidate. Publication rechecks both before storage.
+            ticker = snapshot.get("ticker", {}).get("data", {})
+            if isinstance(ticker, list):
+                ticker = ticker[0] if len(ticker) == 1 else {}
+            turnover = _finite(ticker.get("quoteVolume", ticker.get("amount24", 0)))
+            if turnover < (5_000_000 if group == "meme" else 1_000_000):
+                return skip("group_liquidity_turnover")
+            fee = _finite(detail.get("raw", {}).get("takerFeeRate"), positive=False)
+            if fee > .01:
+                return skip("invalid_contract_fee")
+            execution = {"public_taker_fee":fee,"scanner_precheck_only":True}
         delivered_at = int(time.time()) if realtime else now
-        check_unused_trigger(raw,delivered_at,current)
+        if market_checks:
+            check_unused_trigger(raw,delivered_at,current)
+        else:
+            sign = 1 if raw["side"] == "long" else -1
+            if (sign * (current-raw["entry"]) >= 0 or sign * (current-raw["stop"]) <= 0
+                    or not 0 <= delivered_at-raw["signal_time"] < raw["entry_expiry_seconds"]):
+                return skip("group_trigger_already_used_or_invalidated")
         direction = raw["daily_regime"]
-        is_range = raw["family"] in ("R", "structure_range")
+        is_range = raw["family"] in ("R", "structure_range", "journal_structure_range")
+        if raw["family"].startswith("journal_"):
+            strategy["version"] = raw["profile_version"]
         strategy.update(family=raw["family"],signal_time=as_of,
             entry_expires_at=as_of+raw["entry_expiry_seconds"],max_holding_seconds=raw["max_holding_seconds"],
             decision_key=raw["decision_key"],execution_checks=execution, verified_at=delivered_at)
-        primary = dict(normalized, side=raw["side"], confidence=1.,
+        if raw["family"].startswith("journal_"):
+            strategy.update(mode="journal_idea",criteria=raw["criteria"],
+                            confidence_is_probability=False)
+        primary = dict(normalized, side=raw["side"], confidence=raw.get("criteria_score", 1.),
             entry_type="stop", entry_expiry_bars=2, max_holding_bars=raw["max_holding_seconds"]//FOUR_HOURS,
             entry_expiry_seconds=as_of+raw["entry_expiry_seconds"]-delivered_at,
             max_holding_seconds=raw["max_holding_seconds"],
@@ -290,5 +320,7 @@ def prepare_for_publication(plan):
         return {**plan, "price":price, "strategy":{**meta,
                 "verified_at":now, "execution_checks":execution}}
     except Exception as exc:
+        if getattr(exc, "code", None) == 100410:
+            plan["publication_error_code"] = 100410
         logger.info("group publication rejected symbol=%s reason=%s",plan.get("symbol"),type(exc).__name__)
         return None

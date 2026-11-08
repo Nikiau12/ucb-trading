@@ -554,7 +554,7 @@ def test_removed_market_scanner_is_not_started():
     assert bot.account_tracker_loop.__module__ == 'core.background_loops'
 
 
-def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
+def test_extracted_plan_scanner_revisits_markets_without_an_hour_gate(monkeypatch):
     from core import background_loops
 
     class FixedDatetime(datetime):
@@ -563,27 +563,68 @@ def test_extracted_plan_scanner_runs_once_after_hour_close(monkeypatch):
             return datetime(2026, 11, 2, 15, 5, tzinfo=tz)
 
     calls = []
+    scans = []
 
     def record(name, **kwargs):
         calls.append((name, kwargs))
-        raise asyncio.CancelledError()
+        if len([item for item in calls if isinstance(item, tuple)]) == 2:
+            raise asyncio.CancelledError()
+
+    async def no_wait(_seconds):
+        return None
 
     monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
-    monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
+    monkeypatch.setattr(background_loops.asyncio, "sleep", no_wait)
     monkeypatch.setattr(bot, "refresh_recipients", lambda: calls.append("recipients"))
+    monkeypatch.setattr(bot.st, "scanner_budget_counts", lambda *_args, **_kwargs: (0, 0))
     monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
     monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
-    monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(bot.sc, "scan_all", lambda symbols, **_kwargs: scans.append(symbols) or [])
     monkeypatch.setattr(bot.st, "record_runtime_health", record)
 
     asyncio.run(bot.plan_scanner_loop())
-    assert bot._last_plan_1h_block == 15
+    assert scans == [["BTC_USDT"], ["BTC_USDT"]]
     assert calls[0] == "recipients"
     assert calls[1][0] == "plan_scanner"
     assert calls[1][1]["success"] is False  # A requested coin returned no result.
     assert calls[1][1]["details"]["failed"] == 1
     assert calls[1][1]["details"]["requested"] == 1
     assert calls[1][1]["details"]["alerts_sent"] == 0
+    assert calls[1][1]["details"]["continuous_batch"] is True
+
+
+def test_continuous_scanner_rotates_whole_universe_in_bounded_batches(monkeypatch):
+    from core import background_loops
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 2, 15, 5, tzinfo=tz)
+
+    symbols = list(bot.core_plan.catalog()[1])[:17]
+    batches = []
+    completed = []
+
+    async def no_wait(_seconds):
+        return None
+
+    def record(_name, **_kwargs):
+        completed.append(True)
+        if len(completed) == 3:
+            raise asyncio.CancelledError()
+
+    monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
+    monkeypatch.setattr(background_loops.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(bot, "refresh_recipients", lambda: None)
+    monkeypatch.setattr(bot.st, "scanner_budget_counts", lambda *_args, **_kwargs: (0, 0))
+    monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: symbols)
+    monkeypatch.setattr(bot, "_scan_symbols", lambda rows: rows)
+    monkeypatch.setattr(bot.sc, "scan_all", lambda rows, **_kwargs: batches.append(rows) or [])
+    monkeypatch.setattr(bot.st, "record_runtime_health", record)
+
+    asyncio.run(bot.plan_scanner_loop())
+    assert [len(batch) for batch in batches] == [8, 8, 1]
+    assert [symbol for batch in batches for symbol in batch] == symbols
 
 
 @pytest.mark.parametrize("signal_id", [77, None])
@@ -607,8 +648,8 @@ def test_extracted_plan_scanner_only_delivers_persisted_signal(monkeypatch, sign
         raise asyncio.CancelledError()
 
     monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
-    monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
     monkeypatch.setattr(bot, "refresh_recipients", lambda: None)
+    monkeypatch.setattr(bot.st, "scanner_budget_counts", lambda *_args, **_kwargs: (0, 0))
     monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
     monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
     monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [plan])
@@ -656,8 +697,8 @@ def test_scanner_delivers_unpriced_signal_with_zero_balance(monkeypatch, connect
         raise asyncio.CancelledError()
 
     monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
-    monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
     monkeypatch.setattr(bot, "refresh_recipients", lambda: None)
+    monkeypatch.setattr(bot.st, "scanner_budget_counts", lambda *_args, **_kwargs: (0, 0))
     monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
     monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
     monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [_actionable_plan()])
