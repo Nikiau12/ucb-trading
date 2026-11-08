@@ -71,7 +71,7 @@ def scan_all(
         try:
             # One current whole-market ticker snapshot, rather than N identical
             # requests. Individual tickers still refresh when this cache expires.
-            snap.futures_all_tickers()
+            snap.cached_futures_all_tickers()
         except Exception as exc:
             logger.warning("scanner ticker warmup unavailable error=%s", type(exc).__name__)
             if getattr(exc, "code", None) == 100410:

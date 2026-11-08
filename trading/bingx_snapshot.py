@@ -305,6 +305,18 @@ def futures_all_tickers() -> Dict[str, Any]:
     return {"code": 0, "msg": "", "data": normalized}
 
 
+def cached_futures_all_tickers() -> Dict[str, Any]:
+    """Reuse a recent whole-market snapshot for scanner batches.
+
+    The lifecycle tracker still requests a fresh snapshot on its own schedule;
+    a scanner batch must not add another identical request every 30 seconds.
+    """
+    with _TICKER_CACHE_LOCK:
+        if _TICKER_CACHE and time.time() - _TICKER_CACHE_TS <= TICKER_CACHE_TTL_SECONDS:
+            return {"code": 0, "msg": "", "data": [dict(item) for item in _TICKER_CACHE.values()]}
+    return futures_all_tickers()
+
+
 def futures_ticker(symbol: str) -> Dict[str, Any]:
     internal_symbol = to_internal_symbol(symbol)
     with _TICKER_CACHE_LOCK:

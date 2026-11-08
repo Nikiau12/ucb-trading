@@ -139,6 +139,18 @@ def test_snapshot_uses_only_strategy_timeframes(monkeypatch):
     assert snapshot["exchange"] == "bingx"
 
 
+def test_scanner_reuses_recent_whole_market_tickers(monkeypatch):
+    monkeypatch.setattr(bingx_snapshot, "_TICKER_CACHE", {
+        "BTC_USDT": {"symbol": "BTC_USDT", "lastPrice": "100"},
+    })
+    monkeypatch.setattr(bingx_snapshot, "_TICKER_CACHE_TS", time.time())
+    monkeypatch.setattr(bingx_snapshot, "futures_all_tickers", lambda: pytest.fail("unneeded BingX request"))
+    cached = bingx_snapshot.cached_futures_all_tickers()
+    assert cached["data"][0]["lastPrice"] == "100"
+    cached["data"][0]["lastPrice"] = "0"
+    assert bingx_snapshot.cached_futures_all_tickers()["data"][0]["lastPrice"] == "100"
+
+
 def test_recent_cache_is_marked_stale(monkeypatch):
     source_ts = int((time.time() - 60) * 1000)
     monkeypatch.setattr(
