@@ -25,6 +25,123 @@ COPY = {
            "Se alcanzó un nivel de invalidación antes de confirmar la entrada o el orden es incierto."),
 }
 
+GROUP_SKIP_COPY = {
+    "ru": {
+        "long": "Лонг", "short": "Шорт",
+        "daily_regime": "1Д: рыночный режим не подходит",
+        "relative_strength_btc": "1Д: сила относительно BTC не подходит",
+        "relative_strength_subtype": "1Д: сила относительно ориентира группы не подходит",
+        "daily_trend_age": "1Д: возраст тренда вне условий",
+        "late_trend_extension": "1Д: цена слишком далеко от тренда",
+        "daily_volatility": "1Д: волатильность вне условий",
+        "price_confirmation": "4Ч: вход и уровни не прошли проверку",
+        "regime_changed_during_retest": "1Д: режим изменился при ретесте",
+        "blocked_data": "данные не удалось проверить; сигнал не создан",
+        "other": "условия групповой стратегии не выполнены",
+        "history": "Для этой монеты пока мало полной истории 4Ч/1Д.",
+        "unavailable": "Не удалось проверить рыночные данные; сигнал не публикуется.",
+        "market": "Текущая ликвидность или стоимость входа не прошла проверку.",
+        "expired": "Точка входа уже пройдена или время действия сетапа истекло.",
+        "sizing": "План не проходит ограничения контракта или выбранного риска.",
+    },
+    "en": {
+        "long": "Long", "short": "Short",
+        "daily_regime": "1D: market regime does not qualify",
+        "relative_strength_btc": "1D: strength versus BTC does not qualify",
+        "relative_strength_subtype": "1D: strength versus the group benchmark does not qualify",
+        "daily_trend_age": "1D: trend age is outside the rule",
+        "late_trend_extension": "1D: price is too extended from the trend",
+        "daily_volatility": "1D: volatility is outside the rule",
+        "price_confirmation": "4H: entry and levels did not qualify",
+        "regime_changed_during_retest": "1D: regime changed during the retest",
+        "blocked_data": "market data could not be verified; no signal was created",
+        "other": "the group strategy conditions were not met",
+        "history": "This coin does not yet have enough complete 4H/1D history.",
+        "unavailable": "Market data could not be verified; no signal was published.",
+        "market": "Current liquidity or entry costs did not pass the check.",
+        "expired": "The entry was already passed or the setup expired.",
+        "sizing": "The plan does not meet contract or selected-risk limits.",
+    },
+    "de": {
+        "long": "Long", "short": "Short",
+        "daily_regime": "1D: Marktregime passt nicht",
+        "relative_strength_btc": "1D: Stärke gegenüber BTC passt nicht",
+        "relative_strength_subtype": "1D: Stärke gegenüber der Gruppenreferenz passt nicht",
+        "daily_trend_age": "1D: Trendalter liegt außerhalb der Regel",
+        "late_trend_extension": "1D: Kurs ist zu weit vom Trend entfernt",
+        "daily_volatility": "1D: Volatilität liegt außerhalb der Regel",
+        "price_confirmation": "4H: Einstieg und Levels erfüllen die Regeln nicht",
+        "regime_changed_during_retest": "1D: Regime änderte sich beim Retest",
+        "blocked_data": "Marktdaten nicht verifizierbar; kein Signal erstellt",
+        "other": "Gruppenstrategie-Bedingungen nicht erfüllt",
+        "history": "Für diesen Coin fehlt noch vollständige 4H/1D-Historie.",
+        "unavailable": "Marktdaten nicht verifizierbar; kein Signal veröffentlicht.",
+        "market": "Liquidität oder Einstiegskosten bestehen die Prüfung nicht.",
+        "expired": "Einstieg bereits passiert oder Setup abgelaufen.",
+        "sizing": "Plan überschreitet Vertrags- oder Risikolimits.",
+    },
+    "fr": {
+        "long": "Long", "short": "Short",
+        "daily_regime": "1J : régime de marché non conforme",
+        "relative_strength_btc": "1J : force relative au BTC non conforme",
+        "relative_strength_subtype": "1J : force relative à la référence du groupe non conforme",
+        "daily_trend_age": "1J : âge de la tendance hors des règles",
+        "late_trend_extension": "1J : prix trop éloigné de la tendance",
+        "daily_volatility": "1J : volatilité hors des règles",
+        "price_confirmation": "4H : entrée et niveaux non validés",
+        "regime_changed_during_retest": "1J : régime modifié pendant le retest",
+        "blocked_data": "données invérifiables ; aucun signal créé",
+        "other": "conditions de la stratégie de groupe non remplies",
+        "history": "Historique complet 4H/1J encore insuffisant pour cette monnaie.",
+        "unavailable": "Données de marché invérifiables ; aucun signal publié.",
+        "market": "Liquidité ou coût d’entrée non conformes.",
+        "expired": "Entrée déjà dépassée ou setup expiré.",
+        "sizing": "Plan hors des limites du contrat ou du risque choisi.",
+    },
+    "es": {
+        "long": "Long", "short": "Short",
+        "daily_regime": "1D: el régimen de mercado no cumple las reglas",
+        "relative_strength_btc": "1D: la fuerza frente a BTC no cumple las reglas",
+        "relative_strength_subtype": "1D: la fuerza frente a la referencia del grupo no cumple las reglas",
+        "daily_trend_age": "1D: la edad de la tendencia queda fuera de las reglas",
+        "late_trend_extension": "1D: el precio está demasiado extendido",
+        "daily_volatility": "1D: la volatilidad queda fuera de las reglas",
+        "price_confirmation": "4H: la entrada y los niveles no cumplen las reglas",
+        "regime_changed_during_retest": "1D: el régimen cambió durante el retest",
+        "blocked_data": "no se pudieron verificar los datos; no se creó señal",
+        "other": "no se cumplen las condiciones de la estrategia del grupo",
+        "history": "Esta moneda aún no tiene suficiente historial completo 4H/1D.",
+        "unavailable": "No se pudieron verificar los datos del mercado; no se publicó señal.",
+        "market": "La liquidez o el coste de entrada no superaron la revisión.",
+        "expired": "La entrada ya pasó o el setup caducó.",
+        "sizing": "El plan no cumple los límites del contrato o del riesgo elegido.",
+    },
+}
+
+
+def group_decision_explanation(record, lang):
+    """Explain both sides of a group decision without exposing raw filter codes."""
+    if not (record.get("strategy") or {}).get("experimental"):
+        return None
+    decisions = record.get("direction_decisions")
+    if not isinstance(decisions, list) or len(decisions) != 2:
+        return None
+    words = GROUP_SKIP_COPY.get(lang, GROUP_SKIP_COPY["en"])
+    by_side = {item["side"]: item for item in decisions
+               if isinstance(item, dict) and item.get("side") in ("long", "short")}
+    if set(by_side) != {"long", "short"}:
+        return None
+    lines = []
+    for side in ("long", "short"):
+        item = by_side[side]
+        status = item.get("status")
+        if status not in ("no_setup", "blocked_data"):
+            return None
+        reason = "blocked_data" if status == "blocked_data" else item.get("reason")
+        explanation = words.get(reason, words["other"]) if isinstance(reason, str) else words["other"]
+        lines.append(f"{words[side]}: {explanation}")
+    return "\n".join(lines)
+
 
 def strategy_notice(record, lang, *, details=True):
     meta = record.get("strategy") or {}
@@ -46,6 +163,22 @@ def cancellation_reason(signal, lang, legacy):
 
 
 def skip_explanation(lang, reason):
+    if not isinstance(reason, str):
+        return None
+    words = GROUP_SKIP_COPY.get(lang, GROUP_SKIP_COPY["en"])
+    if reason == "group_data_rejected:insufficient_group_history":
+        return words["history"]
+    if reason.startswith(("group_data_unavailable:", "group_data_rejected:")) or reason == "group_market_unavailable":
+        return words["unavailable"]
+    if reason.startswith("group_no_setup:"):
+        return words["other"]
+    if reason in ("group_liquidity_turnover", "group_spread", "group_depth",
+                  "group_depth_notional", "group_price_impact", "group_estimated_fee_impact_cost"):
+        return words["market"]
+    if reason in ("group_trigger_already_used_or_invalidated", "group_setup_expired"):
+        return words["expired"]
+    if reason.startswith("group_sizing:"):
+        return words["sizing"]
     if reason == "unclassified_symbol_no_group_fallback":
         return {
             "ru":"Для этой монеты пока не зафиксирована групповая стратегия.",

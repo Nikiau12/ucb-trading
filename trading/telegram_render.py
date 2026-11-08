@@ -131,7 +131,9 @@ def render_telegram_plan(
 
     if plan.get("side") == "skip":
         sym = esc(plan.get("symbol") or "?")
-        sentence = _skip_sentence(L, plan.get("reasons") or [])
+        from trading.group_labels import group_decision_explanation
+        details = group_decision_explanation(plan, L)
+        sentence = esc(details) if details else _skip_sentence(L, plan.get("reasons") or [])
         return f"<b>{sym}</b>\n{_t(L, 'no_setup_now')}\n{sentence}"
 
     sym       = esc(plan.get("symbol", "?"))

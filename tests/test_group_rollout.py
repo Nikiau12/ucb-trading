@@ -11,6 +11,7 @@ from trading import signal_updates as lifecycle
 from trading import state
 from trading.group_labels import strategy_notice
 from trading.setup_text import render_setup, render_scan_card, render_alert_block
+from trading.telegram_render import render_telegram_plan
 
 AS_OF = 120000 * group.FOUR_HOURS
 NOW = AS_OF + 300
@@ -202,3 +203,71 @@ def test_failed_group_persistence_does_not_issue_an_untracked_plan_or_debit_tria
     asyncio.run(bot.cmd_plan(message))
     assert "TP1:" not in message.replies[0].text
     assert "100%" not in message.replies[0].text
+
+
+@pytest.mark.parametrize("lang,first,second", [
+    ("ru", "Лонг: 1Д: рыночный режим не подходит", "Шорт: 4Ч: вход и уровни не прошли проверку"),
+    ("en", "Long: 1D: market regime does not qualify", "Short: 4H: entry and levels did not qualify"),
+    ("de", "Long: 1D: Marktregime passt nicht", "Short: 4H: Einstieg und Levels erfüllen die Regeln nicht"),
+    ("fr", "Long: 1J : régime de marché non conforme", "Short: 4H : entrée et niveaux non validés"),
+    ("es", "Long: 1D: el régimen de mercado no cumple las reglas", "Short: 4H: la entrada y los niveles no cumplen las reglas"),
+])
+def test_group_skip_explains_both_directions_without_raw_codes(lang, first, second):
+    plan = {"symbol": "BTC_USDT", "side": "skip", "strategy": {"experimental": True},
+            "reasons": ["group_no_setup:daily_regime/price_confirmation"],
+            "direction_decisions": [
+                {"side": "long", "status": "no_setup", "reason": "daily_regime"},
+                {"side": "short", "status": "no_setup", "reason": "price_confirmation"},
+            ]}
+    text = render_telegram_plan(plan, deposit=300, risk_pct=2, lang=lang)
+    assert first in text and second in text
+    assert "daily_regime" not in text and "price_confirmation" not in text
+    assert "TP1:" not in text
+
+
+def test_group_skip_distinguishes_missing_history_and_unavailable_data():
+    base = {"symbol": "BTC_USDT", "side": "skip", "strategy": {"experimental": True}}
+    history = render_telegram_plan({**base, "reasons": ["group_data_rejected:insufficient_group_history"]},
+                                   deposit=300, risk_pct=2, lang="ru")
+    unavailable = render_telegram_plan({**base, "reasons": ["group_market_unavailable"]},
+                                       deposit=300, risk_pct=2, lang="ru")
+    assert "мало полной истории 4Ч/1Д" in history
+    assert "Не удалось проверить рыночные данные" in unavailable
+    assert "group_data" not in history and "group_market" not in unavailable
+
+
+def test_group_engine_no_setup_reaches_telegram_with_specific_reasons(market, monkeypatch):
+    def no_setup(_symbol, side, *_args, **_kwargs):
+        return {"status": "no_setup", "reason": "daily_regime" if side == "long" else "price_confirmation"}
+
+    monkeypatch.setattr(group, "candidate", no_setup)
+    plan = group.make_plan(snapshot(), 300, 2, 10, "cross", now=NOW)
+    assert plan["side"] == "skip"
+    assert [item["status"] for item in plan["direction_decisions"]] == ["no_setup", "no_setup"]
+    text = render_telegram_plan(plan, deposit=300, risk_pct=2, lang="ru")
+    assert "Лонг: 1Д: рыночный режим не подходит" in text
+    assert "Шорт: 4Ч: вход и уровни не прошли проверку" in text
+    assert "Попробуй другую монету" not in text
+
+
+def test_plan_command_explains_rejected_group_setup_without_saving_or_debiting(market, monkeypatch):
+    import test_user_journey_e2e as journey
+
+    bot = journey.bot
+    monkeypatch.setattr(group, "candidate", lambda _symbol, side, *_args, **_kwargs:
+                        {"status": "no_setup", "reason": "daily_regime" if side == "long" else "price_confirmation"})
+    monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda *_: ["BTC_USDT"])
+    monkeypatch.setattr(bot.snap, "build_group_snapshot", lambda _symbol: snapshot())
+    monkeypatch.setattr(bot.st, "user_accepts_symbol", lambda *_: True)
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda *_: {"deposit": 300, "risk_pct": 2, "lev": 10, "margin": "cross"})
+    monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: pytest.fail("Rejected setup saved"))
+    monkeypatch.setattr(bot, "debit_trial", lambda *_args: pytest.fail("Rejected setup debited"))
+    monkeypatch.setattr(bot, "require_deposit", lambda _message: asyncio.sleep(0, result=True))
+    monkeypatch.setattr(bot, "gate_access", lambda _message: asyncio.sleep(0, result="paid"))
+    monkeypatch.setattr(bot, "is_admin", lambda *_: False)
+    monkeypatch.setattr(bot, "get_lang", lambda *_: "ru")
+    monkeypatch.setattr(bot, "MINI_APP_URL", "https://example.test")
+    message = journey.FakeMessage("/plan BTC_USDT")
+    asyncio.run(bot.cmd_plan(message))
+    assert "Лонг: 1Д: рыночный режим не подходит" in message.replies[0].text
+    assert "Шорт: 4Ч: вход и уровни не прошли проверку" in message.replies[0].text

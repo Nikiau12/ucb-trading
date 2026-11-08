@@ -67,6 +67,29 @@ signals.push({...signals[0],id:99,confidence:.8,strategy:null});
   const action=await page.locator('#plan-action').textContent();
   assert.ok(action.includes('порядок касаний'));
   assert.ok(!action.includes('Цена достигла TP1 раньше входа'));
+  profile.scanner_live=true;
+  profile.last_scan_at=new Date().toISOString();
+  signals.splice(0);
+  await page.evaluate(()=>refreshLiveData());
+  for(const [lang,fragment] of [
+   ['ru','сканер публикует только сетапы'],['en','scanner publishes only setups'],
+   ['de','Scanner veröffentlicht nur Setups'],['fr','scanner ne publie que les setups'],
+   ['es','escáner solo publica setups']
+  ]){
+   await page.click('[data-target=settings]');
+   await page.selectOption('#language',lang);
+   await page.waitForFunction(l=>document.documentElement.lang===l,lang);
+   await page.click('[data-target=signals]');
+   assert.ok((await page.locator('#signal-history').textContent()).includes(fragment));
+  }
+  if(process.env.UI_SCREENSHOT_DIR){
+   await page.setViewportSize({width:390,height:844});
+   await page.click('[data-target=settings]');
+   await page.selectOption('#language','ru');
+   await page.waitForFunction(()=>document.documentElement.lang==='ru');
+   await page.click('[data-target=signals]');
+   await page.screenshot({path:path.join(process.env.UI_SCREENSHOT_DIR,'strategy-empty-390.png')});
+  }
   assert.deepEqual(errors,[]);
   console.log('PASS: 16 group labels, 5 languages, legacy score, STOP entry, cancellation, 4 viewports');
  }finally{await browser.close();}
