@@ -1,0 +1,63 @@
+{
+  "version": "2026-11-08-group-rule-cards-v1",
+  "mode": "design_only_not_scanner_configuration",
+  "base_entry_version": "2026-11-07-v2-entry-1",
+  "timeframes": ["1d", "4h"],
+  "live_eligible": false,
+  "automatic_promotion": false,
+  "profitability_established": false,
+  "weekly_target_is_quota": false,
+  "research_limit": {
+    "new_entry_templates": 3,
+    "parameter_search_on_exposed_history": false,
+    "independent_period_required_before_promotion": true
+  },
+  "shared_proposal": {
+    "entry_expiry_hours": 8,
+    "maximum_holding_hours": 96,
+    "tp1_position_fraction": 0.5,
+    "move_remaining_stop_to_entry_after_tp1": true,
+    "cancel_before_entry_if_tp1_or_stop_touched": true,
+    "cancel_before_entry_if_daily_regime_flips": "proposed_not_implemented",
+    "one_unfinished_signal_per_symbol": true,
+    "fees_funding_slippage_required_for_evaluation": true
+  },
+  "templates": {
+    "trend_flag": {
+      "daily": "Retain the group's existing confirmed 1D trend and benchmark gates.",
+      "four_hour": "A 4-to-8-bar 4H consolidation in the trend direction, total width at most 3 ATR; a completed 4H candle closes at least 0.1 ATR beyond it and passes the group's existing relative-volume gate; STOP trigger beyond that candle.",
+      "stop": "Beyond the opposite consolidation boundary by 0.25 4H ATR; reject risk outside 0.75-to-2.5 ATR.",
+      "targets": "TP1 at 1.5R and TP2 at 3R, rounded toward entry."
+    },
+    "breakout_confirmation": {
+      "daily": "Retain the group's existing confirmed 1D direction, BTC relationship and strength gates.",
+      "four_hour": "A first 4H close 0.1-to-1 ATR past the prior 20-bar high/low, group relative volume required; a separate next closed 4H candle confirms outside the level without returning inside; STOP trigger beyond the confirming candle.",
+      "stop": "Beyond the breakout level or confirming candle extreme by 0.25 4H ATR; reject risk outside 0.75-to-2.5 ATR.",
+      "targets": "TP1 at 1.5R and TP2 at 3R, rounded toward entry."
+    },
+    "structure_range": {
+      "daily": "Only a completed neutral 1D regime and the group's existing BTC rule.",
+      "four_hour": "In the preceding 48 completed 4H bars, identify two spaced tests of each range boundary, a width of 4-to-10 ATR, and a directional rebound at the relevant boundary; STOP trigger beyond the rebound candle.",
+      "stop": "Outside the nearest range boundary by 0.25 4H ATR.",
+      "targets": "TP1 at the range midpoint and TP2 near the opposite boundary, only if rewards remain at least 1R and 2R."
+    }
+  },
+  "groups": {
+    "core_btc": {"long": ["trend_flag"], "short": ["trend_flag"], "to_verify": ["trend_maturity"]},
+    "core_eth": {"long": ["trend_flag", "structure_range"], "short": ["trend_flag", "structure_range"], "to_verify": ["btc_relative_strength", "range_structure"]},
+    "core_sol": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["daily_volatility"]},
+    "l1": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["btc_relative_strength", "contract_liquidity"]},
+    "scaling": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["subtype_benchmark", "token_identity"]},
+    "privacy": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["contract_liquidity", "market_incidents"]},
+    "payments": {"long": ["structure_range"], "short": ["structure_range"], "to_verify": ["range_structure"]},
+    "defi": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["subtype_benchmark", "unlock_schedule"]},
+    "trading": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["funding", "unlock_schedule"]},
+    "ai": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["daily_volatility", "token_supply"]},
+    "data": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["token_identity", "token_supply"]},
+    "oracles": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["subtype_identity"]},
+    "meme": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["orderbook_depth", "price_impact", "daily_volatility"]},
+    "games": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["token_identity", "unlock_schedule"]},
+    "apps": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["token_identity", "unlock_schedule"]},
+    "rwa": {"long": ["trend_flag"], "short": ["trend_flag"], "to_verify": ["independent_gold_reference", "contract_mapping"]}
+  }
+}
