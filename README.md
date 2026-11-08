@@ -330,6 +330,11 @@ Group snapshots fetch fresh contract/ticker data, then reuse closed-4H history
 within the same decision window. Complete UTC days supply the 1D context; there
 is no redundant 1H/1D candle download or stale disk fallback in this path.
 Minute candles remain execution-path evidence, not a strategy timeframe.
+When `/plan` evaluates both directions but finds no group setup, its Telegram
+reply explains the long and short rejection separately in the user's language.
+Other group skips show a sanitized reason. Neither path exposes raw filter codes
+or executable levels. The empty Mini App signal feed distinguishes an active
+scanner with no published 1D/4H setup from a silent scanner.
 Public retries follow the [BingX error reference](https://github.com/BingX-API/api-ai-skills/blob/main/skills/references/error-codes.md):
 bad signatures/permissions/parameters are permanent; busy/rate/network errors
 have bounded backoff. Long server cooldowns pause requests rather than blocking

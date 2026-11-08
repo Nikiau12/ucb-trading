@@ -10,6 +10,11 @@ const translations = {
 };
 
 Object.assign(translations.en,{tradeNumber:'Trade',signalFrom:'Signal from',statusReplaying:'Restoring history',statusWaiting:'Waiting for entry',statusActive:'Trade active',statusTp1:'TP1 reached',statusTp2:'TP2 reached',statusStopped:'Stopped',statusExpired:'Expired',actionNow:'ACTION NOW',takeHalf:'Take profit on 50% of the position',moveBreakeven:'Move the Stop on the remainder to break-even',beReference:'Break-even reference',actualEntryNote:'If your actual fill differed, use your own entry price.'});
+Object.assign(translations.en,{noQualifiedSetup:'No new signals: the scanner publishes only setups that pass the 1D and 4H checks.'});
+Object.assign(translations.ru,{noQualifiedSetup:'Новых сигналов нет: сканер публикует только сетапы, прошедшие проверки 1Д и 4Ч.'});
+Object.assign(translations.de,{noQualifiedSetup:'Keine neuen Signale: Der Scanner veröffentlicht nur Setups, die die 1D- und 4H-Prüfungen bestehen.'});
+Object.assign(translations.fr,{noQualifiedSetup:'Aucun nouveau signal : le scanner ne publie que les setups qui passent les vérifications 1J et 4H.'});
+Object.assign(translations.es,{noQualifiedSetup:'No hay señales nuevas: el escáner solo publica setups que superan las comprobaciones de 1D y 4H.'});
 Object.assign(translations.ru,{tradeNumber:'Сделка',signalFrom:'Сигнал от',statusReplaying:'Восстанавливаем историю',statusWaiting:'Ожидает входа',statusActive:'Сделка активна',statusTp1:'TP1 достигнут',statusTp2:'TP2 достигнут',statusStopped:'Закрыта по Stop',statusExpired:'Сигнал истёк',actionNow:'ДЕЙСТВИЕ СЕЙЧАС',takeHalf:'Зафиксируйте 50% позиции',moveBreakeven:'Перенесите Stop оставшейся позиции в безубыток',beReference:'Ориентир БУ',actualEntryNote:'Если ваша фактическая цена входа отличалась, используйте свою цену.'});
 Object.assign(translations.de,{tradeNumber:'Trade',signalFrom:'Signal vom',statusReplaying:'Verlauf wird rekonstruiert',statusWaiting:'Wartet auf Einstieg',statusActive:'Trade aktiv',statusTp1:'TP1 erreicht',statusTp2:'TP2 erreicht',statusStopped:'Am Stop beendet',statusExpired:'Abgelaufen',actionNow:'JETZT HANDELN',takeHalf:'50% der Position sichern',moveBreakeven:'Stop der Restposition auf Einstand setzen',beReference:'Einstand-Referenz',actualEntryNote:'Bei abweichender Ausführung den eigenen Einstieg verwenden.'});
 Object.assign(translations.fr,{tradeNumber:'Trade',signalFrom:'Signal du',statusReplaying:'Historique en cours',statusWaiting:'En attente d’entrée',statusActive:'Trade actif',statusTp1:'TP1 atteint',statusTp2:'TP2 atteint',statusStopped:'Clôturé au Stop',statusExpired:'Expiré',actionNow:'ACTION MAINTENANT',takeHalf:'Prenez vos bénéfices sur 50% de la position',moveBreakeven:'Déplacez le Stop du solde au seuil de rentabilité',beReference:'Référence du seuil',actualEntryNote:'Si votre exécution diffère, utilisez votre prix d’entrée réel.'});
@@ -456,7 +461,7 @@ function signalCard(signal){
 }
 
 function emptySignals(filterOnly){
-  const reason=filterOnly?tr('noMatchingSignals'):tr('scannerSilent');
+  const reason=filterOnly?tr('noMatchingSignals'):profile?.scanner_live?tr('noQualifiedSetup'):tr('scannerSilent');
   const action=filterOnly?'':`<button type="button" class="primary-button empty-action" data-empty-action="plan">${escapeHtml(tr('requestPlan'))}</button>`;
   return `<div class="empty-state"><p>${escapeHtml(reason)}</p><p>${escapeHtml(lastScanLine())}</p>${action}</div>`;
 }
