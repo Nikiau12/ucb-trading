@@ -1054,17 +1054,15 @@ def should_persist_sent_marker(delivered_count: int) -> bool:
 
 
 def load_alert_recipients(free_trial_signals: int) -> set[str]:
-    """Profiles with a deposit and either paid access or trial credits left."""
+    """Profiles with paid access or trial credits, regardless of trade balance."""
     if not _db_ready():
-        recipients = set()
-        for user_id, settings in _load().get("user_settings", {}).items():
-            try:
-                deposit = float((settings or {}).get("deposit") or 0)
-            except (TypeError, ValueError):
-                deposit = 0
-            if deposit > 0:
-                recipients.add(str(user_id))
-        return recipients
+        # The notifier still checks trial/subscription access before delivery.
+        saved = _load()
+        return {
+            str(user_id)
+            for key in ("user_settings", "user_langs")
+            for user_id in saved.get(key, {})
+        }
     try:
         with psycopg.connect(DATABASE_URL) as connection:
             rows = connection.execute(
@@ -1072,8 +1070,7 @@ def load_alert_recipients(free_trial_signals: int) -> set[str]:
                 SELECT p.telegram_user_id
                 FROM user_profiles p
                 LEFT JOIN subscriptions s ON s.telegram_user_id = p.telegram_user_id
-                WHERE (p.deposit > 0 OR EXISTS (SELECT 1 FROM bingx_accounts a WHERE a.telegram_user_id=p.telegram_user_id))
-                  AND (
+                WHERE (
                     s.paid_until > NOW()
                     OR COALESCE(s.trial_used, 0) < %s
                   )

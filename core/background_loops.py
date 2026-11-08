@@ -1,6 +1,7 @@
 """Long-running market, signal, and listing workers for the Telegram bot."""
 
 import asyncio
+import math
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -118,21 +119,24 @@ def bind_background_loops(services) -> SimpleNamespace:
                                     saved_deposit = float(saved_deposit)
                                 except (TypeError, ValueError):
                                     saved_deposit = 0
-                                uses_reference = saved_deposit <= 0 and not balance_unavailable and connected_balance is None
-                                deposit = 0 if balance_unavailable else (services.SCAN_REFERENCE_DEPOSIT if uses_reference else saved_deposit)
-                                alert = services.render_auto_alert(
-                                    plan,
-                                    symbol,
-                                    side.upper(),
-                                    conf,
-                                    deposit=deposit,
-                                    risk_pct=settings.get("risk_pct", services.TRADE_CFG["default_risk_pct"]),
-                                    leverage=settings.get("lev", services.TRADE_CFG["default_lev"]),
-                                    lang=services.get_lang(user_id),
-                                    uses_reference_deposit=uses_reference,
-                                )
-                                if balance_unavailable or connected_balance == 0:
-                                    alert = services.render_unpriced_signal(plan, services.get_lang(user_id), empty_balance=connected_balance == 0)
+                                if connected_balance is not None:
+                                    saved_deposit = float(connected_balance)
+                                if not math.isfinite(saved_deposit):
+                                    saved_deposit = 0
+                                lang = services.get_lang(user_id)
+                                if balance_unavailable or saved_deposit <= 0:
+                                    alert = services.render_unpriced_signal(
+                                        plan, lang, empty_balance=connected_balance == 0,
+                                        no_deposit=not balance_unavailable and connected_balance is None,
+                                    )
+                                else:
+                                    alert = services.render_auto_alert(
+                                        plan, symbol, side.upper(), conf,
+                                        deposit=saved_deposit,
+                                        risk_pct=settings.get("risk_pct", services.TRADE_CFG["default_risk_pct"]),
+                                        leverage=settings.get("lev", services.TRADE_CFG["default_lev"]),
+                                        lang=lang,
+                                    )
                                 alert = services._with_signal_identity(
                                     alert, signal_id, symbol, side, services.get_lang(user_id),
                                 )

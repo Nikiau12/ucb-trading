@@ -26,9 +26,9 @@ STRINGS: dict[str, dict[str, Any]] = {
         "mini_app_button": "📊 Открыть панель",
         "deposit_start_hint": (
             "Укажи депозит сейчас, чтобы бот рассчитывал размер позиции и риск именно для тебя. "
-            "До этого планы, сканирование и автоматические сигналы недоступны."
+            "Уведомления о новых сигналах приходят и без депозита при действующем доступе."
         ),
-        "deposit_prompt": "💰 Отправь сумму депозита одним числом, например: <code>5000</code>",
+        "deposit_prompt": "💰 Для расчёта позиции отправь сумму депозита одним числом, например: <code>5000</code>. Уведомления о сигналах доступны и без депозита при действующем доступе.",
         "deposit_saved": (
             "✅ Депозит сохранён: <b>{deposit} USDT</b>\n\n"
             "Нажми /plan для плана по BTC или отправь /plan ETH_USDT для другой монеты."
@@ -175,9 +175,9 @@ STRINGS: dict[str, dict[str, Any]] = {
         "mini_app_button": "📊 Open dashboard",
         "deposit_start_hint": (
             "Set your deposit now so position size and risk can be calculated for you. "
-            "The deposit is required before plans, scans and automatic signals are available."
+            "New-signal alerts are available without a deposit while your access is active."
         ),
-        "deposit_prompt": "💰 Send your deposit as a number, for example: <code>5000</code>",
+        "deposit_prompt": "💰 For position sizing, send your deposit as a number, for example: <code>5000</code>. Signal alerts are available without a deposit while your access is active.",
         "deposit_saved": (
             "✅ Deposit saved: <b>{deposit} USDT</b>\n\n"
             "Tap /plan for a BTC plan or send /plan ETH_USDT for another coin."
@@ -323,9 +323,9 @@ STRINGS: dict[str, dict[str, Any]] = {
         "mini_app_button": "📊 Dashboard öffnen",
         "deposit_start_hint": (
             "Lege dein Kapital jetzt fest, damit Positionsgröße und Risiko für dich berechnet werden. "
-            "Pläne, Scans und automatische Signale sind erst danach verfügbar."
+            "Bei aktivem Zugang erhältst du neue Signalbenachrichtigungen auch ohne Kapitalangabe."
         ),
-        "deposit_prompt": "💰 Sende dein Kapital als Zahl, zum Beispiel: <code>5000</code>",
+        "deposit_prompt": "💰 Für die Positionsberechnung sende dein Kapital als Zahl, zum Beispiel: <code>5000</code>. Bei aktivem Zugang erhältst du Signalbenachrichtigungen auch ohne Kapitalangabe.",
         "deposit_saved": (
             "✅ Kapital gespeichert: <b>{deposit} USDT</b>\n\n"
             "Tippe /plan für BTC oder sende /plan ETH_USDT für einen anderen Coin."
@@ -471,9 +471,9 @@ STRINGS: dict[str, dict[str, Any]] = {
         "mini_app_button": "📊 Ouvrir le tableau de bord",
         "deposit_start_hint": (
             "Indique ton dépôt pour calculer la taille de position et le risque selon ton capital. "
-            "Les plans, scans et signaux automatiques seront disponibles ensuite."
+            "Tu reçois les nouvelles alertes de signal sans dépôt si ton accès est actif."
         ),
-        "deposit_prompt": "💰 Envoie ton dépôt sous forme de nombre, par exemple : <code>5000</code>",
+        "deposit_prompt": "💰 Pour calculer la taille de position, envoie ton dépôt sous forme de nombre, par exemple : <code>5000</code>. Les alertes de signal restent disponibles sans dépôt si ton accès est actif.",
         "deposit_saved": (
             "✅ Dépôt enregistré : <b>{deposit} USDT</b>\n\n"
             "Appuie sur /plan pour BTC ou envoie /plan ETH_USDT pour une autre monnaie."
@@ -619,9 +619,9 @@ STRINGS: dict[str, dict[str, Any]] = {
         "mini_app_button": "📊 Abrir panel",
         "deposit_start_hint": (
             "Indica tu depósito para calcular el tamaño de posición y el riesgo según tu capital. "
-            "Los planes, escaneos y señales automáticas estarán disponibles después."
+            "Recibirás alertas de nuevas señales sin depósito mientras tu acceso esté activo."
         ),
-        "deposit_prompt": "💰 Envía tu depósito como un número, por ejemplo: <code>5000</code>",
+        "deposit_prompt": "💰 Para calcular el tamaño de posición, envía tu depósito como un número, por ejemplo: <code>5000</code>. Las alertas de señales siguen disponibles sin depósito mientras tu acceso esté activo.",
         "deposit_saved": (
             "✅ Depósito guardado: <b>{deposit} USDT</b>\n\n"
             "Pulsa /plan para BTC o envía /plan ETH_USDT para otra moneda."

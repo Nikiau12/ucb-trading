@@ -50,7 +50,8 @@ def bind_onboarding_handlers(router: Router, services) -> SimpleNamespace:
             )
             return
         if not services._has_saved_deposit(message.from_user.id):
-            services.notifier.active_users.discard(user_id)
+            # A deposit is needed for sizing, not for eligible signal alerts.
+            services.notifier.active_users.add(user_id)
             await state.set_state(services.DepositSetup.waiting_for_amount)
             await message.reply(services._t(lang, "deposit_prompt"), parse_mode="HTML")
             return
@@ -89,6 +90,7 @@ def bind_onboarding_handlers(router: Router, services) -> SimpleNamespace:
         services.st.set_user_lang(callback.from_user.id, lang)
         settings = services.st.get_user_settings(callback.from_user.id)
         if not settings.get("deposit"):
+            services.notifier.active_users.add(str(callback.from_user.id))
             await state.set_state(services.DepositSetup.waiting_for_amount)
             text = services._t(lang, "deposit_prompt")
             markup = InlineKeyboardMarkup(inline_keyboard=[])

@@ -160,6 +160,22 @@ def test_migration_is_repeatable_and_preserves_settings(database):
         assert c.execute('SELECT deposit,risk_pct,leverage,signal_groups FROM user_profiles WHERE telegram_user_id=1').fetchone()==(400,1,10,None)
 
 
+def test_zero_balance_recipient_keeps_access_gate(database):
+    with psycopg.connect(database) as c:
+        c.execute("UPDATE user_profiles SET deposit=0 WHERE telegram_user_id IN (1,2)")
+        c.execute("UPDATE subscriptions SET paid_until=NOW()+INTERVAL '1 day',trial_used=5 WHERE telegram_user_id=1")
+        c.execute("UPDATE subscriptions SET paid_until=NULL,trial_used=5 WHERE telegram_user_id=2")
+        c.execute("INSERT INTO user_profiles (telegram_user_id,deposit) VALUES (3,0)")
+        c.execute("INSERT INTO subscriptions (telegram_user_id,trial_used) VALUES (3,0)")
+    assert state.load_alert_recipients(5) == {'1','3'}
+
+
+def test_local_recipient_selection_does_not_require_deposit(monkeypatch):
+    monkeypatch.setattr(state,'_db_ready',lambda:False)
+    monkeypatch.setattr(state,'_load',lambda:{'user_settings':{'1':{'deposit':0},'2':{'deposit':None}},'user_langs':{'3':'ru'}})
+    assert state.load_alert_recipients(5) == {'1','2','3'}
+
+
 def test_only_opted_in_user_gets_events_and_exit_cancels_pending(database):
     sid=seed_signal(database)
     with psycopg.connect(database) as c:tracking.set_tracking(c,1,sid,True)
@@ -306,7 +322,10 @@ def test_zero_balance_signal_has_no_reference_deposit_or_position_amount():
     from trading.personal_notifications import render_unpriced_signal
     plan={'symbol':'BTC_USDT','primary':{'side':'long','entry':100,'stop':90,'tps':[{'price':110},{'price':120}]}}
     text=render_unpriced_signal(plan,'ru',empty_balance=True)
-    assert 'равен нулю' in text and '1000' not in text and 'TP2' in text
+    no_deposit=render_unpriced_signal(plan,'ru',no_deposit=True)
+    assert 'равен нулю' in text and 'продолжают приходить' in text
+    assert 'нулю или не указан' in no_deposit and 'продолжают приходить' in no_deposit
+    assert '1000' not in text and '1000' not in no_deposit and 'TP2' in text
 
 
 def test_new_account_and_tracking_routes_require_telegram_auth(monkeypatch):
