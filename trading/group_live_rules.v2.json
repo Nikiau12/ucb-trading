@@ -1,0 +1,26 @@
+{
+  "version": "group-rules-v2-2026-11-08",
+  "base_entry_version": "2026-11-07-v2-entry-1",
+  "mode": "public_candidate_rules",
+  "timeframes": ["1d", "4h"],
+  "selection": "existing_rule_first_then_group_pattern",
+  "profitability_validated": false,
+  "groups": {
+    "core_btc": {"long": ["trend_flag"], "short": ["trend_flag"], "btc_policy": "none"},
+    "core_eth": {"long": ["trend_flag", "structure_range"], "short": ["trend_flag", "structure_range"], "btc_policy": "hard_not_opposite"},
+    "core_sol": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "l1": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "scaling": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "privacy": {"long": ["breakout_confirmation", "trend_flag"], "short": ["breakout_confirmation", "trend_flag"], "btc_policy": "context_only"},
+    "payments": {"long": ["structure_range"], "short": ["structure_range"], "btc_policy": "hard_not_opposite"},
+    "defi": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "trading": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "ai": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "data": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "oracles": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "meme": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "games": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "apps": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same"},
+    "rwa": {"long": [], "short": [], "btc_policy": "none"}
+  }
+}

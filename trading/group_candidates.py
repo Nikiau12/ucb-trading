@@ -10,13 +10,23 @@ from pathlib import Path
 from evaluation import sector_entries as research
 from evaluation.sector_data import FOUR_HOURS, digest
 from trading.group_catalog import registry
+from trading.group_live_rules import additional_candidate
 
 
 def candidate(symbol, side, markets, **kwargs):
     catalog = registry()
     if symbol in catalog["baseline"]:
-        return research.candidate(symbol, side, markets, **kwargs)
-    return extended_candidate(symbol, side, markets, **kwargs)
+        original = research.candidate(symbol, side, markets, **kwargs)
+    else:
+        original = extended_candidate(symbol, side, markets, **kwargs)
+    # Keep an accepted original setup and its decision identity unchanged.
+    # Only a declined setup may try the predeclared pattern for its own group.
+    if original["status"] != "no_setup":
+        return original
+    alternative = additional_candidate(symbol, side, markets, **kwargs)
+    if alternative["status"] == "blocked_data":
+        return alternative
+    return alternative if alternative["status"] == "technical_candidate_not_admitted" else original
 
 
 def extended_candidate(symbol, side, markets, *, as_of, tick, passport=None, _feature_cache=None):

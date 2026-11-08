@@ -68,8 +68,16 @@ def test_runtime_extension_rules_match_frozen_baseline(monkeypatch, symbol, side
         expected.pop(key, None)
         actual.pop(key, None)
     assert actual == expected
-    # Existing symbols retain the exact original decision identity as well.
-    assert group_candidates.candidate(symbol, side, markets, as_of=as_of, tick=.01) == research.candidate(symbol, side, markets, as_of=as_of, tick=.01)
+    # An accepted original setup keeps its decision identity. A declined one
+    # may now be replaced by the explicitly bound 4H group pattern.
+    original = research.candidate(symbol, side, markets, as_of=as_of, tick=.01)
+    selected = group_candidates.candidate(symbol, side, markets, as_of=as_of, tick=.01)
+    if original["status"] != "no_setup":
+        assert selected == original
+    else:
+        assert selected == original or (selected["status"] == "technical_candidate_not_admitted"
+                                        and selected["symbol"] == symbol
+                                        and selected["group"] == mapping[symbol])
 
 
 @pytest.mark.parametrize("symbol", sorted(set(registry()["mapping"]) - set(registry()["baseline"])))

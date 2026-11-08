@@ -16,10 +16,11 @@ from evaluation.sector_entries import load_entries, load_passports
 from evaluation.sector_data import FOUR_HOURS, digest
 from trading.group_candidates import candidate
 from trading.group_catalog import registry
+from trading.group_live_rules import load_rules
 from trading.trade_plan import (normalize_for_contract, parse_bars, plan_payload_errors,
                                 last_price_from_snapshot)
 
-VERSION = "group-rules-v1-2026-11-07"
+VERSION = load_rules()["version"]
 MARKET_FILTER_REASONS = frozenset({
     "group_liquidity_turnover", "group_spread", "group_depth", "group_depth_notional",
     "group_price_impact", "group_estimated_fee_impact_cost",
@@ -178,6 +179,7 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
     strategy = {"version":VERSION,"group":group,"experimental":True,"entry_type":"stop",
         "catalog_version":registry()["version"],"catalog_sha256":registry()["sha256"],
         "timeframes":["4h","1d"],"definitions_sha256":digest(definitions),
+        "group_rules_sha256":digest(load_rules()),
         "confidence_is_probability":False,"profitability_validated":False,
         "economic_admission":"not_independently_verified",
         "funding_supply_incident_gold_reference_verified":False}
@@ -240,6 +242,7 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
         delivered_at = int(time.time()) if realtime else now
         check_unused_trigger(raw,delivered_at,current)
         direction = raw["daily_regime"]
+        is_range = raw["family"] in ("R", "structure_range")
         strategy.update(family=raw["family"],signal_time=as_of,
             entry_expires_at=as_of+raw["entry_expiry_seconds"],max_holding_seconds=raw["max_holding_seconds"],
             decision_key=raw["decision_key"],execution_checks=execution, verified_at=delivered_at)
@@ -248,9 +251,9 @@ def make_plan(snapshot, deposit, risk_pct, lev, margin, *, now=None, markets=Non
             entry_expiry_seconds=as_of+raw["entry_expiry_seconds"]-delivered_at,
             max_holding_seconds=raw["max_holding_seconds"],
             tps=[{"price":raw["tp1"],"pct":.5},{"price":raw["tp2"],"pct":.5}],
-            reasons=["trend_1d="+direction,"regime="+("range" if raw["family"]=="R" else "trend")])
+            reasons=["trend_1d="+direction,"regime="+("range" if is_range else "trend")])
         plan = {"symbol":symbol,"price":current,"primary":primary,"alternate":None,
-            "trend":{"1d":direction,"regime":"range" if raw["family"]=="R" else "trend"},
+            "trend":{"1d":direction,"regime":"range" if is_range else "trend"},
             "used_cache":False,"strategy":strategy,"lev":lev,"margin":margin}
         errors = plan_payload_errors(plan)
         if errors:

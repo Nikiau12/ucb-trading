@@ -344,7 +344,7 @@ def test_group_shadow_cli_reports_all_groups_without_writing(database, monkeypat
         before = conn.execute("SELECT count(*) FROM group_shadow_results").fetchone()[0]
     shadow.main()
     text = capsys.readouterr().out
-    assert "Стратегия group-rules-v1" in text
+    assert "Стратегия group-rules-v2" in text
     assert "core_btc | long | 0" in text
     assert "недостаточно данных" in text
     with psycopg.connect(url) as conn:

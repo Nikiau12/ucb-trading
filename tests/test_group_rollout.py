@@ -119,6 +119,17 @@ def test_publication_rechecks_trigger_after_scanner_batch(market):
     assert group.prepare_for_publication(plan) is None
 
 
+def test_new_structure_range_is_rendered_as_range_without_changing_old_trades(market, monkeypatch):
+    original = raw_plan("XRP_USDT")
+    original.update(family="structure_range", daily_regime="neutral")
+    monkeypatch.setattr(group, "candidate", lambda _symbol, side, *_args, **_kwargs:
+                        original if side == "long" else {"status": "no_setup", "reason": "daily_regime"})
+    plan = group.make_plan(snapshot("XRP_USDT"), 300, 2, 10, "cross", now=NOW)
+    assert plan["trend"]["regime"] == "range"
+    assert plan["strategy"]["version"] == group.VERSION
+    assert plan["strategy"]["family"] == "structure_range"
+
+
 @pytest.mark.parametrize("side", ["LONG","SHORT"])
 def test_stop_trigger_is_opt_in_and_legacy_trades_keep_limit_behavior(side):
     now=datetime.now(timezone.utc).replace(microsecond=0)
