@@ -21,13 +21,21 @@ class _RuntimeConnection:
         return None
 
     def fetchone(self):
+        if "COUNT(*) FILTER" in self.calls[-1][0]:
+            return (0, 0)
         return (9,)
 
 
 class _ScannerConnection(_RuntimeConnection):
-    def __init__(self, existing_rows):
+    def __init__(self, existing_rows, budget=(0, 0)):
         super().__init__()
         self.existing_rows = existing_rows
+        self.budget = budget
+
+    def fetchone(self):
+        if "COUNT(*) FILTER" in self.calls[-1][0]:
+            return self.budget
+        return super().fetchone()
 
     def fetchall(self):
         return self.existing_rows
@@ -127,6 +135,37 @@ def test_scanner_can_save_distinct_setup_after_terminal_trade(monkeypatch):
 
     assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.83) == 9
     assert any("INSERT INTO signals" in query for query, _ in connection.calls)
+
+
+def test_scanner_budget_is_atomic_and_does_not_limit_manual_lookups(monkeypatch):
+    connection = _ScannerConnection([], budget=(7, 1))
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+    assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.8) is None
+    assert any("pg_advisory_xact_lock" in query for query, _ in connection.calls)
+    assert not any("INSERT INTO signals" in query for query, _ in connection.calls)
+    connection.calls.clear()
+    assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.8, source="manual") == 9
+
+
+def test_scanner_budget_enforces_two_per_4h_block(monkeypatch):
+    connection = _ScannerConnection([], budget=(4, 2))
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+    assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.8) is None
+    assert not any("INSERT INTO signals" in query for query, _ in connection.calls)
+
+
+def test_final_utc_block_can_catch_up_to_four_without_exceeding_seven():
+    from datetime import datetime, timezone
+    early = int(datetime(2026, 11, 8, 16, tzinfo=timezone.utc).timestamp())
+    final = int(datetime(2026, 11, 8, 20, tzinfo=timezone.utc).timestamp())
+    assert state.scanner_block_limit(early, 0, 0) == 2
+    assert state.scanner_block_limit(final, 0, 0) == 4
+    assert state.scanner_block_limit(final, 1, 1) == 4
+    assert state.scanner_block_limit(final, 2, 2) == 4
+    assert state.scanner_block_limit(final, 2, 0) == 2
+    assert state.scanner_block_limit(final, 4, 4) == 2
 
 
 def test_signal_contract_rules_are_extracted_for_history():

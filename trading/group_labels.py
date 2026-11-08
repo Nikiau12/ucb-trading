@@ -25,6 +25,27 @@ COPY = {
            "Se alcanzó un nivel de invalidación antes de confirmar la entrada o el orden es incierto."),
 }
 
+JOURNAL_COPY = {
+    "ru": ("Идея для самостоятельной оценки", "Оценка условий: {score}% — не вероятность прибыли.",
+           "Проверьте контекст рынка и решите сами, входить ли в сделку."),
+    "en": ("Idea for your own review", "Setup score: {score}% — not a profit probability.",
+           "Review market context and decide for yourself whether to enter."),
+    "de": ("Idee zur eigenen Prüfung", "Setup-Bewertung: {score}% — keine Gewinnwahrscheinlichkeit.",
+           "Prüfe den Marktkontext und entscheide selbst über den Einstieg."),
+    "fr": ("Idée à évaluer vous-même", "Évaluation du setup : {score}% — pas une probabilité de gain.",
+           "Évaluez le marché et décidez vous-même si vous entrez."),
+    "es": ("Idea para evaluar", "Evaluación del setup: {score}% — no es probabilidad de beneficio.",
+           "Evalúa el mercado y decide por tu cuenta si entras."),
+}
+
+JOURNAL_WARNINGS = {
+    "ru": ("Дневной контекст против направления.", "Тренд BTC против направления.", "Ориентир базового актива не проверен."),
+    "en": ("Daily context opposes this direction.", "BTC trend opposes this direction.", "Underlying-asset reference is unverified."),
+    "de": ("Der Tageskontext spricht gegen diese Richtung.", "Der BTC-Trend spricht gegen diese Richtung.", "Referenz des Basiswerts ungeprüft."),
+    "fr": ("Le contexte journalier s’oppose à cette direction.", "La tendance BTC s’y oppose.", "Référence de l’actif sous-jacent non vérifiée."),
+    "es": ("El contexto diario va en contra de esta dirección.", "La tendencia de BTC va en contra.", "Referencia del activo subyacente no verificada."),
+}
+
 GROUP_SKIP_COPY = {
     "ru": {
         "long": "Лонг", "short": "Шорт",
@@ -147,6 +168,24 @@ def strategy_notice(record, lang, *, details=True):
     meta = record.get("strategy") or {}
     if not meta.get("experimental"):
         return ""
+    if meta.get("mode") == "journal_idea":
+        words = JOURNAL_COPY.get(lang, JOURNAL_COPY["en"])
+        primary = record.get("primary") or {}
+        score = round(100 * float(primary.get("confidence", record.get("confidence", 0))))
+        lines = [words[0], words[1].format(score=score), words[2]]
+        if details:
+            criteria = meta.get("criteria") or {}
+            warnings = JOURNAL_WARNINGS.get(lang, JOURNAL_WARNINGS["en"])
+            if criteria.get("daily_close") is False:
+                lines.append(warnings[0])
+            if criteria.get("btc_context") is False:
+                lines.append(warnings[1])
+            if meta.get("group") == "rwa":
+                lines.append(warnings[2])
+            until = datetime.fromtimestamp(meta["entry_expires_at"], timezone.utc).strftime("%d.%m %H:%M")
+            lines.insert(2, COPY.get(lang, COPY["en"])[2].format(
+                until=until, hours=int(meta["max_holding_seconds"] / 3600)))
+        return "\n" + "\n".join(html.escape(line) for line in lines)
     words = COPY.get(lang, COPY["en"])
     lines = [words[0], words[3]]
     if details:

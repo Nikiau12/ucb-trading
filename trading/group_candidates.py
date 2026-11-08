@@ -11,6 +11,7 @@ from evaluation import sector_entries as research
 from evaluation.sector_data import FOUR_HOURS, digest
 from trading.group_catalog import registry
 from trading.group_live_rules import additional_candidate
+from trading.group_journal_ideas import candidate as journal_candidate
 
 
 def candidate(symbol, side, markets, **kwargs):
@@ -26,7 +27,10 @@ def candidate(symbol, side, markets, **kwargs):
     alternative = additional_candidate(symbol, side, markets, **kwargs)
     if alternative["status"] == "blocked_data":
         return alternative
-    return alternative if alternative["status"] == "technical_candidate_not_admitted" else original
+    if alternative["status"] == "technical_candidate_not_admitted":
+        return alternative
+    journal = journal_candidate(symbol, side, markets, **kwargs)
+    return journal if journal["status"] != "no_setup" else original
 
 
 def extended_candidate(symbol, side, markets, *, as_of, tick, passport=None, _feature_cache=None):

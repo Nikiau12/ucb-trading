@@ -35,6 +35,9 @@ SIGNAL_SETUP_REUSE_SECS = max(
     int(float(os.getenv("SIGNAL_SETUP_REUSE_HOURS", "168")) * 3600),
 )
 OPEN_SIGNAL_STATUSES = frozenset({"replay_pending", "waiting_entry", "active", "tp1_reached"})
+MAX_SCANNER_SIGNALS_PER_UTC_DAY = 7
+MAX_SCANNER_SIGNALS_PER_4H_BLOCK = 2
+MIN_SCANNER_TARGET_PER_UTC_DAY = 4
 SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS = max(
     1, int(os.getenv("SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS", "48"))
 )
@@ -218,6 +221,39 @@ def _scanner_signal_is_allowed(connection, symbol: str, side: str, levels: dict,
             if _levels_are_similar(old_levels, levels):
                 return False
     return True
+
+
+def _scanner_budget_counts(connection, decision_time: int, now: datetime) -> tuple[int, int]:
+    """Count *persisted* ideas, including those not delivered due to user filters."""
+    day = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    row = connection.execute(
+        """SELECT COUNT(*), COUNT(*) FILTER (
+               WHERE strategy_metadata->>'signal_time' = %s)
+           FROM signals
+           WHERE source = 'scanner' AND created_at >= %s AND created_at < %s""",
+        (str(decision_time), day, day + timedelta(days=1)),
+    ).fetchone()
+    return int(row[0]), int(row[1])
+
+
+def scanner_block_limit(decision_time: int, published_today: int, published_in_block: int) -> int:
+    """Allow a small final-block catch-up without manufacturing weak setups."""
+    if (decision_time // 3600) % 24 == 20 and published_today < MIN_SCANNER_TARGET_PER_UTC_DAY:
+        return min(MIN_SCANNER_TARGET_PER_UTC_DAY,
+                   published_in_block + MIN_SCANNER_TARGET_PER_UTC_DAY - published_today)
+    return MAX_SCANNER_SIGNALS_PER_4H_BLOCK
+
+
+def scanner_budget_counts(decision_time: int, *, now: Optional[datetime] = None) -> Optional[tuple[int, int]]:
+    """Read the UTC daily/4H capacity; fail closed when storage is unavailable."""
+    if not _db_ready():
+        return None
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            return _scanner_budget_counts(connection, decision_time, now or datetime.now(timezone.utc))
+    except Exception as exc:
+        logger.warning("scanner budget read failed: %s", type(exc).__name__)
+        return None
 
 
 def _load() -> Dict:
@@ -448,6 +484,17 @@ def save_signal(plan: dict, symbol: str, side: str, confidence: float, source: s
                     "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
                     (20261102, symbol),
                 )
+                if origin == "scanner":
+                    # A global transaction lock prevents two workers from
+                    # exceeding the daily/block quota across processes.
+                    connection.execute("SELECT pg_advisory_xact_lock(%s, %s)", (20261108, 7))
+                    decision_time = int((strategy or {}).get("signal_time", time.time() // 14400 * 14400))
+                    daily_count, block_count = _scanner_budget_counts(
+                        connection, decision_time, datetime.now(timezone.utc)
+                    )
+                    if (daily_count >= MAX_SCANNER_SIGNALS_PER_UTC_DAY
+                            or block_count >= scanner_block_limit(decision_time, daily_count, block_count)):
+                        return None
                 if strategy:
                     same = connection.execute(
                         """SELECT s.id, l.status FROM signals s
@@ -976,7 +1023,8 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
                 """
                 SELECT d.signal_id, d.telegram_user_id, d.event_type, d.attempts,
                        s.symbol, s.side, s.entry, s.stop, s.tp1, s.created_at,
-                       s.price_unit, l.tp1_hit_at, s.tp2, s.strategy_metadata
+                       s.price_unit, l.tp1_hit_at, s.tp2, s.strategy_metadata,
+                       s.confidence
                 FROM signal_update_deliveries d
                 JOIN signals s ON s.id = d.signal_id
                 JOIN signal_lifecycle l ON l.signal_id = d.signal_id
@@ -1002,7 +1050,7 @@ def load_pending_signal_updates(limit: int = 100) -> list[dict]:
         keys = (
             "id", "telegram_user_id", "event_type", "attempts", "symbol",
             "side", "entry", "stop", "tp1", "created_at", "price_unit",
-            "tp1_hit_at", "tp2", "strategy",
+            "tp1_hit_at", "tp2", "strategy", "confidence",
         )
         return [dict(zip(keys, row)) for row in rows]
     except Exception as exc:

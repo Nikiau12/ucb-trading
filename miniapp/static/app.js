@@ -390,6 +390,23 @@ function confidenceLabel(signal){
 
 function groupStrategyLabel(signal,details=false){
   if(!signal.strategy?.experimental)return '';
+  if(signal.strategy?.mode==='journal_idea'){
+    const journal={
+      ru:['Идея для оценки','Оценка условий','Это не вероятность прибыли. Решение о входе принимаете вы.','1Д против направления.','BTC против направления.','Базовый актив не проверен.'],
+      en:['Idea for review','Setup score','This is not a profit probability. You decide whether to enter.','Daily context opposes this direction.','BTC opposes this direction.','Underlying-asset reference is unverified.'],
+      de:['Idee zur Prüfung','Setup-Bewertung','Keine Gewinnwahrscheinlichkeit. Du entscheidest über den Einstieg.','Tageskontext spricht dagegen.','BTC spricht dagegen.','Basiswert-Referenz ungeprüft.'],
+      fr:['Idée à évaluer','Évaluation du setup','Ce n’est pas une probabilité de gain. Vous décidez de l’entrée.','Contexte journalier opposé.','BTC opposé.','Référence du sous-jacent non vérifiée.'],
+      es:['Idea para evaluar','Evaluación del setup','No es probabilidad de beneficio. Tú decides si entras.','Contexto diario opuesto.','BTC se opone.','Referencia del subyacente no verificada.'],
+    };
+    const words=journal[language]||journal.en;
+    const score=Math.round(clamp(signal.confidence,0,1)*100);
+    if(!details)return `${words[0]} · ${score}%`;
+    const warnings=[];
+    if(signal.strategy.criteria?.daily_close===false)warnings.push(words[3]);
+    if(signal.strategy.criteria?.btc_context===false)warnings.push(words[4]);
+    if(signal.strategy.group==='rwa')warnings.push(words[5]);
+    return `${words[0]} · ${words[1]} ${score}%. ${words[2]} ${warnings.join(' ')}`.trim();
+  }
   const labels={
     ru:['Экспериментальная стратегия','Вход по пробою (STOP), не лимитный ордер. Прибыльность не подтверждена.'],
     en:['Experimental strategy','Breakout entry (STOP), not a limit order. Profitability is unverified.'],

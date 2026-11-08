@@ -179,7 +179,6 @@ def test_scheduled_group_signal_is_persisted_delivered_and_accessible_without_au
         record(name,**kwargs)
         raise asyncio.CancelledError()
     monkeypatch.setattr(background_loops,"datetime",ScanClock)
-    monkeypatch.setattr(bot,"_last_plan_1h_block",-1)
     monkeypatch.setattr(bot,"refresh_recipients",lambda:None)
     monkeypatch.setattr(bot.st,"DATABASE_URL",url)
     monkeypatch.setattr(bot.snap,"top_symbols_by_market_cap",lambda *_:["ETH_USDT"])

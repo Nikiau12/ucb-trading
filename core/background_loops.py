@@ -54,49 +54,78 @@ def bind_background_loops(services) -> SimpleNamespace:
             await asyncio.sleep(30)
 
     async def plan_scanner_loop():
-        """Refresh 4H/1D plans hourly; state.py prevents overlapping or recycled setups."""
+        """Continuously rotate through the top-cap universe in bounded batches.
+
+        The worker stays active between 4H closes. Each batch re-evaluates its
+        markets against the most recent *closed* 4H/1D candles and live ticker;
+        no new decision is invented from an unfinished candle. Persistence in
+        state.py prevents overlap/recycled setups across restarts and workers.
+        """
+        batch_size = 8
+        cursor = 0
+        last_recipient_refresh = None
+        rate_limit_until = 0.0
         while True:
             try:
                 now = datetime.now(timezone.utc)
-                block = now.hour                      # 0..23, меняется каждый час
-                minutes_since = now.minute
-
-                if minutes_since >= 5 and services._last_plan_1h_block != block:
-                    services._last_plan_1h_block = block
-                    services.logger.info("plan scanner 1h block %02d:00 starting", block)
-                    scan_started_at = time.monotonic()
-                    scan_id = uuid4().hex
-                    try:
+                decision_time = int(now.timestamp()) // (4 * 3600) * (4 * 3600)
+                if int(now.timestamp()) - decision_time < 300:
+                    # Let BingX finalize the just-closed 4H candle.
+                    await asyncio.sleep(30)
+                    continue
+                if time.monotonic() < rate_limit_until:
+                    await asyncio.sleep(30)
+                    continue
+                scan_started_at = time.monotonic()
+                scan_id = uuid4().hex
+                try:
+                    if last_recipient_refresh is None or scan_started_at - last_recipient_refresh >= 600:
                         services.refresh_recipients()
-                        loop = asyncio.get_event_loop()
-                        symbols = await loop.run_in_executor(
-                            None, services.snap.top_symbols_by_market_cap, services.SCAN_CFG["top_n_symbols"]
-                        )
-                        symbols = services._scan_symbols(symbols)
-                        results = await loop.run_in_executor(
-                            None,
-                            lambda: services.sc.scan_all(
-                                symbols,
-                                deposit=1000,  # reference only — position sizes in auto alerts are indicative
-                                risk_pct=services.TRADE_CFG["default_risk_pct"],
-                                lev=services.TRADE_CFG["default_lev"],
-                                margin=services.TRADE_CFG["default_margin"],
-                                workers=services.SCAN_CFG["workers"],
-                            ),
-                        )
-                        sent = 0
-                        persisted = 0
+                        last_recipient_refresh = scan_started_at
+                    loop = asyncio.get_running_loop()
+                    universe = await loop.run_in_executor(
+                        None, services.snap.top_symbols_by_market_cap, services.SCAN_CFG["top_n_symbols"]
+                    )
+                    symbols = services._scan_symbols(universe)
+                    if not symbols:
+                        raise ValueError("empty_capitalization_universe")
+                    cursor %= len(symbols)
+                    batch = symbols[cursor:cursor + batch_size]
+                    cursor = 0 if cursor + len(batch) >= len(symbols) else cursor + len(batch)
+                    results = await loop.run_in_executor(
+                        None,
+                        lambda: services.sc.scan_all(
+                            batch,
+                            deposit=1000,  # reference only; users choose their own size
+                            risk_pct=services.TRADE_CFG["default_risk_pct"],
+                            lev=services.TRADE_CFG["default_lev"],
+                            margin=services.TRADE_CFG["default_margin"],
+                            workers=min(2, services.SCAN_CFG["workers"]),
+                        ),
+                    )
+                    rate_limited = any(row.get("error_code") == 100410 for row in results)
+                    if rate_limited:
+                        rate_limit_until = time.monotonic() + 15 * 60
+                        services.logger.warning("plan scanner BingX rate limit; paused for 15 minutes")
+                    budget = services.st.scanner_budget_counts(decision_time, now=now)
+                    sent = persisted = 0
+                    if not rate_limited and budget is not None:
                         for plan in services._rank_actionable_plans(results):
-                            conf   = services._conf(plan)
+                            if (budget[0] + persisted >= services.st.MAX_SCANNER_SIGNALS_PER_UTC_DAY
+                                    or budget[1] + persisted >= services.st.scanner_block_limit(
+                                        decision_time, budget[0] + persisted, budget[1] + persisted)):
+                                break
+                            conf = services._conf(plan)
                             symbol = plan.get("symbol", "")
-                            side   = (plan.get("primary") or {}).get("side", "skip")
-
+                            side = (plan.get("primary") or {}).get("side", "skip")
                             if not services.st.should_send_alert(symbol, side, conf, plan):
                                 continue
-
                             signal_id = await services._save_plan_signal(plan, symbol, side, conf, source="scanner")
                             if signal_id is None:
-                                # Another cycle may have claimed this market after the read-only precheck.
+                                if plan.get("publication_error_code") == 100410:
+                                    rate_limit_until = time.monotonic() + 15 * 60
+                                    services.logger.warning("plan scanner publication rate limited; paused for 15 minutes")
+                                    break
                                 continue
                             persisted += 1
                             delivered_count = 0
@@ -146,42 +175,40 @@ def bind_background_loops(services) -> SimpleNamespace:
                                     reply_markup=services._alert_keyboard(signal_id, services.get_lang(user_id)),
                                 ):
                                     delivered_count += 1
-                                    if signal_id:
-                                        services.st.grant_signal_access(user_id, signal_id)
+                                    services.st.grant_signal_access(user_id, signal_id)
                             if services.st.should_persist_sent_marker(delivered_count):
                                 services.st.mark_sent(symbol, side, conf, plan)
                                 sent += 1
                             await asyncio.sleep(0.5)
-                        services.logger.info("plan scanner done: scanned=%s alerts=%s", len(results), sent)
-                        summary, decisions = summarize_scan(
-                            symbols, results, strategy_version=services.core_plan.VERSION,
-                        )
-                        summary.update(alerts_sent=sent, signals_persisted=persisted)
-                        journal_saved = await loop.run_in_executor(
-                            None, services.st.record_scan_run, scan_id, now, summary, decisions,
-                        )
-                        summary["journal_saved"] = journal_saved
-                        services.st.record_runtime_health(
-                            "plan_scanner",
-                            success=summary["failed"] == 0 and journal_saved,
-                            duration_seconds=time.monotonic() - scan_started_at,
-                            details=summary,
-                        )
-                    except Exception as e:
-                        services.st.record_runtime_health(
-                            "plan_scanner",
-                            success=False,
-                            duration_seconds=time.monotonic() - scan_started_at,
-                            details={"error": type(e).__name__},
-                        )
-                        services.logger.warning("plan scanner error: %s", type(e).__name__)
+                    services.logger.info("plan scanner continuous batch: scanned=%s alerts=%s cursor=%s/%s",
+                                         len(results), sent, cursor, len(symbols))
+                    summary, decisions = summarize_scan(batch, results, strategy_version=services.core_plan.VERSION)
+                    summary.update(alerts_sent=sent, signals_persisted=persisted,
+                                   universe_size=len(symbols), continuous_batch=True,
+                                   rate_limited=rate_limited or time.monotonic() < rate_limit_until)
+                    journal_saved = await loop.run_in_executor(
+                        None, services.st.record_scan_run, scan_id, now, summary, decisions,
+                    )
+                    summary["journal_saved"] = journal_saved
+                    services.st.record_runtime_health(
+                        "plan_scanner", success=summary["failed"] == 0 and journal_saved
+                        and budget is not None and not summary["rate_limited"],
+                        duration_seconds=time.monotonic() - scan_started_at, details=summary,
+                    )
+                except Exception as e:
+                    services.st.record_runtime_health(
+                        "plan_scanner", success=False,
+                        duration_seconds=time.monotonic() - scan_started_at,
+                        details={"error": type(e).__name__},
+                    )
+                    services.logger.warning("plan scanner error: %s", type(e).__name__)
 
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 services.logger.warning("plan_scanner_loop error: %s", type(exc).__name__)
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
 
     async def signal_lifecycle_loop():
         """Track public BingX prices and send one TP1/BE update per recipient."""

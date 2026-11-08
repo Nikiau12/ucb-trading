@@ -191,7 +191,10 @@ def test_scanner_and_manual_command_use_same_adapter(market, monkeypatch, symbol
     monkeypatch.setattr(bot,"MINI_APP_URL","https://example.test")
     message=journey.FakeMessage("/plan " + symbol)
     asyncio.run(bot.cmd_plan(message))
-    assert saved and saved[0]["strategy"]==scan["strategy"]
+    assert saved and saved[0]["strategy"]["decision_key"]==scan["strategy"]["decision_key"]
+    assert saved[0]["strategy"]["family"]==scan["strategy"]["family"]
+    assert scan["strategy"]["execution_checks"]["scanner_precheck_only"] is True
+    assert "scanner_precheck_only" not in saved[0]["strategy"]["execution_checks"]
     assert "Экспериментальная стратегия" in message.replies[0].text
     assert "#700" in message.replies[0].text
 
