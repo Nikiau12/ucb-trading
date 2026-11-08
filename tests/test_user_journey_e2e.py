@@ -132,6 +132,7 @@ def test_admin_access_bypass_can_exclude_one_exact_user(monkeypatch):
 def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
     settings = {"language": "en", "deposit": None, "risk_pct": 1.0, "lev": 10.0, "margin": "cross"}
     granted_signals = []
+    monkeypatch.setattr(bot.notifier, "active_users", set())
     manager = AccessManager(
         str(tmp_path / "access.json"),
         free_trial_signals=5,
@@ -175,6 +176,7 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
         start = FakeMessage("/start")
         await bot.cmd_start(start, state)
         assert state.value == bot.DepositSetup.waiting_for_amount
+        assert "4242" in bot.notifier.active_users
         assert start.replies
 
         deposit = FakeMessage("300")
@@ -206,6 +208,7 @@ def test_complete_new_user_trial_and_payment_journey(monkeypatch, tmp_path):
 
 def test_language_choice_asks_for_the_deposit_when_none_is_saved(monkeypatch):
     monkeypatch.setattr(bot, "MINI_APP_URL", "https://panel.example/app")
+    monkeypatch.setattr(bot.notifier, "active_users", set())
 
     async def _menu_button(*_args, **_kwargs):
         return True
@@ -247,6 +250,7 @@ def test_language_choice_asks_for_the_deposit_when_none_is_saved(monkeypatch):
         callback = Callback(CallbackMessage())
         await bot.handle_lang_callback(callback, state)
         assert state.value == bot.DepositSetup.waiting_for_amount
+        assert "7" in bot.notifier.active_users
         assert "5000" in callback.message.text
         assert "Language set" not in callback.message.text
         assert "Язык установлен" not in callback.message.text
@@ -629,6 +633,58 @@ def test_extracted_plan_scanner_only_delivers_persisted_signal(monkeypatch, sign
     assert (("grant", 4242, 77) in calls) is (signal_id is not None)
     assert (("marked",) in calls) is (signal_id is not None)
     assert next(item[1]["details"]["alerts_sent"] for item in calls if item[0] == "plan_scanner") == int(signal_id is not None)
+
+
+@pytest.mark.parametrize("connected_balance,deposit,note", [
+    (0, 0, "Фьючерсный баланс BingX равен нулю"),
+    (None, 0, "Расчётный депозит равен нулю или не указан"),
+])
+def test_scanner_delivers_unpriced_signal_with_zero_balance(monkeypatch, connected_balance, deposit, note):
+    from core import background_loops
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 2, 16, 5, tzinfo=tz)
+
+    sent = []
+    async def send(chat_id, text, **_kwargs):
+        sent.append((chat_id, text))
+        return True
+
+    def record(_name, **_kwargs):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(background_loops, "datetime", FixedDatetime)
+    monkeypatch.setattr(bot, "_last_plan_1h_block", -1)
+    monkeypatch.setattr(bot, "refresh_recipients", lambda: None)
+    monkeypatch.setattr(bot.snap, "top_symbols_by_market_cap", lambda _limit: ["BTC_USDT"])
+    monkeypatch.setattr(bot, "_scan_symbols", lambda symbols: symbols)
+    monkeypatch.setattr(bot.sc, "scan_all", lambda *_args, **_kwargs: [_actionable_plan()])
+    monkeypatch.setattr(bot, "_rank_actionable_plans", lambda plans: plans)
+    monkeypatch.setattr(bot, "_conf", lambda _plan: 0.8)
+    monkeypatch.setattr(bot.st, "should_send_alert", lambda *_args: True)
+    monkeypatch.setattr(bot.st, "save_signal", lambda *_args, **_kwargs: 77)
+    monkeypatch.setattr(bot.st, "refresh_user_balance", lambda _uid: connected_balance)
+    monkeypatch.setattr(bot.st, "get_user_settings", lambda _uid: {"deposit": deposit})
+    monkeypatch.setattr(bot.st, "user_accepts_symbol", lambda *_args: True)
+    monkeypatch.setattr(bot.st, "grant_signal_access", lambda *_args: None)
+    monkeypatch.setattr(bot.st, "should_persist_sent_marker", lambda count: count > 0)
+    monkeypatch.setattr(bot.st, "mark_sent", lambda *_args: None)
+    monkeypatch.setattr(bot.st, "record_runtime_health", record)
+    monkeypatch.setattr(bot.notifier, "active_users", {"4242"})
+    monkeypatch.setattr(bot.notifier, "send_message_to_user", send)
+    monkeypatch.setattr(bot, "render_auto_alert", lambda *_args, **_kwargs: pytest.fail("Zero balance was priced"))
+    monkeypatch.setattr(bot, "_with_signal_identity", lambda text, *_args: text)
+    monkeypatch.setattr(bot, "_alert_keyboard", lambda *_args: None)
+    monkeypatch.setattr(bot, "get_lang", lambda _uid: "ru")
+
+    asyncio.run(bot.plan_scanner_loop())
+    assert len(sent) == 1 and sent[0][0] == "4242"
+    assert note in sent[0][1]
+    assert "Entry: <code>100</code>" in sent[0][1]
+    assert "TP2: <code>110</code>" in sent[0][1]
+    assert "1000" not in sent[0][1]
 
 
 def test_bare_symbol_offers_one_plan_and_a_greeting_asks_for_language(monkeypatch):

@@ -81,13 +81,22 @@ _COPY = {
 }
 
 for _lang, _text in {
-    'en':'BingX futures balance is zero. Position calculation is unavailable.',
-    'ru':'Фьючерсный баланс BingX равен нулю. Расчёт позиции недоступен.',
-    'de':'Das BingX-Futures-Guthaben ist null. Positionsberechnung nicht verfügbar.',
-    'fr':'Le solde futures BingX est nul. Calcul de position indisponible.',
-    'es':'El saldo de futuros BingX es cero. Cálculo de posición no disponible.',
+    'en':'BingX futures balance is zero. Signal levels still arrive; position size is not calculated.',
+    'ru':'Фьючерсный баланс BingX равен нулю. Уровни сигнала продолжают приходить; объём позиции не рассчитывается.',
+    'de':'Das BingX-Futures-Guthaben ist null. Signalniveaus kommen weiter; die Positionsgröße wird nicht berechnet.',
+    'fr':'Le solde futures BingX est nul. Les niveaux du signal arrivent toujours ; la taille de position n’est pas calculée.',
+    'es':'El saldo de futuros BingX es cero. Seguirás recibiendo los niveles de señal; no se calcula el tamaño de posición.',
 }.items():
     _COPY[_lang]['empty_balance'] = _text
+
+for _lang, _text in {
+    'en':'Calculation deposit is zero or not set. Signal levels still arrive; position size is not calculated.',
+    'ru':'Расчётный депозит равен нулю или не указан. Уровни сигнала продолжают приходить; объём позиции не рассчитывается.',
+    'de':'Das Berechnungskapital ist null oder nicht angegeben. Signalniveaus kommen weiter; die Positionsgröße wird nicht berechnet.',
+    'fr':'Le capital de calcul est nul ou non indiqué. Les niveaux du signal arrivent toujours ; la taille de position n’est pas calculée.',
+    'es':'El capital de cálculo es cero o no está indicado. Seguirás recibiendo los niveles de señal; no se calcula el tamaño de posición.',
+}.items():
+    _COPY[_lang]['no_deposit'] = _text
 
 def personal_text(lang, key):
     return _COPY.get(lang, _COPY['en'])[key]
@@ -109,11 +118,12 @@ def render_update(signal, lang):
         lines.append(html.escape(cancellation_reason(signal,lang,'')))
     return '\n\n'.join(lines) + strategy_notice(signal,lang,details=False)
 
-def render_unpriced_signal(plan, lang, *, empty_balance=False):
+def render_unpriced_signal(plan, lang, *, empty_balance=False, no_deposit=False):
     from trading.group_labels import strategy_notice
     primary = plan['primary']
     lines = [f"<b>{html.escape(str(plan['symbol']))} · {html.escape(str(primary['side']).upper())}</b>"]
     for label,value in [('Entry',primary.get('entry')),('Stop',primary.get('stop')),*[(f'TP{i+1}',tp.get('price')) for i,tp in enumerate(primary.get('tps',[]))]]:
         lines.append(f'{label}: <code>{html.escape(str(value))}</code>')
-    lines.append(personal_text(lang,'empty_balance' if empty_balance else 'balance_unavailable'))
+    note = 'empty_balance' if empty_balance else 'no_deposit' if no_deposit else 'balance_unavailable'
+    lines.append(personal_text(lang,note))
     return '\n'.join(lines) + strategy_notice(plan,lang)

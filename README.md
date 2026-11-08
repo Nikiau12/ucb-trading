@@ -34,6 +34,11 @@ A user can:
 - use the interface in English, Russian, German, French, or Spanish;
 - start with a limited trial and activate monthly access with USDT TRC20.
 
+An eligible trial or paid user receives new-signal alerts even if the connected
+BingX futures balance or manual calculation deposit is zero. Those alerts show
+signal levels but no estimated position size; group preferences and access
+checks still apply. Receiving an alert does not place an order or imply a user fill.
+
 The public production entry point is
 [`@ucbtrading_bot`](https://t.me/ucbtrading_bot).
 
