@@ -33,7 +33,14 @@ def test_all_16_cards_match_current_group_bindings_without_live_promotion():
     assert cards["research_limit"]["parameter_search_on_exposed_history"] is False
     for group, binding in profile["groups"].items():
         for side in ("long", "short"):
-            assert cards["groups"][group][side] == PROPOSALS[binding[side]]
+            expected = (["breakout_confirmation", "trend_flag"]
+                        if group == "privacy" else PROPOSALS[binding[side]])
+            assert cards["groups"][group][side] == expected
+        expected_btc = {"none": "none", "same": "hard_same",
+                        "not_opposite": "hard_not_opposite"}[binding["btc"]]
+        if group == "privacy":
+            expected_btc = "context_only"
+        assert cards["groups"][group]["btc_policy"] == expected_btc
         assert cards["groups"][group]["to_verify"]
         assert binding["max_hours"] <= cards["shared_proposal"]["maximum_holding_hours"]
 

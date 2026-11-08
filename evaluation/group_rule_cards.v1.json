@@ -43,21 +43,21 @@
     }
   },
   "groups": {
-    "core_btc": {"long": ["trend_flag"], "short": ["trend_flag"], "to_verify": ["trend_maturity"]},
-    "core_eth": {"long": ["trend_flag", "structure_range"], "short": ["trend_flag", "structure_range"], "to_verify": ["btc_relative_strength", "range_structure"]},
-    "core_sol": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["daily_volatility"]},
-    "l1": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["btc_relative_strength", "contract_liquidity"]},
-    "scaling": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["subtype_benchmark", "token_identity"]},
-    "privacy": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["contract_liquidity", "market_incidents"]},
-    "payments": {"long": ["structure_range"], "short": ["structure_range"], "to_verify": ["range_structure"]},
-    "defi": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["subtype_benchmark", "unlock_schedule"]},
-    "trading": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["funding", "unlock_schedule"]},
-    "ai": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["daily_volatility", "token_supply"]},
-    "data": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["token_identity", "token_supply"]},
-    "oracles": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "to_verify": ["subtype_identity"]},
-    "meme": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["orderbook_depth", "price_impact", "daily_volatility"]},
-    "games": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["token_identity", "unlock_schedule"]},
-    "apps": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "to_verify": ["token_identity", "unlock_schedule"]},
-    "rwa": {"long": ["trend_flag"], "short": ["trend_flag"], "to_verify": ["independent_gold_reference", "contract_mapping"]}
+    "core_btc": {"long": ["trend_flag"], "short": ["trend_flag"], "btc_policy": "none", "to_verify": ["trend_maturity"]},
+    "core_eth": {"long": ["trend_flag", "structure_range"], "short": ["trend_flag", "structure_range"], "btc_policy": "hard_not_opposite", "to_verify": ["btc_relative_strength", "range_structure"]},
+    "core_sol": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["daily_volatility"]},
+    "l1": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["btc_relative_strength", "contract_liquidity"]},
+    "scaling": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["subtype_benchmark", "token_identity"]},
+    "privacy": {"long": ["breakout_confirmation", "trend_flag"], "short": ["breakout_confirmation", "trend_flag"], "btc_policy": "context_only", "to_verify": ["contract_liquidity", "market_incidents", "btc_divergence"]},
+    "payments": {"long": ["structure_range"], "short": ["structure_range"], "btc_policy": "hard_not_opposite", "to_verify": ["range_structure"]},
+    "defi": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["subtype_benchmark", "unlock_schedule"]},
+    "trading": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["funding", "unlock_schedule"]},
+    "ai": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["daily_volatility", "token_supply"]},
+    "data": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["token_identity", "token_supply"]},
+    "oracles": {"long": ["trend_flag"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["subtype_identity"]},
+    "meme": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["orderbook_depth", "price_impact", "daily_volatility"]},
+    "games": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["token_identity", "unlock_schedule"]},
+    "apps": {"long": ["breakout_confirmation"], "short": ["breakout_confirmation"], "btc_policy": "hard_same", "to_verify": ["token_identity", "unlock_schedule"]},
+    "rwa": {"long": ["trend_flag"], "short": ["trend_flag"], "btc_policy": "none", "to_verify": ["independent_gold_reference", "contract_mapping"]}
   }
 }
