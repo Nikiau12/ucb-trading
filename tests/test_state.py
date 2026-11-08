@@ -149,23 +149,40 @@ def test_scanner_budget_is_atomic_and_does_not_limit_manual_lookups(monkeypatch)
 
 
 def test_scanner_budget_enforces_two_per_4h_block(monkeypatch):
+    from datetime import datetime, timezone
     connection = _ScannerConnection([], budget=(4, 2))
+    # This is an ordinary block; the last UTC block has a separate catch-up cap.
+    ordinary_block = datetime(2026, 11, 8, 16, 5, tzinfo=timezone.utc).timestamp()
+    monkeypatch.setattr(state.time, "time", lambda: ordinary_block)
     monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
     monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
     assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.8) is None
     assert not any("INSERT INTO signals" in query for query, _ in connection.calls)
 
 
-def test_final_utc_block_can_catch_up_to_four_without_exceeding_seven():
+def test_scanner_can_publish_fifth_distinct_idea_in_final_utc_block(monkeypatch):
+    from datetime import datetime, timezone
+    connection = _ScannerConnection([], budget=(4, 4))
+    final_block = datetime(2026, 11, 8, 20, 5, tzinfo=timezone.utc).timestamp()
+    monkeypatch.setattr(state.time, "time", lambda: final_block)
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+    assert state.save_signal(_scanner_plan(), "LTC_USDT", "SHORT", 0.8) == 9
+    assert any("INSERT INTO signals" in query for query, _ in connection.calls)
+
+
+def test_final_utc_block_can_use_remaining_daily_capacity_without_exceeding_seven():
     from datetime import datetime, timezone
     early = int(datetime(2026, 11, 8, 16, tzinfo=timezone.utc).timestamp())
     final = int(datetime(2026, 11, 8, 20, tzinfo=timezone.utc).timestamp())
     assert state.scanner_block_limit(early, 0, 0) == 2
-    assert state.scanner_block_limit(final, 0, 0) == 4
-    assert state.scanner_block_limit(final, 1, 1) == 4
-    assert state.scanner_block_limit(final, 2, 2) == 4
-    assert state.scanner_block_limit(final, 2, 0) == 2
-    assert state.scanner_block_limit(final, 4, 4) == 2
+    assert state.scanner_block_limit(final, 0, 0) == 7
+    assert state.scanner_block_limit(final, 1, 1) == 7
+    assert state.scanner_block_limit(final, 2, 2) == 7
+    assert state.scanner_block_limit(final, 2, 0) == 5
+    assert state.scanner_block_limit(final, 4, 4) == 7
+    assert state.scanner_block_limit(final, 4, 0) == 3
+    assert state.scanner_block_limit(final, 6, 0) == 1
 
 
 def test_signal_contract_rules_are_extracted_for_history():

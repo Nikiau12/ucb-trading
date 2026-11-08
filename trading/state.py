@@ -37,7 +37,7 @@ SIGNAL_SETUP_REUSE_SECS = max(
 OPEN_SIGNAL_STATUSES = frozenset({"replay_pending", "waiting_entry", "active", "tp1_reached"})
 MAX_SCANNER_SIGNALS_PER_UTC_DAY = 7
 MAX_SCANNER_SIGNALS_PER_4H_BLOCK = 2
-MIN_SCANNER_TARGET_PER_UTC_DAY = 4
+FINAL_BLOCK_CATCHUP_TARGET = MAX_SCANNER_SIGNALS_PER_UTC_DAY
 SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS = max(
     1, int(os.getenv("SIGNAL_REPLAY_TP1_NOTIFICATION_MAX_AGE_HOURS", "48"))
 )
@@ -237,10 +237,10 @@ def _scanner_budget_counts(connection, decision_time: int, now: datetime) -> tup
 
 
 def scanner_block_limit(decision_time: int, published_today: int, published_in_block: int) -> int:
-    """Allow a small final-block catch-up without manufacturing weak setups."""
-    if (decision_time // 3600) % 24 == 20 and published_today < MIN_SCANNER_TARGET_PER_UTC_DAY:
-        return min(MIN_SCANNER_TARGET_PER_UTC_DAY,
-                   published_in_block + MIN_SCANNER_TARGET_PER_UTC_DAY - published_today)
+    """Let the last UTC block use unused daily capacity, never create weak setups."""
+    if (decision_time // 3600) % 24 == 20 and published_today < FINAL_BLOCK_CATCHUP_TARGET:
+        return min(FINAL_BLOCK_CATCHUP_TARGET,
+                   published_in_block + FINAL_BLOCK_CATCHUP_TARGET - published_today)
     return MAX_SCANNER_SIGNALS_PER_4H_BLOCK
 
 
