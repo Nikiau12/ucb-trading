@@ -107,7 +107,9 @@ def bind_background_loops(services) -> SimpleNamespace:
                     if rate_limited:
                         rate_limit_until = time.monotonic() + 15 * 60
                         services.logger.warning("plan scanner BingX rate limit; paused for 15 minutes")
-                    budget = services.st.scanner_budget_counts(decision_time, now=now)
+                    budget = await loop.run_in_executor(
+                        None, lambda: services.st.scanner_budget_counts(decision_time, now=now)
+                    )
                     sent = persisted = 0
                     if not rate_limited and budget is not None:
                         for plan in services._rank_actionable_plans(results):
