@@ -13,6 +13,7 @@ _COPY = {
   'outside_selection':'This coin is outside the top-100 or your selected groups. Change groups in Signals.',
   'tp1_reached':'Signal price reached TP1', 'tp2_reached':'Signal price reached TP2',
   'stop_reached':'Signal price reached the stop level', 'cancelled_before_entry':'Signal no longer valid',
+  'cancel_reason':'Signal entry was not confirmed; price reached TP1.',
   'cancel_note':'This is a signal status, not a record of your order. Check any open position separately on BingX.',
   'tp1_filled':'Your BingX TP1 order was filled',
   'price_note':'Price event from the signal. Your order execution is checked separately.',
@@ -29,6 +30,7 @@ _COPY = {
   'outside_selection':'Монета вне топ-100 или выбранных групп. Изменить группы можно в «Сигналах».',
   'tp1_reached':'Цена сигнала достигла TP1', 'tp2_reached':'Цена сигнала достигла TP2',
   'stop_reached':'Цена сигнала достигла уровня стопа', 'cancelled_before_entry':'Сигнал больше не актуален',
+  'cancel_reason':'Вход по сигналу не подтверждён; цена достигла TP1.',
   'cancel_note':'Это статус сигнала, а не запись о вашем ордере. Открытую позицию проверьте отдельно в BingX.',
   'tp1_filled':'Ваш ордер TP1 в BingX исполнен',
   'price_note':'Событие по цене сигнала. Исполнение вашего ордера проверяется отдельно.',
@@ -45,6 +47,7 @@ _COPY = {
   'outside_selection':'Dieser Coin liegt außerhalb der Top 100 oder deiner ausgewählten Gruppen.',
   'tp1_reached':'Signalpreis hat TP1 erreicht', 'tp2_reached':'Signalpreis hat TP2 erreicht',
   'stop_reached':'Signalpreis hat das Stop-Niveau erreicht', 'cancelled_before_entry':'Signal nicht mehr gültig',
+  'cancel_reason':'Signal-Einstieg nicht bestätigt; der Preis erreichte TP1.',
   'cancel_note':'Dies ist ein Signalstatus, kein Nachweis deiner Order. Prüfe eine offene Position separat auf BingX.',
   'tp1_filled':'Deine BingX-TP1-Order wurde ausgeführt',
   'price_note':'Ereignis zum Signalpreis. Die Orderausführung wird separat geprüft.',
@@ -61,6 +64,7 @@ _COPY = {
   'outside_selection':'Cette monnaie est hors du top 100 ou des groupes sélectionnés.',
   'tp1_reached':'Le prix du signal a atteint TP1', 'tp2_reached':'Le prix du signal a atteint TP2',
   'stop_reached':'Le prix du signal a atteint le stop', 'cancelled_before_entry':'Signal non valable',
+  'cancel_reason':'Entrée du signal non confirmée ; le prix a atteint TP1.',
   'cancel_note':'Il s’agit du statut du signal, pas de votre ordre. Vérifiez toute position ouverte séparément sur BingX.',
   'tp1_filled':'Votre ordre TP1 BingX a été exécuté',
   'price_note':'Événement lié au prix du signal. L’exécution de votre ordre est vérifiée séparément.',
@@ -77,6 +81,7 @@ _COPY = {
   'outside_selection':'Esta moneda está fuera del top 100 o de tus grupos seleccionados.',
   'tp1_reached':'El precio de la señal alcanzó TP1', 'tp2_reached':'El precio de la señal alcanzó TP2',
   'stop_reached':'El precio de la señal alcanzó el stop', 'cancelled_before_entry':'Señal ya no válida',
+  'cancel_reason':'Entrada de la señal no confirmada; el precio alcanzó TP1.',
   'cancel_note':'Es el estado de la señal, no un registro de tu orden. Comprueba cualquier posición abierta en BingX.',
   'tp1_filled':'Tu orden TP1 de BingX se ejecutó',
   'price_note':'Evento del precio de la señal. La ejecución de tu orden se comprueba por separado.',
@@ -114,7 +119,7 @@ def render_update(signal, lang):
     title = personal_text(lang, event)
     identity = signal_identity_footer(int(signal['id']), signal['symbol'], signal['side'], lang=lang, created_at=signal.get('created_at'))
     if event == 'cancelled_before_entry':
-        reason = cancellation_reason(signal, lang, '')
+        reason = cancellation_reason(signal, lang, personal_text(lang, 'cancel_reason'))
         lines = [f"<b>{html.escape(title)}</b>", identity]
         if reason:
             lines.append(html.escape(reason))

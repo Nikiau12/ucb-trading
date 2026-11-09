@@ -105,7 +105,16 @@ fs.mkdirSync(out,{recursive:true});
  await page.waitForFunction(()=>document.querySelector('#chart-title').textContent==='HBAR / USDT');
  assert.match(await page.locator('#plan-reference').textContent(),/#13988/);
  assert.equal(await page.locator('#plan-action').isVisible(),true);
- assert.ok((await page.locator('#plan-action').textContent()).length>0);
+ for(const [lang,warning] of Object.entries({
+  ru:'Прежние уровни сигнала больше не действуют.',
+  en:'The previous signal levels no longer apply.',
+  de:'Die bisherigen Signalniveaus gelten nicht mehr.',
+  fr:'Les anciens niveaux du signal ne sont plus valables.',
+  es:'Los niveles anteriores de la señal ya no son válidos.',
+ })){
+  await page.evaluate(value=>{language=value;applyLanguage();},lang);
+  assert.equal(await page.locator('#plan-action-steps li').first().textContent(),warning);
+ }
  assert.equal(await page.evaluate(()=>overviewChart.levels.length),0);
  assert.ok(marketRequests.some(value=>value.startsWith('/api/market/HBAR_USDT?timeframe=4h')));
  await shot('stopped-hbar-no-levels');
