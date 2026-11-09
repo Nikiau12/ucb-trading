@@ -20,7 +20,7 @@ from psycopg.types.json import Jsonb
 from miniapp import bingx_account as accounts, groups, tracking, universe, app
 from miniapp.schema import apply_migrations
 from trading import state
-from trading.personal_notifications import render_update
+from trading.personal_notifications import personal_text, render_update
 
 
 def test_cipher_binds_credentials_to_the_user_and_needs_a_server_key(monkeypatch):
@@ -118,6 +118,27 @@ def test_notification_distinguishes_price_from_user_fill_in_every_language():
         assert price != filled
         assert 'BTC_USDT' in price and 'BTC_USDT' in filled
         assert 'BingX' in filled
+
+
+def test_cancelled_signal_update_is_not_a_personal_trade_or_tp1_event():
+    event = {
+        'id': 1842, 'symbol': 'BTC_USDT', 'side': 'LONG', 'entry': 100,
+        'tp1': 110, 'event_type': 'cancelled_before_entry',
+        'created_at': datetime.now(timezone.utc),
+    }
+    message = render_update(event, 'ru')
+    assert 'Сигнал больше не актуален' in message
+    assert 'Сигнал #1842' in message
+    assert 'не запись о вашем ордере' in message
+    assert 'Вход по сигналу не подтверждён; цена достигла TP1.' in message
+    assert 'Сделка' not in message
+    assert 'TP1:' not in message
+    for lang in ('en', 'de', 'fr', 'es'):
+        localized = render_update(event, lang)
+        assert personal_text(lang, 'cancel_reason') in localized
+        assert 'TP1:' not in localized
+    stop_entry = render_update({**event, 'strategy': {'entry_type': 'stop'}}, 'ru')
+    assert 'уровень отмены или порядок касаний не определён' in stop_entry
 
 
 @pytest.fixture

@@ -40,6 +40,7 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
   await page.goto(origin);
   await page.waitForFunction(()=>document.querySelectorAll('#signal-history .signal-row').length===3);
   await page.click('[data-target=signals]');
+  assert.equal(await page.locator('#signal-history .trade-state').count(),0,'market entry does not mean this user entered');
   assert.equal(await page.locator('[data-filter=SCALP],[data-filter=SMC]').count(),0);
   await page.click('.signal-group-field summary');
   assert.equal(await page.locator('#signal-group input').count(),18);
@@ -64,12 +65,18 @@ const visible=()=>feed.filter(s=>s.tracking_status==='active'||profile.signal_gr
   await page.waitForFunction(()=>document.querySelector('#tracking-button').textContent==='Я вышел');
   assert.equal(feed[0].tracking_status,'active');
   await page.click('[data-target=signals]');
+  assert.equal(await page.locator('#signal-history [data-signal-id="1"] .trade-state').textContent(),'Вошёл в сделку');
+  assert.equal(await page.locator('#signal-history .trade-state').count(),1);
   await page.uncheck('[data-group-id=core_btc]');
   await page.waitForFunction(()=>!document.querySelector('[data-group-id=core_btc]').disabled);
   assert.equal(await page.locator('#signal-history [data-signal-id="1"]').count(),1,'active trade survives group change');
   await page.click('#signal-history [data-signal-id="1"]');await page.click('#tracking-button');
   await page.waitForFunction(()=>document.querySelector('#tracking-button').disabled);
   assert.equal(feed[0].tracking_status,'exited');
+  await page.click('[data-target=signals]');
+  await page.click('#reset-signal-filters');
+  await page.waitForFunction(()=>document.querySelector('#signal-history [data-signal-id="1"]'));
+  assert.equal(await page.locator('#signal-history [data-signal-id="1"] .trade-state').textContent(),'Вышел из сделки');
   await page.click('[data-target=settings]');
   assert.equal(await page.locator('[data-target=settings]').textContent(),'Аккаунт');
   assert.equal(await page.locator('#manual-deposit-field').isVisible(),true);

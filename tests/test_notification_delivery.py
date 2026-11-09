@@ -106,4 +106,6 @@ def test_delivery_uses_specific_text_for_stop_and_cancelled_setups():
 
     assert asyncio.run(run()) == (2, 2)
     assert "Цена сигнала достигла уровня стопа" in notifier.calls[0][1]
-    assert "Сигнал отменён до входа" in notifier.calls[1][1]
+    assert "Сигнал больше не актуален" in notifier.calls[1][1]
+    assert "не запись о вашем ордере" in notifier.calls[1][1]
+    assert "TP1:" not in notifier.calls[1][1]

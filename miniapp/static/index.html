@@ -46,7 +46,7 @@
         </section>
 
         <section class="major-markets" aria-labelledby="major-markets-title">
-          <h2 class="home-section-title" id="major-markets-title" data-i18n="majorTrades">BTC, ETH AND SOL TRADES</h2>
+          <h2 class="home-section-title" id="major-markets-title" data-i18n="majorTrades">BTC, ETH AND SOL SIGNALS</h2>
           <div class="major-market-list" id="major-market-list"></div>
         </section>
 
@@ -91,13 +91,13 @@
       </section>
 
       <section class="view" id="signals-view" data-view="signals">
-        <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1></div></div>
+        <div class="page-heading"><div><p class="eyebrow" data-i18n="scanner">MARKET SCANNER</p><h1 data-i18n="signalHistory">Signal history</h1><p class="page-subtitle" data-i18n="signalHistoryNote">These are market signals, not your personal trades. You decide whether to enter.</p></div></div>
         <div class="signal-group-toolbar">
           <details class="signal-group-field"><summary data-i18n="coinGroups">Coin groups</summary><fieldset id="signal-group" aria-describedby="signal-filter-note"><legend class="sr-only" data-i18n="coinGroups">Coin groups</legend></fieldset></details>
           <button type="button" class="secondary-button signal-filter-reset" id="reset-signal-filters" hidden data-i18n="resetFilters">Reset filters</button>
         </div>
         <p class="signal-filter-note" id="signal-filter-note" data-i18n="groupFilterNote">Selected groups apply to signals and bot notifications.</p>
-        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="SETUP" data-i18n="filterTrades">Trades</button><button class="filter" data-filter="LISTING" data-i18n="listing">Listing</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
+        <div class="filter-row"><button class="filter selected" data-filter="ALL" data-i18n="all">All</button><button class="filter" data-filter="SETUP" data-i18n="filterTrades">Setups</button><button class="filter" data-filter="LISTING" data-i18n="listing">Listing</button><button class="filter" data-filter="LONG">LONG</button><button class="filter" data-filter="SHORT">SHORT</button></div>
         <p class="signal-filter-count" id="signal-filter-count" role="status" aria-live="polite" aria-atomic="true"></p>
         <div id="signal-history" class="signal-list full"></div>
       </section>
@@ -190,6 +190,6 @@
   <div class="toast" id="toast" role="status"></div>
   <script src="/static/asset-icons.js?v=20261029-2"></script>
   <script src="/static/asset-groups.js?v=20261107-runtime-2"></script>
-  <script src="/static/app.js?v=20261108-skip-explanations-1"></script>
+  <script src="/static/app.js?v=20261109-personal-signal-status-1"></script>
 </body>
 </html>

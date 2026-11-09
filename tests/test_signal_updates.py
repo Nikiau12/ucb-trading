@@ -258,7 +258,7 @@ def test_trade_reference_and_tp1_message_are_unambiguous():
     footer = signal_identity_footer(
         1842, "ASTER_USDT", "LONG", lang="ru", created_at=NOW,
     )
-    assert "Сделка #1842" in footer
+    assert "Сигнал #1842" in footer
     assert "ASTER_USDT · LONG" in footer
     assert "29.10.2026 12:00 UTC" in footer
 
@@ -272,7 +272,7 @@ def test_trade_reference_and_tp1_message_are_unambiguous():
 def test_stop_messages_distinguish_stop_loss_from_break_even():
     stopped = render_stop_update(_signal(stop=1.041, tp1_hit_at=None), lang="ru")
     assert "Stop сработал" in stopped
-    assert "Сетап аннулирован" in stopped
+    assert "Прежние уровни сигнала больше не действуют" in stopped
     assert "1.041" in stopped
 
     break_even = render_stop_update(
@@ -285,10 +285,11 @@ def test_stop_messages_distinguish_stop_loss_from_break_even():
 
 def test_cancelled_before_entry_message_explains_why_not_to_enter():
     message = render_cancelled_before_entry_update(_signal(), lang="ru")
-    assert "Сигнал аннулирован до входа" in message
-    assert "точку входа" in message
-    assert "TP1 был достигнут раньше входа" in message
-    assert "Не входите" in message
+    assert "Сигнал больше не актуален" in message
+    assert "Вход по сигналу не подтверждён" in message
+    assert "Цена достигла TP1 раньше подтверждённого входа" in message
+    assert "Не используйте прежние уровни" in message
+    assert "Сделка" not in message
 
 
 def test_lifecycle_duration_uses_4h_plan_bars():

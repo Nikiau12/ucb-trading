@@ -65,8 +65,19 @@ signals.push({...signals[0],id:99,confidence:.8,strategy:null});
   await page.click('[data-target=signals]');
   await page.locator('#signal-history [data-signal-id="1"]').click();
   const action=await page.locator('#plan-action').textContent();
+  assert.ok(action.includes('Сигнал неактуален'));
   assert.ok(action.includes('порядок касаний'));
   assert.ok(!action.includes('Цена достигла TP1 раньше входа'));
+  // Five stale market signals are not five personal trades. Keep their
+  // historical records, but show no personal trade status in the list.
+  signals.splice(0,signals.length,...signals.slice(0,5).map(signal=>({...signal,trade_status:'cancelled_before_entry',tracking_status:'none'})));
+  await page.evaluate(()=>refreshLiveData());
+  await page.click('[data-target=signals]');
+  assert.equal(await page.locator('#signal-history .signal-row').count(),5);
+  assert.equal(await page.locator('#signal-history .trade-state').count(),0);
+  assert.ok(!(await page.locator('#signal-history').textContent()).includes('Аннулирована до входа'));
+  assert.ok((await page.locator('[data-i18n="signalHistoryNote"]').textContent()).includes('не ваших личных сделок'));
+  assert.equal(await page.locator('[data-filter="SETUP"]').textContent(),'Сетапы');
   profile.scanner_live=true;
   profile.last_scan_at=new Date().toISOString();
   signals.splice(0);
