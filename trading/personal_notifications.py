@@ -12,7 +12,8 @@ _COPY = {
   'universe_unavailable':'Capitalization ranking is temporarily unavailable. Please try again later.',
   'outside_selection':'This coin is outside the top-100 or your selected groups. Change groups in Signals.',
   'tp1_reached':'Signal price reached TP1', 'tp2_reached':'Signal price reached TP2',
-  'stop_reached':'Signal price reached the stop level', 'cancelled_before_entry':'Signal cancelled before entry',
+  'stop_reached':'Signal price reached the stop level', 'cancelled_before_entry':'Signal no longer valid',
+  'cancel_note':'This is a signal status, not a record of your order. Check any open position separately on BingX.',
   'tp1_filled':'Your BingX TP1 order was filled',
   'price_note':'Price event from the signal. Your order execution is checked separately.',
   'filled_note':'Confirmed by your linked BingX order.',
@@ -27,7 +28,8 @@ _COPY = {
   'universe_unavailable':'Рейтинг капитализации временно недоступен. Попробуйте позже.',
   'outside_selection':'Монета вне топ-100 или выбранных групп. Изменить группы можно в «Сигналах».',
   'tp1_reached':'Цена сигнала достигла TP1', 'tp2_reached':'Цена сигнала достигла TP2',
-  'stop_reached':'Цена сигнала достигла уровня стопа', 'cancelled_before_entry':'Сигнал отменён до входа',
+  'stop_reached':'Цена сигнала достигла уровня стопа', 'cancelled_before_entry':'Сигнал больше не актуален',
+  'cancel_note':'Это статус сигнала, а не запись о вашем ордере. Открытую позицию проверьте отдельно в BingX.',
   'tp1_filled':'Ваш ордер TP1 в BingX исполнен',
   'price_note':'Событие по цене сигнала. Исполнение вашего ордера проверяется отдельно.',
   'filled_note':'Подтверждено по связанному ордеру вашего аккаунта BingX.',
@@ -42,7 +44,8 @@ _COPY = {
   'universe_unavailable':'Die Rangliste nach Marktkapitalisierung ist vorübergehend nicht verfügbar.',
   'outside_selection':'Dieser Coin liegt außerhalb der Top 100 oder deiner ausgewählten Gruppen.',
   'tp1_reached':'Signalpreis hat TP1 erreicht', 'tp2_reached':'Signalpreis hat TP2 erreicht',
-  'stop_reached':'Signalpreis hat das Stop-Niveau erreicht', 'cancelled_before_entry':'Signal vor Einstieg storniert',
+  'stop_reached':'Signalpreis hat das Stop-Niveau erreicht', 'cancelled_before_entry':'Signal nicht mehr gültig',
+  'cancel_note':'Dies ist ein Signalstatus, kein Nachweis deiner Order. Prüfe eine offene Position separat auf BingX.',
   'tp1_filled':'Deine BingX-TP1-Order wurde ausgeführt',
   'price_note':'Ereignis zum Signalpreis. Die Orderausführung wird separat geprüft.',
   'filled_note':'Durch deine verknüpfte BingX-Order bestätigt.',
@@ -57,7 +60,8 @@ _COPY = {
   'universe_unavailable':'Le classement par capitalisation est temporairement indisponible.',
   'outside_selection':'Cette monnaie est hors du top 100 ou des groupes sélectionnés.',
   'tp1_reached':'Le prix du signal a atteint TP1', 'tp2_reached':'Le prix du signal a atteint TP2',
-  'stop_reached':'Le prix du signal a atteint le stop', 'cancelled_before_entry':'Signal annulé avant l’entrée',
+  'stop_reached':'Le prix du signal a atteint le stop', 'cancelled_before_entry':'Signal non valable',
+  'cancel_note':'Il s’agit du statut du signal, pas de votre ordre. Vérifiez toute position ouverte séparément sur BingX.',
   'tp1_filled':'Votre ordre TP1 BingX a été exécuté',
   'price_note':'Événement lié au prix du signal. L’exécution de votre ordre est vérifiée séparément.',
   'filled_note':'Confirmé par votre ordre BingX associé.',
@@ -72,7 +76,8 @@ _COPY = {
   'universe_unavailable':'El ranking por capitalización no está disponible temporalmente.',
   'outside_selection':'Esta moneda está fuera del top 100 o de tus grupos seleccionados.',
   'tp1_reached':'El precio de la señal alcanzó TP1', 'tp2_reached':'El precio de la señal alcanzó TP2',
-  'stop_reached':'El precio de la señal alcanzó el stop', 'cancelled_before_entry':'Señal cancelada antes de entrar',
+  'stop_reached':'El precio de la señal alcanzó el stop', 'cancelled_before_entry':'Señal ya no válida',
+  'cancel_note':'Es el estado de la señal, no un registro de tu orden. Comprueba cualquier posición abierta en BingX.',
   'tp1_filled':'Tu orden TP1 de BingX se ejecutó',
   'price_note':'Evento del precio de la señal. La ejecución de tu orden se comprueba por separado.',
   'filled_note':'Confirmado por tu orden BingX vinculada.',
@@ -108,14 +113,19 @@ def render_update(signal, lang):
         raise ValueError('unsupported_event')
     title = personal_text(lang, event)
     identity = signal_identity_footer(int(signal['id']), signal['symbol'], signal['side'], lang=lang, created_at=signal.get('created_at'))
+    if event == 'cancelled_before_entry':
+        reason = cancellation_reason(signal, lang, '')
+        lines = [f"<b>{html.escape(title)}</b>", identity]
+        if reason:
+            lines.append(html.escape(reason))
+        lines.append(html.escape(personal_text(lang, 'cancel_note')))
+        return '\n\n'.join(lines) + strategy_notice(signal, lang, details=False)
     key = 'tp2' if event=='tp2_reached' else ('stop' if event=='stop_reached' else 'tp1')
     value = signal.get('entry') if event=='stop_reached' and signal.get('tp1_hit_at') else signal.get(key)
     note = personal_text(lang, 'filled_note' if event=='tp1_filled' else 'price_note')
     lines = [f"<b>{html.escape(title)}</b>", identity, f"{key.upper()}: <code>{html.escape(str(value))}</code>", html.escape(note)]
     if event in ('tp1_reached','tp1_filled'):
         lines.append(html.escape(personal_text(lang, 'be')))
-    if event=='cancelled_before_entry' and (signal.get('strategy') or {}).get('entry_type')=='stop':
-        lines.append(html.escape(cancellation_reason(signal,lang,'')))
     return '\n\n'.join(lines) + strategy_notice(signal,lang,details=False)
 
 def render_unpriced_signal(plan, lang, *, empty_balance=False, no_deposit=False):

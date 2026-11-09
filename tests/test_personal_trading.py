@@ -120,6 +120,20 @@ def test_notification_distinguishes_price_from_user_fill_in_every_language():
         assert 'BingX' in filled
 
 
+def test_cancelled_signal_update_is_not_a_personal_trade_or_tp1_event():
+    event = {
+        'id': 1842, 'symbol': 'BTC_USDT', 'side': 'LONG', 'entry': 100,
+        'tp1': 110, 'event_type': 'cancelled_before_entry',
+        'created_at': datetime.now(timezone.utc),
+    }
+    message = render_update(event, 'ru')
+    assert 'Сигнал больше не актуален' in message
+    assert 'Сигнал #1842' in message
+    assert 'не запись о вашем ордере' in message
+    assert 'Сделка' not in message
+    assert 'TP1:' not in message
+
+
 @pytest.fixture
 def database(monkeypatch):
     base=os.getenv('TEST_DATABASE_URL','')

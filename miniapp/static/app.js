@@ -44,6 +44,25 @@ Object.assign(translations.ru,{statusCancelledBeforeEntry:'Аннулирова�
 Object.assign(translations.de,{statusCancelledBeforeEntry:'Vor Einstieg aufgehoben',signalCancelled:'SIGNAL AUFGEHOBEN',entryWasNotReached:'Der Einstieg wurde nicht erreicht',tp1ReachedFirst:'Der Preis erreichte TP1 vor dem Einstieg',cancelledWaitNew:'Nicht in dieses Setup einsteigen. Warte auf ein neues Signal.'});
 Object.assign(translations.fr,{statusCancelledBeforeEntry:'Annulé avant l’entrée',signalCancelled:'SIGNAL ANNULÉ',entryWasNotReached:'Le niveau d’entrée n’a pas été atteint',tp1ReachedFirst:'Le prix a atteint TP1 avant l’entrée',cancelledWaitNew:'N’entrez pas sur ce setup. Attendez un nouveau signal.'});
 Object.assign(translations.es,{statusCancelledBeforeEntry:'Anulada antes de la entrada',signalCancelled:'SEÑAL ANULADA',entryWasNotReached:'No se alcanzó el nivel de entrada',tp1ReachedFirst:'El precio alcanzó TP1 antes de la entrada',cancelledWaitNew:'No entres en este setup. Espera una nueva señal.'});
+// Lifecycle events describe market prices, not orders placed by this user.
+// Only explicit per-user tracking represents a personal trading decision.
+const signalLifecycleCopy={
+  en:{majorTrades:'BTC, ETH AND SOL SIGNALS',tradeNumber:'Signal',signalFrom:'Published',signalHistoryNote:'These are market signals, not your personal trades. You decide whether to enter.',statusWaiting:'Waiting for entry level',statusActive:'Signal entry reached',statusTp1:'Price reached TP1',statusTp2:'Price reached TP2',statusStopped:'Price reached Stop',statusExpired:'Signal expired',statusCancelledBeforeEntry:'Signal no longer valid',signalCancelled:'SIGNAL NO LONGER VALID',tradeClosed:'SIGNAL FINISHED',tradeCancelled:'The previous signal levels no longer apply.',entryWasNotReached:'Signal entry was not confirmed',tp1ReachedFirst:'Price reached TP1 before confirmed entry',cancelledWaitNew:'Do not use these levels. Wait for a new signal.'},
+  ru:{majorTrades:'СИГНАЛЫ BTC, ETH И SOL',tradeNumber:'Сигнал',signalFrom:'Опубликован',signalHistoryNote:'Здесь история сигналов рынка, а не ваших личных сделок. Вход решаете вы.',statusWaiting:'Ожидает уровня входа',statusActive:'Цена достигла входа',statusTp1:'Цена достигла TP1',statusTp2:'Цена достигла TP2',statusStopped:'Цена достигла Stop',statusExpired:'Срок сигнала истёк',statusCancelledBeforeEntry:'Сигнал неактуален',signalCancelled:'СИГНАЛ НЕАКТУАЛЕН',tradeClosed:'СИГНАЛ ЗАВЕРШЁН',tradeCancelled:'Прежние уровни сигнала больше не действуют.',entryWasNotReached:'Вход по сигналу не подтверждён',tp1ReachedFirst:'Цена достигла TP1 раньше подтверждённого входа',cancelledWaitNew:'Не используйте прежние уровни. Дождитесь нового сигнала.'},
+  de:{majorTrades:'BTC-, ETH- UND SOL-SIGNALE',tradeNumber:'Signal',signalFrom:'Veröffentlicht',signalHistoryNote:'Dies sind Marktsignale, keine persönlichen Trades. Du entscheidest über den Einstieg.',statusWaiting:'Wartet auf Einstiegsniveau',statusActive:'Signal-Einstieg erreicht',statusTp1:'Preis erreichte TP1',statusTp2:'Preis erreichte TP2',statusStopped:'Preis erreichte Stop',statusExpired:'Signal abgelaufen',statusCancelledBeforeEntry:'Signal nicht mehr gültig',signalCancelled:'SIGNAL NICHT MEHR GÜLTIG',tradeClosed:'SIGNAL BEENDET',tradeCancelled:'Die bisherigen Signalniveaus gelten nicht mehr.',entryWasNotReached:'Signal-Einstieg nicht bestätigt',tp1ReachedFirst:'Preis erreichte TP1 vor bestätigtem Einstieg',cancelledWaitNew:'Diese Niveaus nicht verwenden. Warte auf ein neues Signal.'},
+  fr:{majorTrades:'SIGNAUX BTC, ETH ET SOL',tradeNumber:'Signal',signalFrom:'Publié le',signalHistoryNote:'Ce sont des signaux de marché, pas vos trades personnels. Vous décidez de l’entrée.',statusWaiting:'En attente du niveau d’entrée',statusActive:'Entrée du signal atteinte',statusTp1:'Prix au niveau TP1',statusTp2:'Prix au niveau TP2',statusStopped:'Prix au niveau Stop',statusExpired:'Signal expiré',statusCancelledBeforeEntry:'Signal non valable',signalCancelled:'SIGNAL NON VALABLE',tradeClosed:'SIGNAL TERMINÉ',tradeCancelled:'Les anciens niveaux du signal ne sont plus valables.',entryWasNotReached:'Entrée du signal non confirmée',tp1ReachedFirst:'Prix au TP1 avant entrée confirmée',cancelledWaitNew:'N’utilisez pas ces niveaux. Attendez un nouveau signal.'},
+  es:{majorTrades:'SEÑALES BTC, ETH Y SOL',tradeNumber:'Señal',signalFrom:'Publicada el',signalHistoryNote:'Son señales del mercado, no tus operaciones personales. Tú decides si entras.',statusWaiting:'Esperando nivel de entrada',statusActive:'Entrada de señal alcanzada',statusTp1:'Precio alcanzó TP1',statusTp2:'Precio alcanzó TP2',statusStopped:'Precio alcanzó Stop',statusExpired:'Señal vencida',statusCancelledBeforeEntry:'Señal ya no válida',signalCancelled:'SEÑAL YA NO VÁLIDA',tradeClosed:'SEÑAL FINALIZADA',tradeCancelled:'Los niveles anteriores de la señal ya no son válidos.',entryWasNotReached:'Entrada de señal no confirmada',tp1ReachedFirst:'Precio alcanzó TP1 antes de entrada confirmada',cancelledWaitNew:'No uses estos niveles. Espera una nueva señal.'},
+};
+for(const [lang,copy] of Object.entries(signalLifecycleCopy))Object.assign(translations[lang],copy);
+const personalSignalStatusCopy={
+  en:['Entered trade','Exited trade'],
+  ru:['Вошёл в сделку','Вышел из сделки'],
+  de:['Trade eröffnet','Trade beendet'],
+  fr:['Entré en position','Sorti de la position'],
+  es:['Entré en la operación','Salí de la operación'],
+};
+for(const [lang,labels] of Object.entries(personalSignalStatusCopy))Object.assign(translations[lang],{listEntered:labels[0],listExited:labels[1]});
+
 Object.assign(translations.en,{chartHistorical:'historical',chartPriceMismatch:'Signal levels do not match BingX candles'});
 Object.assign(translations.ru,{chartHistorical:'история',chartPriceMismatch:'Уровни сигнала не совпадают со свечами BingX'});
 Object.assign(translations.de,{chartHistorical:'historisch',chartPriceMismatch:'Signalniveaus passen nicht zu BingX-Kerzen'});
@@ -420,12 +439,12 @@ function groupStrategyLabel(signal,details=false){
 
 function groupCancellationReason(){
   return ({
-    ru:'Вход не подтверждён: достигнут уровень отмены или порядок касаний неизвестен.',
-    en:'Entry unconfirmed: an invalidation level was reached or touch order is unknown.',
-    de:'Einstieg unbestätigt: Ungültigkeitsniveau erreicht oder Reihenfolge unklar.',
-    fr:'Entrée non confirmée : niveau d’invalidation atteint ou ordre des contacts inconnu.',
-    es:'Entrada sin confirmar: nivel de invalidación alcanzado u orden de contactos desconocido.',
-  })[language]||'Entry unconfirmed: setup invalidated.';
+    ru:'Прежние уровни сигнала не действуют: достигнут уровень отмены или порядок касаний неизвестен.',
+    en:'Previous signal levels no longer apply: an invalidation level was reached or touch order is unknown.',
+    de:'Die bisherigen Signalniveaus gelten nicht mehr: Ungültigkeitsniveau erreicht oder Reihenfolge unklar.',
+    fr:'Les anciens niveaux du signal ne sont plus valables : niveau d’invalidation atteint ou ordre des contacts inconnu.',
+    es:'Los niveles anteriores de la señal ya no valen: se alcanzó el nivel de invalidación o se desconoce el orden de los contactos.',
+  })[language]||'Previous signal levels no longer apply.';
 }
 
 function rewardRisk(signal){
@@ -470,11 +489,13 @@ function signalCard(signal){
   const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
   const symbol=escapeHtml(displaySymbol(signal.symbol));
-  const state=signalStatus(signal);
   const alert=!isSetup(signal);
   const group=AssetGroups.classify(signal.symbol,signal.asset_type);
   const direction=signal.source==='listing'?'':`<span class="side ${side.toLowerCase()}">${side}</span>`;
-  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}" data-group="${group}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b><small class="trade-state ${escapeHtml(state.status)}">${alert?escapeHtml(alertLabel(signal)):escapeHtml(state.label||signalAge(signal))}</small><span class="signal-group-badge">${escapeHtml(AssetGroups.label(group,language))}${signal.strategy?.experimental?` · ${escapeHtml(groupStrategyLabel(signal))}`:''}</span></button>`;
+  const personalStatus=signal.tracking_status==='active'?'active':signal.tracking_status==='exited'?'exited':'';
+  const badge=alert?`<small class="trade-state">${escapeHtml(alertLabel(signal))}</small>`
+    :personalStatus?`<small class="trade-state ${personalStatus}">${escapeHtml(tr(personalStatus==='active'?'listEntered':'listExited'))}</small>`:'';
+  return `<button type="button" class="signal-row" data-signal-id="${signalId}" data-side="${side}" data-group="${group}"><span class="instrument-identity"><span class="coin-dot" aria-hidden="true">${coinIconMarkup(signal.symbol,signal.asset_type)}</span><span class="instrument-copy"><strong>${symbol}</strong><small>${alert?`${escapeHtml(alertLabel(signal))} · `:''}#${signalId} · ${escapeHtml(signalDate(signal))}</small></span></span>${direction}<b>${alert?'':escapeHtml(rewardRisk(signal))}</b>${badge}<span class="signal-group-badge">${escapeHtml(AssetGroups.label(group,language))}${signal.strategy?.experimental?` · ${escapeHtml(groupStrategyLabel(signal))}`:''}</span></button>`;
 }
 
 function emptySignals(filterOnly){
@@ -682,7 +703,7 @@ async function api(path,options={}){
 
 const ALERT_SOURCES=new Set(['listing']);
 const TERMINAL_TRADE_STATUSES=new Set(['stopped','tp2_reached','expired','cancelled_before_entry']);
-const alertLabels={en:['Listing','Market observation','Trades'],ru:['Листинг','Наблюдение за рынком','Сделки'],de:['Listing','Marktbeobachtung','Trades'],fr:['Listing','Observation du marché','Trades'],es:['Listado','Observación del mercado','Operaciones']};
+const alertLabels={en:['Listing','Market observation','Setups'],ru:['Листинг','Наблюдение за рынком','Сетапы'],de:['Listing','Marktbeobachtung','Setups'],fr:['Listing','Observation du marché','Setups'],es:['Listado','Observación del mercado','Setups']};
 for(const [lang,copy] of Object.entries(alertLabels))Object.assign(translations[lang],{alertListing:copy[0],alertCaution:copy[1],filterTrades:copy[2]});
 function alertLabel(signal){return tr({listing:'alertListing'}[String(signal?.source||'').toLowerCase()]||'tradeSetup');}
 function isSetup(signal){
