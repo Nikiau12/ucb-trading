@@ -1,0 +1,66 @@
+name: ReleaseProof repository responses
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'releaseproof')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate replies from both commits without secrets
+        env:
+          RP_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RP_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git show "${RP_BASE_SHA}:.releaseproof/generate-artifact.py" > "${RUNNER_TEMP}/generate-artifact.py"
+          python "${RUNNER_TEMP}/generate-artifact.py" \
+            --base "${RP_BASE_SHA}" --head "${RP_HEAD_SHA}" \
+            --output "${RUNNER_TEMP}/releaseproof-artifact.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: releaseproof-responses
+          path: ${{ runner.temp }}/releaseproof-artifact.json
+          retention-days: 1
+          if-no-files-found: error
+
+  report:
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          name: releaseproof-responses
+          path: ${{ runner.temp }}/releaseproof
+      - name: Evaluate saved ReleaseProof scenarios
+        env:
+          RELEASEPROOF_TOKEN: ${{ secrets.RELEASEPROOF_TOKEN }}
+          RP_ARTIFACT_FILE: ${{ runner.temp }}/releaseproof/releaseproof-artifact.json
+          RP_GITHUB_REPOSITORY: ${{ github.repository }}
+          RP_GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          RP_GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RP_GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .releaseproof/releaseproof-repository-check.mjs
