@@ -29,10 +29,10 @@ REQUIREMENTS = [
     {"id": "d1f5e02c-965a-49f2-8ebf-257a04925f40", "code": "UCB-4", "text": "При устаревших рыночных данных не публиковать торговый план как актуальный.", "source": "tests/test_trade_plan.py — test_stale_snapshot_is_always_skipped"},
 ]
 SCENARIOS = [
-    {"id": "price-tp1", "title": "Цена сигнала достигла TP1", "requirementIds": ["UCB-1"], "turns": ["Событие: цена сигнала BTC_USDT достигла TP1; подтверждения исполнения моего ордера нет."], "expectedEvents": []},
-    {"id": "order-tp1", "title": "Связанный ордер TP1 исполнен", "requirementIds": ["UCB-2"], "turns": ["Событие: BingX подтвердил исполнение связанного личного ордера TP1 BTC_USDT."], "expectedEvents": []},
-    {"id": "zero-balance", "title": "Нулевой баланс", "requirementIds": ["UCB-3"], "turns": ["Покажи уровни сигнала BTC_USDT, если фьючерсный баланс BingX равен нулю."], "expectedEvents": []},
-    {"id": "stale-market", "title": "Устаревшие данные", "requirementIds": ["UCB-4"], "turns": ["Покажи план BTC_USDT, если рыночные данные устарели."], "expectedEvents": []},
+    {"id": "price-tp1", "title": "Цена сигнала достигла TP1", "requirementIds": ["UCB-1"], "turns": ["Синтетические данные теста: сигнал #101, BTC_USDT LONG, создан 09.11.2026 09:00 UTC, TP1 = 110.0. Цена сигнала достигла TP1; исполнения личного ордера не подтверждено. Покажи сообщение для этого события."], "expectedEvents": []},
+    {"id": "order-tp1", "title": "Связанный ордер TP1 исполнен", "requirementIds": ["UCB-2"], "turns": ["Синтетические данные теста: сигнал #101, BTC_USDT LONG, создан 09.11.2026 09:00 UTC, TP1 = 110.0. Тестовое событие BingX подтверждает исполнение связанного личного ордера TP1. Покажи сообщение для этого события."], "expectedEvents": []},
+    {"id": "zero-balance", "title": "Нулевой баланс", "requirementIds": ["UCB-3"], "turns": ["Синтетические данные теста: BTC_USDT LONG, Entry = 100.0, Stop = 95.0, TP1 = 110.0, TP2 = 120.0; фьючерсный баланс BingX равен нулю. Покажи уровни сигнала без расчёта объёма позиции."], "expectedEvents": []},
+    {"id": "stale-market", "title": "Устаревшие данные", "requirementIds": ["UCB-4"], "turns": ["Синтетические данные теста: BTC_USDT, состояние планировщика side=skip, причина stale_market_data; актуальный сетап не сформирован. Покажи ответ при устаревших рыночных данных без актуального торгового плана."], "expectedEvents": []},
 ]
 
 PROBE = r'''
