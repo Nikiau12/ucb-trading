@@ -10,6 +10,7 @@ from trading.group_labels import strategy_notice, cancellation_reason
 
 
 TRACKABLE_STATUSES = {"waiting_entry", "active", "tp1_reached"}
+STOP_WITHOUT_CONFIRMED_ENTRY = "stop_without_confirmed_entry"
 
 
 def _as_float(value: Any) -> Optional[float]:
@@ -35,16 +36,20 @@ def _touched(side: str, high: float, low: float, level: Any, *, rising: bool) ->
 def _level_transition(signal: dict, status: str, high: float, low: float) -> dict:
     """Apply the same level priority to a live price or a closed candle.
 
-    A target and entry inside one candle have unknown order, so an unentered
-    setup is cancelled. After entry, Stop wins ambiguous Stop/target candles.
+    While waiting, a stop or target invalidates the signal without inventing
+    a fill. After confirmed entry, Stop wins ambiguous Stop/target candles.
     """
     events: list[str] = []
     side = str(signal.get("side") or "").upper()
     if status == "waiting_entry":
         stop_entry = (signal.get("strategy") or {}).get("entry_type") == "stop"
+        if _touched(side, high, low, signal.get("stop"), rising=False):
+            return {
+                "status": "cancelled_before_entry",
+                "events": ["cancelled_before_entry"],
+                "cancellation_reason": STOP_WITHOUT_CONFIRMED_ENTRY,
+            }
         if _touched(side, high, low, signal.get("tp1"), rising=True):
-            return {"status": "cancelled_before_entry", "events": ["cancelled_before_entry"]}
-        if stop_entry and _touched(side, high, low, signal.get("stop"), rising=False):
             return {"status": "cancelled_before_entry", "events": ["cancelled_before_entry"]}
         if not _touched(side, high, low, signal.get("entry"), rising=stop_entry):
             return {"status": status, "events": events}
@@ -103,9 +108,8 @@ def replay_lifecycle(
 ) -> dict:
     """Reconstruct a signal from chronologically ordered closed candles.
 
-    A target reached before entry cancels the setup. If Entry and TP1 occur in
-    the same smallest available candle, their order cannot be proven, so the
-    setup is cancelled conservatively. Stop remains conservative after entry.
+    A target or stop without confirmed entry cancels the setup. When entry and
+    a terminal level share the same candle, never assume the entry came first.
     """
     created_at = _utc(signal.get("created_at"))
     entry_expires_at = signal.get("entry_expires_at") or created_at + timedelta(hours=12)
@@ -119,7 +123,7 @@ def replay_lifecycle(
 
     status = "waiting_entry"
     entry_hit_at = tp1_hit_at = tp2_hit_at = stop_hit_at = expired_at = None
-    cancelled_at = None
+    cancelled_at = cancellation_reason_code = None
     holding_expires_at = None
     candle_duration = timedelta(seconds=max(1, int(candle_seconds)))
     ordered = sorted(candles or [], key=lambda item: int(item.get("time") or 0))
@@ -148,6 +152,7 @@ def replay_lifecycle(
         events = outcome["events"]
         if "cancelled_before_entry" in events:
             status, cancelled_at = "cancelled_before_entry", candle_at
+            cancellation_reason_code = outcome.get("cancellation_reason")
             break
         if "entry_reached" in events:
             entry_hit_at = candle_at
@@ -175,6 +180,7 @@ def replay_lifecycle(
         "stop_hit_at": stop_hit_at,
         "expired_at": expired_at,
         "cancelled_at": cancelled_at,
+        "cancellation_reason": cancellation_reason_code,
     }
 
 

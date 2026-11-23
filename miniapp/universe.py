@@ -1,9 +1,14 @@
-"""Global top-100 by capitalization intersected with active BingX USDT futures."""
+"""Global top-100 non-privacy assets with active BingX USDT futures."""
 from __future__ import annotations
 import os
 import threading
 import time
 import requests
+
+if __package__:
+    from .groups import GROUPS
+else:
+    from groups import GROUPS
 
 _lock = threading.Lock()
 _symbols = None
@@ -11,6 +16,12 @@ _checked_at = 0.0
 _retry_at = 0.0
 # Explicit contract-unit aliases; never strip arbitrary numerical prefixes.
 ALIASES = {"BONK": "1000BONK", "PEPE": "1000PEPE", "SHIB": "1000SHIB", "SATS": "10000SATS"}
+# Include NIGHT's privacy-focused network even though its own token is public.
+# Other audited privacy coins are excluded if they later reach the top 100.
+PRIVACY_CONTRACTS = frozenset(GROUPS["privacy"]) | {
+    "DASH_USDT", "XVG_USDT", "FIRO_USDT", "NIGHT_USDT", "ARRR_USDT", "ZANO_USDT",
+}
+PRIVACY_ASSET_IDS = frozenset({"beam", "grin", "dero"})
 
 class UniverseUnavailable(RuntimeError):
     pass
@@ -26,6 +37,8 @@ def select_symbols(coins, contracts):
             continue
         base = str(coin.get('symbol', '')).upper()
         if not base.isalnum() or base.startswith(('NCCO','NCFX','NCSI','NCSK')):
+            continue
+        if base + '_USDT' in PRIVACY_CONTRACTS or coin.get('id') in PRIVACY_ASSET_IDS:
             continue
         candidates = [base + '_USDT', ALIASES.get(base, base) + '_USDT']
         match = next((s for s in candidates if s in available), None)

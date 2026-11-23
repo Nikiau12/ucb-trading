@@ -135,6 +135,23 @@ fs.mkdirSync(out,{recursive:true});
  assert.equal(await page.evaluate(()=>overviewChart.levels.length),0);
  await shot('cancelled-before-entry-no-levels');
  await page.screenshot({path:path.join(out,'cancelled-before-entry-full.png'),fullPage:true});
+ await page.evaluate(()=>{
+  selectedSignal={...selectedSignal,cancellation_reason:'stop_without_confirmed_entry',tracking_status:'none'};
+  renderHome();
+ });
+ for(const [lang,warning] of Object.entries({
+  ru:'Цена достигла уровня стопа, но вход по сигналу не подтверждён.',
+  en:'Price reached the stop level without a confirmed signal entry.',
+  de:'Der Preis erreichte das Stop-Niveau ohne bestätigten Signaleinstieg.',
+  fr:'Le prix a atteint le stop sans entrée confirmée sur le signal.',
+  es:'El precio alcanzó el stop sin confirmar la entrada de la señal.',
+ })){
+  await page.evaluate(value=>{language=value;applyLanguage();},lang);
+  assert.equal(await page.locator('#plan-action-steps li').first().textContent(),warning);
+  assert.doesNotMatch(await page.locator('#plan-action-steps').textContent(),/TP1/);
+ }
+ assert.equal(await page.evaluate(()=>overviewChart.levels.length),0);
+ assert.equal(await page.evaluate(()=>signalCard(selectedSignal).includes('trade-state')),false);
  assert.equal(paymentCalls,2);assert.deepEqual(errors,[]);
  console.log('PASS filters, settings, payment retry/success, focus, 4 widths, short viewport, 5 languages; only mocked API writes');
  await browser.close();

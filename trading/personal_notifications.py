@@ -1,6 +1,14 @@
 """One identity and layout for price events and confirmed personal fills."""
 import html
-from trading.signal_updates import signal_identity_footer
+from trading.signal_updates import STOP_WITHOUT_CONFIRMED_ENTRY, signal_identity_footer
+
+_STOP_INVALIDATION_COPY = {
+    "en": "Signal cancelled: price reached the stop level without a confirmed signal entry. Do not use these entry levels.",
+    "ru": "Сигнал отменён: цена достигла уровня стопа, но вход по сигналу не подтверждён. Не используйте прежние уровни входа.",
+    "de": "Signal aufgehoben: Der Preis erreichte das Stop-Niveau ohne bestätigten Signaleinstieg. Nutze diese Einstiegsniveaus nicht.",
+    "fr": "Signal annulé : le prix a atteint le stop sans entrée confirmée sur le signal. N’utilisez pas ces niveaux d’entrée.",
+    "es": "Señal cancelada: el precio alcanzó el stop sin confirmar la entrada de la señal. No uses esos niveles de entrada.",
+}
 
 _COPY = {
  'en': {
@@ -119,6 +127,12 @@ def render_update(signal, lang):
     title = personal_text(lang, event)
     identity = signal_identity_footer(int(signal['id']), signal['symbol'], signal['side'], lang=lang, created_at=signal.get('created_at'))
     if event == 'cancelled_before_entry':
+        if signal.get('cancellation_reason') == STOP_WITHOUT_CONFIRMED_ENTRY:
+            reason = _STOP_INVALIDATION_COPY.get(lang, _STOP_INVALIDATION_COPY['en'])
+            return '\n\n'.join((
+                f"<b>{html.escape(reason)}</b>", identity,
+                html.escape(personal_text(lang, 'cancel_note')),
+            ))
         reason = cancellation_reason(signal, lang, personal_text(lang, 'cancel_reason'))
         lines = [f"<b>{html.escape(title)}</b>", identity]
         if reason:

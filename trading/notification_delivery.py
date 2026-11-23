@@ -3,11 +3,7 @@
 import logging
 from trading.personal_notifications import render_update
 
-from trading.signal_updates import (
-    render_cancelled_before_entry_update,
-    render_stop_update,
-    render_tp1_update,
-)
+from trading.signal_updates import STOP_WITHOUT_CONFIRMED_ENTRY
 
 
 logger = logging.getLogger("ucb.notification_delivery")
@@ -27,9 +23,14 @@ async def deliver_pending_signal_updates(
     for update in deliveries:
         user_id = int(update["telegram_user_id"])
         lang = language_for_user(user_id)
-        if not await loop.run_in_executor(None, state.tracking_is_active, user_id, int(update['id'])):
-            continue
         event_type = update['event_type']
+        stop_invalidation = (
+            event_type == 'cancelled_before_entry'
+            and update.get('cancellation_reason') == STOP_WITHOUT_CONFIRMED_ENTRY
+        )
+        eligible = state.stop_invalidation_recipient if stop_invalidation else state.tracking_is_active
+        if not await loop.run_in_executor(None, eligible, user_id, int(update['id'])):
+            continue
         message = render_update(update, lang)
 
         try:
