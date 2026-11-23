@@ -485,6 +485,14 @@ function lastScanLine(){
   return tr('lastScan').split('{time}').join(time);
 }
 
+const stopInvalidationReason={
+  en:'Price reached the stop level without a confirmed signal entry.',
+  ru:'Цена достигла уровня стопа, но вход по сигналу не подтверждён.',
+  de:'Der Preis erreichte das Stop-Niveau ohne bestätigten Signaleinstieg.',
+  fr:'Le prix a atteint le stop sans entrée confirmée sur le signal.',
+  es:'El precio alcanzó el stop sin confirmar la entrada de la señal.',
+};
+
 function signalCard(signal){
   const side=String(signal.side||'').toUpperCase()==='SHORT'?'SHORT':'LONG';
   const signalId=Number.isSafeInteger(Number(signal.id))?Number(signal.id):0;
@@ -845,6 +853,7 @@ function renderHome(){
   if(action){
     const stopped=state.status==='stopped';
     const cancelledBeforeEntry=state.status==='cancelled_before_entry';
+    const stoppedWithoutEntry=cancelledBeforeEntry&&signal.cancellation_reason==='stop_without_confirmed_entry';
     const cancelled=stopped||cancelledBeforeEntry;
     action.hidden=state.status!=='tp1_reached'&&!cancelled;
     action.classList.toggle('cancelled',cancelled);
@@ -855,7 +864,7 @@ function renderHome(){
     if(kicker)kicker.textContent=cancelledBeforeEntry?tr('signalCancelled'):(stopped?tr('tradeClosed'):tr('actionNow'));
     if(status)status.textContent=state.label;
     if(steps)steps.innerHTML=cancelledBeforeEntry
-      ?`${signal.strategy?.entry_type==='stop'?`<li>${escapeHtml(groupCancellationReason())}</li>`:`<li>${escapeHtml(tr('entryWasNotReached'))}</li><li>${escapeHtml(tr('tp1ReachedFirst'))}</li>`}<li>${escapeHtml(tr('cancelledWaitNew'))}</li>`
+      ?`${stoppedWithoutEntry?`<li>${escapeHtml(stopInvalidationReason[language]||stopInvalidationReason.en)}</li>`:signal.strategy?.entry_type==='stop'?`<li>${escapeHtml(groupCancellationReason())}</li>`:`<li>${escapeHtml(tr('entryWasNotReached'))}</li><li>${escapeHtml(tr('tp1ReachedFirst'))}</li>`}<li>${escapeHtml(tr('cancelledWaitNew'))}</li>`
       :(stopped
         ?`<li>${escapeHtml(tr('tradeCancelled'))}</li><li>${escapeHtml(tr('waitNewSignal'))}</li>`
         :`<li>${escapeHtml(tr('takeHalf'))}</li><li>${escapeHtml(tr('moveBreakeven'))}</li><li>${escapeHtml(tr('beReference'))}: <strong>${escapeHtml(fmt(signal.entry))}</strong></li>`);

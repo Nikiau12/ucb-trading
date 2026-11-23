@@ -92,6 +92,17 @@ def test_expired_capitalization_cache_fails_closed(monkeypatch):
     with pytest.raises(universe.UniverseUnavailable): universe.top_symbols()
 
 
+def test_privacy_is_excluded_without_replacing_it_with_lower_ranked_assets():
+    assets = [("btc", "bitcoin", 1), ("zec", "zcash", 11), ("xmr", "monero", 12),
+              ("night", "midnight-3", 78), ("dash", "dash", 80),
+              ("beam", "beam", 81), ("beam", "beam-2", 85), ("new", "new", 101)]
+    coins = [{"symbol": symbol, "id": slug, "market_cap_rank": rank} for symbol, slug, rank in assets]
+    contracts = [{"symbol": symbol.upper() + "-USDT", "status": 1, "apiStateOpen": True}
+                 for symbol, _, _ in assets]
+    assert universe.select_symbols(coins, contracts) == ["BTC_USDT", "BEAM_USDT"]
+    assert universe.select_symbols([coins[5]], contracts) == []
+
+
 def _order(**changes):
     return {'orderId':'o1','symbol':'BTC-USDT','side':'SELL','positionSide':'LONG',
             'positionId':'p1','type':'TAKE_PROFIT_MARKET','status':'NEW','stopPrice':'110',

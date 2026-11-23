@@ -1088,7 +1088,7 @@ def signals(
             cursor.execute(
                 """
                 SELECT signal_id, status, entry_hit_at, tp1_hit_at, tp2_hit_at,
-                       stop_hit_at, expired_at, cancelled_at, last_price
+                       stop_hit_at, expired_at, cancelled_at, last_price, cancellation_reason
                 FROM signal_lifecycle
                 WHERE signal_id = ANY(%s)
                 """,
@@ -1104,6 +1104,7 @@ def signals(
                     "expired_at": item[6].isoformat() if item[6] else None,
                     "cancelled_at": item[7].isoformat() if item[7] else None,
                     "last_price": float(item[8]) if item[8] is not None else None,
+                    "cancellation_reason": item[9],
                 }
                 for item in cursor.fetchall()
             }

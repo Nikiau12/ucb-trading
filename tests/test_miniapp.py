@@ -157,8 +157,9 @@ def test_requested_old_signal_is_added_only_through_user_access(
                 self.one = requested
             elif "FROM signal_lifecycle" in query:
                 self.many = [
-                    (13988, "tp1_reached", now, now, None, None, None, None, 0.185),
-                    (14050, "waiting_entry", None, None, None, None, None, None, 65000),
+                    (13988, "cancelled_before_entry", None, None, None, None, None, now,
+                     0.205, "stop_without_confirmed_entry"),
+                    (14050, "waiting_entry", None, None, None, None, None, None, 65000, None),
                 ]
             return self
 
@@ -199,7 +200,9 @@ def test_requested_old_signal_is_added_only_through_user_access(
 
     assert [item["id"] for item in result] == [13988, 14050]
     assert result[0]["symbol"] == requested_symbol
-    assert result[0]["trade_status"] == "tp1_reached"
+    assert result[0]["trade_status"] == "cancelled_before_entry"
+    assert result[0]["cancellation_reason"] == "stop_without_confirmed_entry"
+    assert result[0]["tracking_status"] == "none"
     assert result[1]["trade_status"] == "waiting_entry"
     assert cursor.requested_params == (42, 13988)
 

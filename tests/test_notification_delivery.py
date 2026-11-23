@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from trading.notification_delivery import deliver_pending_signal_updates
+from trading.signal_updates import STOP_WITHOUT_CONFIRMED_ENTRY
 
 
 def _update(user_id, event_type="tp1_reached"):
@@ -109,3 +110,28 @@ def test_delivery_uses_specific_text_for_stop_and_cancelled_setups():
     assert "Сигнал больше не актуален" in notifier.calls[1][1]
     assert "не запись о вашем ордере" in notifier.calls[1][1]
     assert "TP1:" not in notifier.calls[1][1]
+
+
+def test_stop_without_entry_notifies_original_recipient_without_requiring_personal_entry():
+    updates = [
+        {**_update(uid, "cancelled_before_entry"), "cancellation_reason": STOP_WITHOUT_CONFIRMED_ENTRY}
+        for uid in (1, 2)
+    ] + [_update(1, "stop_reached"), _update(1, "cancelled_before_entry")]
+    state = _DeliveryState(updates)
+    state.tracking_is_active = lambda *_args: False
+    state.stop_invalidation_recipient = lambda uid, sid: (uid, sid) == (1, 1842)
+    notifier = _Notifier({"1": [True]})
+
+    async def run():
+        return await deliver_pending_signal_updates(
+            asyncio.get_running_loop(),
+            state=state, notifier=notifier, language_for_user=lambda _: "ru",
+            open_setup_keyboard=lambda sid, _: f"open:{sid}",
+        )
+
+    assert asyncio.run(run()) == (4, 1)
+    assert len(notifier.calls) == 1
+    chat_id, message, opts = notifier.calls[0]
+    assert chat_id == "1" and opts["reply_markup"] == "open:1842"
+    assert "Сигнал отменён" in message and "вход по сигналу не подтверждён" in message
+    assert "TP1" not in message and "убыток" not in message

@@ -15,6 +15,7 @@ from miniapp import schema
 from trading import state
 from trading.group_plan import VERSION
 from trading.notification_delivery import deliver_pending_signal_updates
+from trading.signal_updates import STOP_WITHOUT_CONFIRMED_ENTRY
 
 
 @pytest.fixture
@@ -158,6 +159,44 @@ def test_new_waiting_audit_preserves_stop_entry_and_reconstructs_tp2(database):
     result=state.audit_waiting_signal_lifecycle(signal_id,candles,checked_at=now)
     assert result["status"]=="tp2_reached"
     assert not state.load_pending_signal_updates()  # No stale instruction to move to BE after TP2.
+
+
+@pytest.mark.parametrize("from_candles", [False, True])
+def test_stop_invalidation_queues_one_notice_to_original_recipient_without_tracking(database, from_candles):
+    url, _ = database
+    sid = state.save_signal(new_plan(), "ETH_USDT", "LONG", 1)
+    assert sid is not None
+    state.grant_signal_access(4242, sid)
+    state.grant_signal_access(4243, sid)
+    with psycopg.connect(url) as conn:
+        conn.execute(
+            """INSERT INTO user_trade_tracking(telegram_user_id, signal_id, symbol, side, status)
+               VALUES (4243, %s, 'ETH_USDT', 'LONG', 'exited')""", (sid,),
+        )
+    signal = next(s for s in state.load_trackable_signals() if s["id"] == sid)
+    if from_candles:
+        start = int(signal["created_at"].timestamp()) + 1
+        candles = [{"time": start, "high": 99, "low": 95}]
+        result = state.audit_waiting_signal_lifecycle(
+            sid, candles, checked_at=datetime.fromtimestamp(start + 61, timezone.utc),
+        )
+    else:
+        result = state.update_signal_lifecycle(sid, 95)
+    assert result["status"] == "cancelled_before_entry"
+    assert result["cancellation_reason"] == STOP_WITHOUT_CONFIRMED_ENTRY
+    state.update_signal_lifecycle(sid, 94)
+    pending = state.load_pending_signal_updates()
+    assert [(item["telegram_user_id"], item["cancellation_reason"]) for item in pending] == [
+        (4242, STOP_WITHOUT_CONFIRMED_ENTRY)
+    ]
+    assert state.stop_invalidation_recipient(4242, sid)
+    assert not state.stop_invalidation_recipient(4243, sid)
+    assert not state.stop_invalidation_recipient(4244, sid)
+    with psycopg.connect(url) as conn:
+        assert conn.execute(
+            """SELECT status, cancellation_reason, entry_hit_at, stop_hit_at
+               FROM signal_lifecycle WHERE signal_id = %s""", (sid,),
+        ).fetchone() == ("cancelled_before_entry", STOP_WITHOUT_CONFIRMED_ENTRY, None, None)
 
 
 def test_scheduled_group_signal_is_persisted_delivered_and_accessible_without_automatic_tracking(database,monkeypatch):

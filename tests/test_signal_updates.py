@@ -5,6 +5,7 @@ import pytest
 
 from trading import state
 from trading.signal_updates import (
+    STOP_WITHOUT_CONFIRMED_ENTRY,
     advance_lifecycle,
     render_cancelled_before_entry_update,
     render_stop_update,
@@ -73,6 +74,30 @@ def test_waiting_short_is_cancelled_when_tp1_arrives_before_entry():
         NOW,
     )
     assert outcome["status"] == "cancelled_before_entry"
+
+
+@pytest.mark.parametrize("entry_type", ["stop", "limit"])
+@pytest.mark.parametrize("side,stop,tp1,tp2", [("LONG", 95, 108, 112), ("SHORT", 105, 92, 88)])
+def test_stop_without_confirmed_entry_is_cancellation_not_loss(entry_type, side, stop, tp1, tp2):
+    signal = _signal(side=side, entry=100, stop=stop, tp1=tp1, tp2=tp2,
+                     strategy={"entry_type": entry_type})
+    when = NOW - timedelta(minutes=5)
+    low, high = sorted((100, stop))
+    expected = {
+        "status": "cancelled_before_entry",
+        "events": ["cancelled_before_entry"],
+        "cancellation_reason": STOP_WITHOUT_CONFIRMED_ENTRY,
+    }
+    assert advance_lifecycle(signal, stop, NOW) == expected
+    restored = replay_lifecycle(signal, [{"time": when.timestamp(), "low": low, "high": high}],
+                                NOW, candle_seconds=60)
+    assert restored["status"] == expected["status"]
+    assert restored["cancellation_reason"] == expected["cancellation_reason"]
+    assert restored["cancelled_at"] == when
+    assert restored["entry_hit_at"] is None and restored["stop_hit_at"] is None
+    assert advance_lifecycle({**signal, "status": "active"}, stop, NOW) == {
+        "status": "stopped", "events": ["stop_reached"],
+    }
 
 
 def test_direct_tp2_jump_does_not_end_in_break_even_state():
@@ -441,6 +466,27 @@ def test_cancel_before_entry_atomically_enqueues_original_recipients(monkeypatch
         and "INSERT INTO signal_update_deliveries" in query
         for query, _ in connection.calls
     )
+    assert not any("FROM user_signal_access a" in query for query, _ in connection.calls)
+
+
+def test_stop_invalidation_is_saved_and_only_original_recipients_are_queued(monkeypatch):
+    row = (
+        1842, "ASTER_USDT", "LONG", 1.082, 1.041, 1.13, 1.176,
+        NOW - timedelta(hours=2), 0.001, "waiting_entry",
+        NOW + timedelta(hours=2), None, 7 * 86400,
+        None, None, None, None, None, None,
+    )
+    connection = _LifecycleConnection(row)
+    monkeypatch.setattr(state, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(state.psycopg, "connect", lambda _url: connection)
+    result = state.update_signal_lifecycle(1842, 1.041, checked_at=NOW)
+    assert result["status"] == "cancelled_before_entry"
+    assert result["entry_hit_at"] is None and result["stop_hit_at"] is None
+    assert result["cancellation_reason"] == STOP_WITHOUT_CONFIRMED_ENTRY
+    assert any("cancellation_reason = " in query and STOP_WITHOUT_CONFIRMED_ENTRY in params
+               for query, params in connection.calls)
+    assert any("FROM user_signal_access a" in query and "IS DISTINCT FROM 'exited'" in query
+               and "ON CONFLICT" in query for query, _ in connection.calls)
 
 
 def test_minute_audit_backfills_old_waiting_signal_cancellation(monkeypatch):
